@@ -18,7 +18,8 @@ run:
 
 # Run the Telegram bot pooling for testing purposes
 tg: 
-	. $(VENV_PATH)/bin/activate && python run_telegram.py
+	. $(VENV_PATH)/bin/activate && python bin/autoreload_telegram.py
+	# . $(VENV_PATH)/bin/activate && python run_telegram.py
 
 # Run unit-tests
 test:
