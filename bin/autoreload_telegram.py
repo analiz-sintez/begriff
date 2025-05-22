@@ -6,6 +6,10 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 
 
+# see https://python-watchdog.readthedocs.io/en/stable/api.html#event-classes
+# might as well use `py-mon`: https://pypi.org/project/py-mon/
+
+
 logging.basicConfig(level=logging.INFO)
 
 class RestartEventHandler(PatternMatchingEventHandler):
