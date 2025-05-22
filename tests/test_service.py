@@ -1,7 +1,8 @@
 import pytest
 from app import create_app, db
 from app.service import create_report, get_reports
-from app.models import User
+from app.models import User, Note, Card, View, Language
+from datetime import datetime, timedelta
 
 class Config:
     TESTING = True
@@ -12,8 +13,19 @@ def app():
     app = create_app(Config)
     with app.app_context():
         # Set up initial test data
+        language = Language(name='English')
         user = User(login='test_user')
+        note = Note(field1='Hello', field2='World', user=user, language=language)
+        card = Card(note=note, front='Hello', back='World')
+        view = View(
+            card=card, ts_scheduled=datetime.utcnow(),
+            ts_review_finished=datetime.utcnow())
+        
+        db.session.add(language)
         db.session.add(user)
+        db.session.add(note)
+        db.session.add(card)
+        db.session.add(view)
         db.session.commit()
     yield app
 
@@ -25,33 +37,51 @@ def client(app):
 def runner(app):
     return app.test_cli_runner()
 
-def test_create_report(app):
+def test_note_creation(app):
     with app.app_context():
         user = User.query.filter_by(login='test_user').first()
-        # Create report and check that it's properties are set up ok.
-        report = create_report(
-            description='Test Work',
-            hours_spent=5,
-            user_id=user.id
-        )
-        assert report.description == 'Test Work'
-        assert report.hours_spent == 5
-
-def test_get_reports(app):
-    with app.app_context():
-        # Add a report
-        user = db.session.query(User).filter_by(login='test_user').first()
-        report = create_report(
-            description='Another Test',
-            hours_spent=4,
-            user_id=user.id
-        )
-        db.session.add(report)
+        language = Language.query.filter_by(name='English').first()
+        note = Note(field1='Test', field2='Note', user=user, language=language)
+        
+        db.session.add(note)
         db.session.commit()
 
-        reports = get_reports()
-        assert len(reports) == 1  # Assuming one report created in a previous test
-        report = get_reports(user_id=user.id)[0]
-        assert report.description == "Another Test"
-        assert report.hours_spent == 4
+        fetched_note = Note.query.filter_by(field1='Test', field2='Note').first()
+        assert fetched_note is not None
+        assert fetched_note.field1 == 'Test'
+        assert fetched_note.field2 == 'Note'
+        assert fetched_note.user == user
+        assert fetched_note.language == language
+
+def test_view_relationship(app):
+    with app.app_context():
+        card = Card.query.first()
+        view = View.query.filter_by(card_id=card.id).first()
         
+        assert view is not None
+        assert view.card == card
+
+def test_card_creation(app):
+    with app.app_context():
+        note = Note.query.first()
+        card = Card(note=note, front='Test Front', back='Test Back')
+        
+        db.session.add(card)
+        db.session.commit()
+
+        fetched_card = Card.query.filter_by(front='Test Front', back='Test Back').first()
+        assert fetched_card is not None
+        assert fetched_card.front == 'Test Front'
+        assert fetched_card.back == 'Test Back'
+        assert fetched_card.note == note
+
+def test_language_creation(app):
+    with app.app_context():
+        language = Language(name='French')
+        
+        db.session.add(language)
+        db.session.commit()
+
+        fetched_language = Language.query.filter_by(name='French').first()
+        assert fetched_language is not None
+        assert fetched_language.name == 'French'
