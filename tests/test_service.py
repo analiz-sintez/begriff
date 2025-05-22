@@ -24,48 +24,53 @@ def app():
     yield app
 
 def test_add_note_and_review(app):
-    # 0/ Add a note to the system
-    text = "example"
-    explanation = "an example explanation"
-    create_word_note(
-        text=text,
-        explanation=explanation,
-        language_id=get_language('English'),
-        user_id=get_user('test_user')
-    )
-
-    # Assert the note and cards have been created
     with app.app_context():
-        notes_count = db.session.query(Note).count()
-        assert notes_count == 1
+        # 0/ Add a note to the system
+        text = "example"
+        explanation = "an example explanation"
+        create_word_note(
+            text=text,
+            explanation=explanation,
+            language_id=get_language('English').id,
+            user_id=get_user('test_user').id
+        )
 
-        cards_count = db.session.query(Card).count()
-        assert cards_count == 2
+        # Assert the note and cards have been created
+        notes = db.session.query(Note).all()
+        assert len(notes) == 1
 
-    # 1/ Get the next planned view
-    views = get_views(
-        user_id=get_user('test_user'),
-        language_id=get_language('English')
-    )
-    assert len(views) == 2
+        cards = db.session.query(Card).all()
+        assert len(cards) == 2
 
-    # Select the first view for the test
-    # (we assume views have been scheduled immediately upon note creation)
-    view = views[0]
+        views = db.session.query(View).all()
+        assert len(views) == 2
+        
+        # 1/ Get the next planned view
+        views = get_views(
+            user_id=get_user('test_user').id,
+            language_id=get_language('English').id
+        )
+        assert len(views) == 2
 
-    # 2/ Record view start
-    record_view_start(view_id=view.id)
+        # Select the first view for the test
+        # (we assume views have been scheduled immediately upon note creation)
+        view = views[0]
 
-    # 3/ Record an answer
-    record_answer(view_id=view.id, answer=Answer.GOOD)
+        # 2/ Record view start
+        record_view_start(view_id=view.id)
 
-    # Verify the answer has been recorded
-    with app.app_context():
+        # 3/ Record an answer
+        record_answer(view_id=view.id, answer=Answer.GOOD)
+
+        # Verify the answer has been recorded
         updated_view = db.session.query(View).filter_by(id=view.id).first()
         assert updated_view.answer == 'good'
 
-        # Verify a new view has been created
-        new_views = db.session.query(View).filter(View.id != updated_view.id).all()
+        # Verify a new view has been created, and there are still 2 views
+        new_views = (db.session.query(View)
+                     .filter(View.id != updated_view.id)
+                     .filter(View.card_id == updated_view.card_id)
+                     ).all()
         assert len(new_views) == 1
         new_view = new_views[0]
 

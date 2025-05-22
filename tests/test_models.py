@@ -1,7 +1,7 @@
 import pytest
 from app import create_app, db
 from app.models import User, Note, Card, View, Language
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class Config:
     TESTING = True
@@ -17,8 +17,8 @@ def app():
         note = Note(field1='Hello', field2='World', user=user, language=language)
         card = Card(note=note, front='Hello', back='World')
         view = View(
-            card=card, ts_scheduled=datetime.utcnow(),
-            ts_review_finished=datetime.utcnow())
+            card=card, ts_scheduled=datetime.now(timezone.utc),
+            ts_review_finished=datetime.now(timezone.utc))
         
         db.session.add(language)
         db.session.add(user)

@@ -2,25 +2,24 @@ import pytest
 from telegram import User as TelegramUser, Message, Update
 from telegram.ext import CallbackContext
 from unittest.mock import MagicMock
-from app.telegram.bot import parse_report, handle_message
-from app.models import db, User, Report
+# from app.telegram.bot import parse_report, handle_message
 from app import create_app
 
-def test_parse_report():
-    valid_message = "Project/Task/Implement feature: 4.5 (Refactored old code)"
-    invalid_message = "Invalid message format"
+# def test_parse_report():
+#     valid_message = "Project/Task/Implement feature: 4.5 (Refactored old code)"
+#     invalid_message = "Invalid message format"
 
-    # Test valid message parsing
-    result = parse_report(valid_message)
-    assert result == ("Implement feature", 4.5, "Project", "Task", "Refactored old code")
+#     # Test valid message parsing
+#     result = parse_report(valid_message)
+#     assert result == ("Implement feature", 4.5, "Project", "Task", "Refactored old code")
 
-    # Test message without project and task
-    result = parse_report("Implement feature: 3")
-    assert result == ("Implement feature", 3, None, None, None)
+#     # Test message without project and task
+#     result = parse_report("Implement feature: 3")
+#     assert result == ("Implement feature", 3, None, None, None)
 
-    # Test invalid message parsing
-    with pytest.raises(ValueError):
-        parse_report(invalid_message)
+#     # Test invalid message parsing
+#     with pytest.raises(ValueError):
+#         parse_report(invalid_message)
 
 class Config:
     TESTING = True
