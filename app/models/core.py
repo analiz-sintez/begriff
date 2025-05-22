@@ -2,6 +2,9 @@ from sqlalchemy import Column, Integer, String, ForeignKey, Float, DateTime
 from sqlalchemy.sql import func
 from flask_sqlalchemy import SQLAlchemy
 
+# It's tread-safe while it's from flask_sqlalchemy.
+# If replacing flask with fastapi etc, refactor this
+# to make tread-safe.
 db = SQLAlchemy()
 
 class User(db.Model):
