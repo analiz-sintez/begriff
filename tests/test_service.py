@@ -1,8 +1,10 @@
 import pytest
+from datetime import datetime, timezone, timedelta
 from app import create_app, db
-from app.service import create_report, get_reports
-from app.models import User, Note, Card, View, Language
-from datetime import datetime, timedelta
+from app.models import User, Note, Card, View, Language, Answer
+from app.service import (
+    create_word_note, get_views, record_view_start, record_answer,
+    get_language, get_user)
 
 class Config:
     TESTING = True
@@ -15,73 +17,57 @@ def app():
         # Set up initial test data
         language = Language(name='English')
         user = User(login='test_user')
-        note = Note(field1='Hello', field2='World', user=user, language=language)
-        card = Card(note=note, front='Hello', back='World')
-        view = View(
-            card=card, ts_scheduled=datetime.utcnow(),
-            ts_review_finished=datetime.utcnow())
         
         db.session.add(language)
         db.session.add(user)
-        db.session.add(note)
-        db.session.add(card)
-        db.session.add(view)
         db.session.commit()
     yield app
 
-@pytest.fixture
-def client(app):
-    return app.test_client()
+def test_add_note_and_review(app):
+    # 0/ Add a note to the system
+    text = "example"
+    explanation = "an example explanation"
+    create_word_note(
+        text=text,
+        explanation=explanation,
+        language_id=get_language('English'),
+        user_id=get_user('test_user')
+    )
 
-@pytest.fixture
-def runner(app):
-    return app.test_cli_runner()
-
-def test_note_creation(app):
+    # Assert the note and cards have been created
     with app.app_context():
-        user = User.query.filter_by(login='test_user').first()
-        language = Language.query.filter_by(name='English').first()
-        note = Note(field1='Test', field2='Note', user=user, language=language)
-        
-        db.session.add(note)
-        db.session.commit()
+        notes_count = db.session.query(Note).count()
+        assert notes_count == 1
 
-        fetched_note = Note.query.filter_by(field1='Test', field2='Note').first()
-        assert fetched_note is not None
-        assert fetched_note.field1 == 'Test'
-        assert fetched_note.field2 == 'Note'
-        assert fetched_note.user == user
-        assert fetched_note.language == language
+        cards_count = db.session.query(Card).count()
+        assert cards_count == 2
 
-def test_view_relationship(app):
+    # 1/ Get the next planned view
+    views = get_views(
+        user_id=get_user('test_user'),
+        language_id=get_language('English')
+    )
+    assert len(views) == 2
+
+    # Select the first view for the test
+    # (we assume views have been scheduled immediately upon note creation)
+    view = views[0]
+
+    # 2/ Record view start
+    record_view_start(view_id=view.id)
+
+    # 3/ Record an answer
+    record_answer(view_id=view.id, answer=Answer.GOOD)
+
+    # Verify the answer has been recorded
     with app.app_context():
-        card = Card.query.first()
-        view = View.query.filter_by(card_id=card.id).first()
-        
-        assert view is not None
-        assert view.card == card
+        updated_view = db.session.query(View).filter_by(id=view.id).first()
+        assert updated_view.answer == 'good'
 
-def test_card_creation(app):
-    with app.app_context():
-        note = Note.query.first()
-        card = Card(note=note, front='Test Front', back='Test Back')
-        
-        db.session.add(card)
-        db.session.commit()
+        # Verify a new view has been created
+        new_views = db.session.query(View).filter(View.id != updated_view.id).all()
+        assert len(new_views) == 1
+        new_view = new_views[0]
 
-        fetched_card = Card.query.filter_by(front='Test Front', back='Test Back').first()
-        assert fetched_card is not None
-        assert fetched_card.front == 'Test Front'
-        assert fetched_card.back == 'Test Back'
-        assert fetched_card.note == note
-
-def test_language_creation(app):
-    with app.app_context():
-        language = Language(name='French')
-        
-        db.session.add(language)
-        db.session.commit()
-
-        fetched_language = Language.query.filter_by(name='French').first()
-        assert fetched_language is not None
-        assert fetched_language.name == 'French'
+        # Verify the next scheduled view is in the future (at least 10 minutes later)
+        assert new_view.ts_scheduled > updated_view.ts_review_finished

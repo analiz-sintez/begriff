@@ -1,7 +1,9 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Interval
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime
+from enum import Enum
 from .core import db, User
+
 
 class Language(db.Model):
     __tablename__ = 'languages'
@@ -17,6 +19,7 @@ class Language(db.Model):
     def __repr__(self):
         return f"<Language(id={self.id}, name={self.name})>"
 
+    
 class Note(db.Model):
     __tablename__ = 'notes'
     id = Column(Integer, primary_key=True)
@@ -41,6 +44,7 @@ class Note(db.Model):
     def __repr__(self):
         return f"<Note(id={self.id}, field1={self.field1}, field2={self.field2}, user_id={self.user_id}, language_id={self.language_id})>"
 
+    
 class Card(db.Model):
     __tablename__ = 'cards'
     id = Column(Integer, primary_key=True)
@@ -61,6 +65,14 @@ class Card(db.Model):
     def __repr__(self):
         return f"<Card(id={self.id}, note_id={self.note_id}, front={self.front}, back={self.back})>"
 
+    
+class Answer(Enum):
+    AGAIN = "again"
+    HARD = "hard"
+    GOOD = "good"
+    EASY = "easy"
+
+    
 class View(db.Model):
     __tablename__ = 'views'
     id = Column(Integer, primary_key=True)
@@ -84,6 +96,8 @@ class View(db.Model):
 
     def __repr__(self):
         return (f"<View(id={self.id}, ts_scheduled={self.ts_scheduled}, "
-                f"ts_viewed={self.ts_review_finished}, ts_reviewed={self.ts_review_started}, "
-                f"card_id={self.card_id}, review_duration={self.review_duration}, "
+                f"ts_viewed={self.ts_review_finished}, "
+                f"ts_reviewed={self.ts_review_started}, "
+                f"card_id={self.card_id}, "
+                f"review_duration={self.review_duration}, "
                 f"answer={self.answer})>")
