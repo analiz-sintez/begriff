@@ -47,17 +47,20 @@ def create_word_note(
             user_id=user_id,
             language_id=language_id)
         db.session.add(note)
+        db.session.flush()
         logger.info("Note created: %s", note)
         
         front_card = Card(note_id=note.id, front=text, back=explanation)
         back_card = Card(note_id=note.id, front=explanation, back=text)
         db.session.add_all([front_card, back_card])
+        db.session.flush()
         logger.info("Cards created: %s, %s", front_card, back_card)
         
         now = datetime.now(timezone.utc)
         view1 = View(ts_scheduled=now, card_id=front_card.id)
         view2 = View(ts_scheduled=now, card_id=back_card.id)
         db.session.add_all([view1, view2])
+        db.session.flush()
         logger.info("Views scheduled: %s, %s", view1, view2)
         
         db.session.commit()
@@ -91,7 +94,7 @@ def get_views(
 
     results = query.all()
     logger.info("Retrieved %i views", len(results))
-    logger.debug("\n".join(results))
+    logger.debug("\n".join([str(view) for view in results]))
     return results
 
 
