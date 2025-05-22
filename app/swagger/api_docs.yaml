@@ -1,0 +1,99 @@
+openapi: 3.0.0
+info:
+  title: Co-op Work Reporting API
+  version: 1.0.0
+paths:
+  /report:
+    put:
+      summary: Add a report
+      requestBody:
+        description: Report data to be saved
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Description of the work
+                hours_spent:
+                  type: number
+                  description: Hours spent on the task
+                user_id:
+                  type: integer
+                  description: ID of the user reporting
+                task_id:
+                  type: integer
+                  description: ID of the task associated with the report (optional)
+                project_id:
+                  type: integer
+                  description: ID of the project associated with the report (optional)
+                comment:
+                  type: string
+                  description: Comments on the report (optional)
+                result:
+                  type: string
+                  description: Outcome of the reported task (optional)
+                difficulty:
+                  type: string
+                  description: Difficulty level of the task (optional)
+                remaining_estimate:
+                  type: number
+                  description: Estimated remaining work (optional)
+      responses:
+        '200':
+          description: Report saved
+    get:
+      summary: Get all reports
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          description: Filter by user ID
+          schema:
+            type: integer
+        - name: task_id
+          in: query
+          required: false
+          description: Filter by task ID
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: false
+          description: Filter by project ID
+          schema:
+            type: integer
+        - name: created_dttm_start
+          in: query
+          required: false
+          description: Filter by creation date start
+          schema:
+            type: string
+            format: date-time
+        - name: created_dttm_end
+          in: query
+          required: false
+          description: Filter by creation date end
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Reports fetched
+  /report/{id}:
+    get:
+      summary: Get a report by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the report to fetch
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report fetched
+        '404':
+          description: Report not found

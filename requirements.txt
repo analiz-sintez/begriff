@@ -1,0 +1,9 @@
+Flask
+SQLAlchemy
+flask_sqlalchemy
+flask_migrate
+flasgger
+pytest
+pytest-mock
+python-dotenv
+python-telegram-bot
