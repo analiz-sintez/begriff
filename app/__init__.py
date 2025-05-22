@@ -27,8 +27,8 @@ def create_app(config=None):
     logger.info("Migrations set up.")
 
     # Import and register blueprints here
-    from .routes import report_bp
-    app.register_blueprint(report_bp)
+    from .routes import srs_bp
+    app.register_blueprint(srs_bp)
     logger.info("Blueprints registered.")
 
     # Initialize Swagger
