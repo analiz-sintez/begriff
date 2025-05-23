@@ -70,7 +70,12 @@ def create_word_note(
         logger.error("Integrity error occurred: %s", e)
         raise e
 
-    
+
+def get_view(view_id: int):
+    logger.info("Getting view by id '%d'", view_id)
+    return View.query.filter_by(id=view_id).first()
+
+
 def get_views(
         user_id: int,
         language_id: int,
