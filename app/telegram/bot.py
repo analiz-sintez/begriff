@@ -159,7 +159,12 @@ async def study_next_card(
     # Get the next scheduled view
     language = get_language("English")
 
-    views = get_views(user_id=user.id, language_id=language.id)
+    views = get_views(
+        user_id=user.id,
+        language_id=language.id,
+        answers=[None],
+        end_ts=datetime.now(),
+    )
     query = update.callback_query
 
     if not views:

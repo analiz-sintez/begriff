@@ -77,26 +77,36 @@ def get_view(view_id: int):
 
 
 def get_views(
-        user_id: int,
-        language_id: int,
-        answer: Answer = None,
-        time_interval: tuple = None
+    user_id: int,
+    language_id: int,
+    answers: list = None,
+    start_ts: datetime = None,
+    end_ts: datetime = None
 ):
-    logger.info("Getting views for user_id: '%d', language_id: '%d', answer: '%s', time_interval: '%s'",
-                user_id, language_id, answer, time_interval)
+    logger.info("Getting views for user_id: '%d', language_id: '%d', answers: '%s', start_ts: '%s', end_ts: '%s'",
+                user_id, language_id, answers, start_ts, end_ts)
     query = db.session.query(View).join(Card).join(Note)
     query = query.filter(Note.user_id == user_id)
     query = query.filter(Note.language_id == language_id)
 
-    if answer:
-        query = query.filter(View.answer == answer.value)
+    if answers:
+        conditions = []
+        values_to_check = [answer.value for answer in answers if answer is not None]
+        if None in answers:
+            conditions.append(View.answer.is_(None))
+        if values_to_check:
+            conditions.append(View.answer.in_(values_to_check))
+        if conditions:
+            query = query.filter(db.or_(*conditions))
 
-    if time_interval:
-        start, end = time_interval
-        query = query.filter(
-            View.ts_scheduled > start,
-            View.ts_scheduled <= end)
+    if start_ts:
+        query = query.filter(View.ts_scheduled > start_ts)
 
+    if end_ts:
+        query = query.filter(View.ts_scheduled <= end_ts)
+
+    query = query.order_by(View.ts_scheduled.asc())
+    
     results = query.all()
     logger.info("Retrieved %i views", len(results))
     logger.debug("\n".join([str(view) for view in results]))
@@ -119,7 +129,7 @@ def record_answer(view_id: int, answer: Answer):
         view.answer = answer.value
         view.ts_review_finished = datetime.now(timezone.utc)
         next_view = View(
-            ts_scheduled=datetime.now(timezone.utc) + timedelta(minutes=10),
+            ts_scheduled=datetime.now(timezone.utc) + timedelta(minutes=24*60),
             card_id=view.card_id)
         db.session.add(next_view)
         db.session.commit()
