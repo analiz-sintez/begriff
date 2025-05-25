@@ -16,6 +16,7 @@ from ..service import (
     get_views,
     record_view_start,
     record_answer,
+    get_explanation,
 )
 from datetime import datetime, timezone
 from ..models import db, User, Answer
@@ -38,25 +39,35 @@ async def start(update: Update, context: CallbackContext) -> None:
 async def add(update: Update, context: CallbackContext):
     """Add a new word note with the provided text, explanation, and language."""
     user_name = update.effective_user.username
+    user = get_user(user_name)
+    language = get_language("English")
+
     message_text = (
         update.message.text.split(" ", 1)[1]
         if len(update.message.text.split(" ", 1)) > 1
         else ""
     )
 
-    # Using regex to extract text and explanation
+    # Using regex to extract text and explanation, making explanation optional
     match = re.match(
-        r"(?P<text>.*?)(?:\s*:\s*(?P<explanation>.*))?$", message_text
+        r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$", message_text
     )
-    text = (match.group("text").strip() if match else "").strip()
-    explanation = (
-        match.group("explanation").strip()
-        if match and match.group("explanation")
-        else ""
-    ).strip()
+    if not match:
+        await update.message.reply_text(f"Couldn't parse your text.")
+        return
 
-    language = get_language("English")
-    user = get_user(user_name)
+    text = match.group("text").strip()
+
+    if match.group("explanation"):
+        explanation = match.group("explanation").strip()
+        logger.info(
+            "User provided explanation for text '%s': '%s'", text, explanation
+        )
+    else:
+        explanation = get_explanation(text, language.name)
+        logger.info(
+            "Fetched explanation for text '%s': '%s'", text, explanation
+        )
 
     logger.info(
         "User %s is adding a note with text '%s':'%s'",
