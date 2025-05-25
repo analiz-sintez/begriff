@@ -7,3 +7,4 @@ from .srs import (
     record_view_start,
     record_answer,
 )
+from .llm import get_explanation

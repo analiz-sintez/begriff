@@ -1,13 +1,22 @@
-import os
+import logging
 from openai import OpenAI
+from ..config import Config
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
+
 
 def get_explanation(input, language):
-    client = OpenAI(
-        api_key=os.environ.get("OPENAI_API_KEY")
+    logger.info(
+        "Requesting explanation for input: '%s' in language: '%s'",
+        input,
+        language,
     )
-
     response = client.responses.create(
-        model="gpt-4o-mini",
+        model=Config.LLM["model"],
         instructions=f"""
         Please explain this word in few words in simple {language}.
 
@@ -27,9 +36,12 @@ def get_explanation(input, language):
         Prompt: fixer
         Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, especially in politics or media.    
         """,
-        input=input
+        input=input,
     )
-    return response
+    explanation = response.output_text
+    logger.info("Received explanation: '%s'", explanation)
+    return explanation
+
 
 # Example usage:
 # explanation = get_explanation("demise", "English")
