@@ -1,6 +1,5 @@
 import os
 import logging
-from dotenv import load_dotenv
 from telegram import Update
 from app.telegram.bot import create_bot
 
@@ -14,8 +13,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
-    load_dotenv()
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    token = Config.TELEGRAM['bot_token']
 
     if not token:
         logger.error("TELEGRAM_BOT_TOKEN is not set in the environment variables.")
