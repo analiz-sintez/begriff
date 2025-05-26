@@ -15,14 +15,14 @@ def app():
         language = Language(name='English')
         user = User(login='test_user')
         note = Note(field1='Hello', field2='World', user=user, language=language)
-        card = Card(note=note, front='Hello', back='World')
-        view = View(
-            card=card, ts_scheduled=datetime.now(timezone.utc),
-            ts_review_finished=datetime.now(timezone.utc))
-        
         db.session.add(language)
         db.session.add(user)
         db.session.add(note)
+        db.session.flush()
+
+        card = Card(note=note, front='Hello', back='World', ts_scheduled=datetime.now(timezone.utc), stability=0.5, difficulty=0.5)
+        view = View(card=card, ts_review_started=datetime.now(timezone.utc), ts_review_finished=datetime.now(timezone.utc))
+        
         db.session.add(card)
         db.session.add(view)
         db.session.commit()
@@ -63,7 +63,7 @@ def test_view_relationship(app):
 def test_card_creation(app):
     with app.app_context():
         note = Note.query.first()
-        card = Card(note=note, front='Test Front', back='Test Back')
+        card = Card(note=note, front='Test Front', back='Test Back', ts_scheduled=datetime.now(timezone.utc), stability=0.75, difficulty=0.25)
         
         db.session.add(card)
         db.session.commit()
@@ -73,6 +73,8 @@ def test_card_creation(app):
         assert fetched_card.front == 'Test Front'
         assert fetched_card.back == 'Test Back'
         assert fetched_card.note == note
+        assert fetched_card.stability == 0.75
+        assert fetched_card.difficulty == 0.25
 
 def test_language_creation(app):
     with app.app_context():

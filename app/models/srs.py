@@ -9,7 +9,7 @@ from sqlalchemy import (
     Interval,
 )
 from sqlalchemy.orm import relationship, backref
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from .core import db, User
 
@@ -67,9 +67,7 @@ class Card(db.Model):
     # when updating memory state.
     ts_last_review = Column(DateTime, nullable=True)
     # is used to fetch cards for today's review
-    ts_scheduled = Column(
-        DateTime, nullable=False, default=datetime.now(timezone.utc)
-    )
+    ts_scheduled = Column(DateTime, nullable=False)
 
     views = relationship("View", backref="card", cascade="all, delete-orphan")
 

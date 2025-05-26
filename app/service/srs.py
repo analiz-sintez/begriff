@@ -166,7 +166,7 @@ def record_answer(view_id: int, answer: Answer):
     next_states = planner.next_states(
         memory, Config.FSRS["target_retention"], interval
     )
-    next_state = getattr(next_states, str(answer))
+    next_state = getattr(next_states, answer.value)
     card.stability = next_state.memory.stability
     card.difficulty = next_state.memory.difficulty
 

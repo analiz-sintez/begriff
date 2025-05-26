@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 from app import create_app, db
 from app.models import User, Note, Card, View, Language, Answer
 from app.service import (
-    create_word_note, get_views, record_view_start, record_answer,
+    create_word_note, get_cards, record_view_start, record_answer,
     get_language, get_user)
 
 class Config:
@@ -42,37 +42,40 @@ def test_add_note_and_review(app):
         cards = db.session.query(Card).all()
         assert len(cards) == 2
 
+        # Assert no views have been created initially
         views = db.session.query(View).all()
-        assert len(views) == 2
+        assert len(views) == 0
         
-        # 1/ Get the next planned view
-        views = get_views(
+        # 1/ Get the next planned card for the test
+        end_ts = datetime.now(timezone.utc) + timedelta(days=1)
+        cards = get_cards(
             user_id=get_user('test_user').id,
-            language_id=get_language('English').id
+            language_id=get_language('English').id,
+            end_ts=end_ts
         )
-        assert len(views) == 2
+        assert len(cards) == 2
 
-        # Select the first view for the test
-        # (we assume views have been scheduled immediately upon note creation)
-        view = views[0]
+        # Select the first card for the test
+        card = cards[0]
 
         # 2/ Record view start
-        record_view_start(view_id=view.id)
+        view_id = record_view_start(card_id=card.id)
 
         # 3/ Record an answer
-        record_answer(view_id=view.id, answer=Answer.GOOD)
+        record_answer(view_id=view_id, answer=Answer.GOOD)
 
         # Verify the answer has been recorded
-        updated_view = db.session.query(View).filter_by(id=view.id).first()
+        updated_view = db.session.query(View).filter_by(id=view_id).first()
         assert updated_view.answer == 'good'
 
-        # Verify a new view has been created, and there are still 2 views
-        new_views = (db.session.query(View)
-                     .filter(View.id != updated_view.id)
-                     .filter(View.card_id == updated_view.card_id)
-                     ).all()
-        assert len(new_views) == 1
-        new_view = new_views[0]
+        # Verify a new view has been created for the next scheduled review of the card
+        cards = db.session.query(Card).all()
+        assert len(cards) == 2  # Ensure no new card was created
 
-        # Verify the next scheduled view is in the future (at least 10 minutes later)
-        assert new_view.ts_scheduled > updated_view.ts_review_finished
+        # The view should now exist for this card (since it's been reviewed)
+        card_views = db.session.query(View).filter(View.card_id == card.id).all()
+        assert len(card_views) == 1
+
+        # Verify the next scheduled review for the card is in the future
+        assert card.ts_last_review is not None
+        assert card.ts_scheduled > card.ts_last_review
