@@ -9,4 +9,4 @@ python-dotenv
 python-telegram-bot
 watchdog
 openai
-fsrs-rs-python
+./opt/fsrs_rs_python-0.8.2-cp313-cp313-manylinux_2_38_x86_64.whl

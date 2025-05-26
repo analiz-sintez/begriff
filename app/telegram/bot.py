@@ -14,11 +14,13 @@ from ..service import (
     create_word_note,
     get_view,
     get_views,
+    get_card,
+    get_cards,
     record_view_start,
     record_answer,
     get_explanation,
 )
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from ..models import db, User, Answer
 import logging
 
@@ -36,19 +38,19 @@ async def start(update: Update, context: CallbackContext) -> None:
     )
 
 
-async def add(update: Update, context: CallbackContext):
+async def add_note(update: Update, context: CallbackContext):
     """Add a new word note with the provided text, explanation, and language."""
     user_name = update.effective_user.username
     user = get_user(user_name)
     language = get_language("English")
 
+    # Get a word and possibly its explanation from user message.
     message_text = (
         update.message.text.split(" ", 1)[1]
         if len(update.message.text.split(" ", 1)) > 1
         else ""
     )
 
-    # Using regex to extract text and explanation, making explanation optional
     match = re.match(
         r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$", message_text
     )
@@ -58,6 +60,7 @@ async def add(update: Update, context: CallbackContext):
 
     text = match.group("text").strip()
 
+    # If no explanation provided, generate one with LLM.
     if match.group("explanation"):
         explanation = match.group("explanation").strip()
         logger.info(
@@ -75,39 +78,50 @@ async def add(update: Update, context: CallbackContext):
         text,
         explanation,
     )
+
+    # Save note.
     create_word_note(text, explanation, language.id, user.id)
     await update.message.reply_text(
         f"Note added for '{text}' with explanation '{explanation}'."
     )
 
 
-async def study(update: Update, context: CallbackContext):
+async def study_next_card(update: Update, context: CallbackContext):
     """Fetch a study card for the user and display it
     with a button to show the answer."""
     user = get_user(update.effective_user.username)
     language = get_language("English")
 
     logger.info("User %s requested to study.", user.login)
-    views = get_views(user_id=user.id, language_id=language.id)
+    tomorrow = date.today() + timedelta(days=1)
+    tomorrow_start = datetime(
+        tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0
+    )
+    cards = get_cards(
+        user_id=user.id,
+        language_id=language.id,
+        end_ts=tomorrow_start,
+        bury_siblings=True,
+        randomize=True,
+    )
 
-    if not views:
+    if not cards:
         logger.info("User %s has no cards to study.", user.login)
         await update.message.reply_text("All done for today.")
         return
 
-    view = views[0]
-    card = view.card
+    card = cards[0]
 
     keyboard = [
-        [InlineKeyboardButton("ANSWER", callback_data=f"answer:{view.id}")]
+        [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    context.user_data["current_view_id"] = view.id
+    context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.id, card.front)
     await update.message.reply_text(card.front, reply_markup=reply_markup)
 
 
-async def button(update: Update, context: CallbackContext):
+async def handle_user_input(update: Update, context: CallbackContext):
     """Handle button press from user to show answers and record responses."""
     query = update.callback_query
     user_response = query.data
@@ -116,82 +130,54 @@ async def button(update: Update, context: CallbackContext):
         "User %s pressed a button: %s", query.from_user.id, user_response
     )
 
-    if user_response.startswith("answer:"):
-        view_id = int(user_response.split(":")[1])
-        # Show the answer (showing back side of the card)
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    answer.name,
-                    callback_data=f"record:{view_id}:{answer.value}",
-                )
-                for answer in Answer
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+    # States: ASK -> ANSWER -> RECORD
+    # - ASK: show the front side of the card, wait when user requests
+    #   the back side;
+    # - ANSWER: show front and back sides, wait for grade (Answer object);
+    # - GRADE: got the answer, record it, update card memorization params
+    #   and reschedule it.
 
-        view = get_view(view_id)
-        card = view.card
+    if user_response.startswith("answer:"):
+        # ASK -> ANSWER:
+        # Show the answer (showing back side of the card)
+        card_id = int(user_response.split(":")[1])
+        card = get_card(card_id)
         logger.info(
             "Showing answer for card %s to user %s: %s",
             card.id,
             query.from_user.id,
             card.back,
         )
+        # ... record the moment user started answering
+        view_id = record_view_start(card.id)
+        # ... prepare the keyboard with memorization quality buttons
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    answer.name,
+                    callback_data=f"grade:{view_id}:{answer.value}",
+                )
+                for answer in Answer
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
         await query.edit_message_text(
             f"{card.front} - {card.back}", reply_markup=reply_markup
         )
 
-    elif user_response.startswith("record:"):
+    elif user_response.startswith("grade:"):
+        # ANSWER -> GRADE
         _, view_id, answer_str = user_response.split(":")
         answer = Answer(answer_str)
         logger.info(
-            "User %s recorded answer %s for view %s",
+            "User %s gradeed answer %s for view %s",
             query.from_user.id,
             answer.name,
             view_id,
         )
-        await study_next_card(update, context, int(view_id), answer)
-
-
-async def study_next_card(
-    update: Update, context: CallbackContext, view_id: int, user_answer: Answer
-):
-    """Record the user's answer and show the next card."""
-    user = get_user(update.effective_user.username)
-    logger.info(
-        "Recording answer for user %s on view %d as %s",
-        user.id,
-        view_id,
-        user_answer.name,
-    )
-    record_answer(view_id, user_answer)
-
-    # Get the next scheduled view
-    language = get_language("English")
-
-    views = get_views(
-        user_id=user.id,
-        language_id=language.id,
-        answers=[None],
-        end_ts=datetime.now(),
-    )
-    query = update.callback_query
-
-    if not views:
-        logger.info("User %s has completed all scheduled cards.", user.id)
-        await query.edit_message_text("All done for today.")
-        return
-
-    view = views[0]
-    card = view.card
-
-    keyboard = [
-        [InlineKeyboardButton("ANSWER", callback_data=f"answer:{view.id}")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    logger.info("Display next card front for user %s: %s", user.id, card.front)
-    await query.edit_message_text(card.front, reply_markup=reply_markup)
+        record_answer(view_id, user_answer)
+        await study_next_card(update, context)
 
 
 def create_bot(token):
@@ -200,11 +186,11 @@ def create_bot(token):
 
     # Command Handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("add", add))
-    application.add_handler(CommandHandler("study", study))
+    application.add_handler(CommandHandler("add", add_note))
+    application.add_handler(CommandHandler("study", study_next_card))
 
     # CallbackQueryHandler for inline button responses
-    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CallbackQueryHandler(handle_user_input))
 
     # You may need to add more handlers for input validation, not included here.
 

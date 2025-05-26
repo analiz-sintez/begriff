@@ -34,3 +34,5 @@ class Config:
     }
 
     TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}
+
+    FSRS = {"target_retention": 0.9}

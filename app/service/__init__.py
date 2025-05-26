@@ -4,6 +4,8 @@ from .srs import (
     create_word_note,
     get_view,
     get_views,
+    get_card,
+    get_cards,
     record_view_start,
     record_answer,
 )

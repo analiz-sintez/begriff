@@ -1,3 +1,4 @@
+from time import timezone
 from sqlalchemy import (
     Column,
     Float,
@@ -57,11 +58,18 @@ class Card(db.Model):
     front = Column(String, nullable=False)
     back = Column(String, nullable=False)
 
+    # Memory state:
     # those two we don't know before the first review
     stability = Column(Float, nullable=True)
     difficulty = Column(Float, nullable=True)
 
-    ts_scheduled = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # required to calculate interval from the last review
+    # when updating memory state.
+    ts_last_review = Column(DateTime, nullable=True)
+    # is used to fetch cards for today's review
+    ts_scheduled = Column(
+        DateTime, nullable=False, default=datetime.now(timezone.utc)
+    )
 
     views = relationship("View", backref="card", cascade="all, delete-orphan")
 
@@ -88,6 +96,11 @@ class Card(db.Model):
 
 
 class Answer(Enum):
+    """
+    Grades in which a user esteems their memory quality on each review.
+    The same answer grades are used in FSRS engine.
+    """
+
     AGAIN = "again"
     HARD = "hard"
     GOOD = "good"
