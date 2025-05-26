@@ -167,6 +167,16 @@ def record_answer(view_id: int, answer: Answer):
         memory, Config.FSRS["target_retention"], interval
     )
     next_state = getattr(next_states, answer.value)
+
+    logger.info(
+        "Card memory parameters updated for card_id '%d'. Stability: %f -> %f, Difficulty: %f -> %f",
+        card.id,
+        card.stability,
+        next_state.memory.stability,
+        card.difficulty,
+        next_state.memory.difficulty,
+    )
+
     card.stability = next_state.memory.stability
     card.difficulty = next_state.memory.difficulty
 
@@ -181,7 +191,8 @@ def record_answer(view_id: int, answer: Answer):
     )
     db.session.commit()
     logger.info(
-        "Answer recorded and next review scheduled in %i days.", next_interval
+        "Answer recorded and next review scheduled on %s.",
+        card.ts_scheduled.strftime("%Y-%m-%d"),
     )
 
 
@@ -192,7 +203,7 @@ def get_card(card_id: int):
 
 def get_cards(
     user_id: int,
-    language_id: int,
+    language_id: int = None,
     start_ts: datetime = None,
     end_ts: datetime = None,
     bury_siblings: bool = False,
@@ -209,7 +220,9 @@ def get_cards(
     )
     query = db.session.query(Card).join(Note)
     query = query.filter(Note.user_id == user_id)
-    query = query.filter(Note.language_id == language_id)
+
+    if language_id:
+        query = query.filter(Note.language_id == language_id)
 
     if start_ts:
         query = query.filter(Card.ts_scheduled > start_ts)

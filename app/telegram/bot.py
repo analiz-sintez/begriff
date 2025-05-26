@@ -20,8 +20,8 @@ from ..service import (
     record_answer,
     get_explanation,
 )
-from datetime import datetime, timezone, date
-from ..models import db, User, Answer
+from datetime import datetime, timezone, date, timedelta
+from ..models import db, User, Answer, Card, View
 import logging
 
 # Set up logging
@@ -176,8 +176,50 @@ async def handle_user_input(update: Update, context: CallbackContext):
             answer.name,
             view_id,
         )
-        record_answer(view_id, user_answer)
+        record_answer(view_id, answer)
         await study_next_card(update, context)
+
+
+async def list_cards(update: Update, context: CallbackContext):
+    """List all cards with their stability, difficulty, view counts, and scheduled dates."""
+    user = get_user(update.effective_user.username)
+    logger.info("User %s requested to list cards.", user.login)
+    # cards = Card.query.filter(Card.note.has(user_id=user.id)).all()
+    cards = get_cards(user.id, get_language("English").id)
+
+    if not cards:
+        await update.message.reply_text("You have no cards.")
+        return
+
+    messages = []
+    for card in cards:
+        num_views = View.query.filter_by(card_id=card.id).count()
+        card_info = (
+            "{ts_scheduled}: {front} -> {back} "
+            "(id={id}, "
+            "s={stability}, "
+            "d={difficulty}, "
+            "views={views})"
+        ).format(
+            ts_scheduled=card.ts_scheduled.strftime("%Y-%m-%d %H:%M"),
+            front=card.front,
+            back=card.back,
+            id=card.id,
+            stability=(
+                f"{card.stability:.2f}"
+                if card.stability is not None
+                else "N/A"
+            ),
+            difficulty=(
+                f"{card.difficulty:.2f}"
+                if card.difficulty is not None
+                else "N/A"
+            ),
+            views=num_views,
+        )
+        messages.append(card_info)
+
+    await update.message.reply_text("\n\n".join(messages))
 
 
 def create_bot(token):
@@ -188,6 +230,7 @@ def create_bot(token):
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("add", add_note))
     application.add_handler(CommandHandler("study", study_next_card))
+    application.add_handler(CommandHandler("list", list_cards))
 
     # CallbackQueryHandler for inline button responses
     application.add_handler(CallbackQueryHandler(handle_user_input))
