@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Interval,
 )
+from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from enum import Enum
@@ -65,9 +66,9 @@ class Card(db.Model):
 
     # required to calculate interval from the last review
     # when updating memory state.
-    ts_last_review = Column(DateTime, nullable=True)
+    ts_last_review = Column(UtcDateTime, nullable=True)
     # is used to fetch cards for today's review
-    ts_scheduled = Column(DateTime, nullable=False)
+    ts_scheduled = Column(UtcDateTime, nullable=False)
 
     views = relationship("View", backref="card", cascade="all, delete-orphan")
 
@@ -108,10 +109,8 @@ class Answer(Enum):
 class View(db.Model):
     __tablename__ = "views"
     id = Column(Integer, primary_key=True)
-    ts_review_started = Column(DateTime)
-    ts_review_finished = Column(
-        DateTime, nullable=False, default=datetime.utcnow
-    )
+    ts_review_started = Column(UtcDateTime)
+    ts_review_finished = Column(UtcDateTime, nullable=True)
     card_id = Column(Integer, ForeignKey(Card.id))
     review_duration = Column(Interval)
     answer = Column(String)

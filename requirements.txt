@@ -1,5 +1,6 @@
 Flask
 SQLAlchemy
+SQLAlchemy-Utc
 flask_sqlalchemy
 flask_migrate
 flasgger

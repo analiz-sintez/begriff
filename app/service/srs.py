@@ -3,6 +3,7 @@ import logging
 import fsrs_rs_python as fsrs
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 from ..models import db, Note, Card, View, Language, Answer
 from ..config import Config
 
@@ -128,7 +129,7 @@ def record_view_start(card_id: int) -> int:
     """
     Create a view and save the time it started.
     """
-    logger.info("Creating new view for card_id: '%d'", card_id)
+    logger.info("Creating new view for card_id: %d", card_id)
     view = View(card_id=card_id, ts_review_started=datetime.now(timezone.utc))
     db.session.add(view)
     db.session.commit()
@@ -169,11 +170,12 @@ def record_answer(view_id: int, answer: Answer):
     next_state = getattr(next_states, answer.value)
 
     logger.info(
-        "Card memory parameters updated for card_id '%d'. Stability: %f -> %f, Difficulty: %f -> %f",
+        "Card memory parameters updated for card_id '%d'. "
+        "Stability: %.1f -> %.1f, Difficulty: %.1f -> %.1f",
         card.id,
-        card.stability,
+        card.stability if card.stability else 0.0,
         next_state.memory.stability,
-        card.difficulty,
+        card.difficulty if card.difficulty else 0.0,
         next_state.memory.difficulty,
     )
 
@@ -210,7 +212,8 @@ def get_cards(
     randomize: bool = False,
 ):
     logger.info(
-        "Getting cards for user_id: '%d', language_id: '%d', start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
+        "Getting cards for user_id: '%d', language_id: '%d', "
+        "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
         user_id,
         language_id,
         start_ts,
@@ -231,16 +234,35 @@ def get_cards(
         query = query.filter(Card.ts_scheduled <= end_ts)
 
     if bury_siblings:
-        recent_views_subquery = (
+        # If a note has a card reviewed today, don't include its sibling cards,
+        # only allow to review the reviewed card again.
+        # ...step 1: Find all cards that were reviewed today
+        recently_viewed_cards = (
             db.session.query(View.card_id)
-            .join(Card)
             .filter(
                 View.ts_review_finished
-                > (datetime.utcnow() - timedelta(hours=12))
+                > (datetime.now(timezone.utc) - timedelta(hours=12))
             )
             .subquery()
+            .select()
         )
-        query = query.filter(~Card.id.in_(recent_views_subquery))
+        # ...step 2: Find all notes associated with these cards
+        recent_notes = (
+            db.session.query(Card.note_id)
+            .filter(Card.id.in_(recently_viewed_cards))
+            .subquery()
+            .select()
+        )
+        # ...step 3: Allow only those cards which belong to notes found in step 2
+        #    For other notes, allow all cards
+        alias_card = aliased(Card)
+        query = query.filter(
+            db.or_(
+                alias_card.note_id.in_(recent_notes)
+                & alias_card.id.in_(recently_viewed_cards),
+                ~alias_card.note_id.in_(recent_notes),
+            )
+        )
 
     if not randomize:
         query = query.order_by(Card.ts_scheduled.asc())
