@@ -8,7 +8,7 @@ Since it knows your vocabulary, it adopts to your level and speaks understandabl
 
 ## How to Try
 
-1. Find the bot on Telegram: t.me/BegriffBot.
+1. Find the bot on Telegram: [BegriffBot](t.me/BegriffBot).
 2. Say `/hello`.
 3. It will tell you what to do.
 
