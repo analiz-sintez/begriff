@@ -93,21 +93,28 @@ async def study_next_card(update: Update, context: CallbackContext):
     language = get_language("English")
 
     logger.info("User %s requested to study.", user.login)
-    tomorrow = date.today() + timedelta(days=1)
-    tomorrow_start = datetime(
-        tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0
+    now = datetime.now(timezone.utc)
+    tomorrow = (
+        now
+        - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)
+        + timedelta(days=1)
     )
     cards = get_cards(
         user_id=user.id,
         language_id=language.id,
-        end_ts=tomorrow_start,
+        end_ts=tomorrow,
         bury_siblings=True,
         randomize=True,
     )
 
+    if update.callback_query:
+        reply_fn = update.callback_query.edit_message_text
+    else:
+        reply_fn = update.message.reply_text
+
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
-        await update.message.reply_text("All done for today.")
+        await reply_fn("All done for today.")
         return
 
     card = cards[0]
@@ -118,7 +125,7 @@ async def study_next_card(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.id, card.front)
-    await update.message.reply_text(card.front, reply_markup=reply_markup)
+    await reply_fn(card.front, reply_markup=reply_markup)
 
 
 async def handle_user_input(update: Update, context: CallbackContext):
@@ -169,6 +176,7 @@ async def handle_user_input(update: Update, context: CallbackContext):
     elif user_response.startswith("grade:"):
         # ANSWER -> GRADE
         _, view_id, answer_str = user_response.split(":")
+        view_id = int(view_id)
         answer = Answer(answer_str)
         logger.info(
             "User %s gradeed answer %s for view %s",
