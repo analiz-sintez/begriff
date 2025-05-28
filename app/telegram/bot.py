@@ -1,5 +1,11 @@
 import re
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    BotCommand,
+)
+from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,6 +22,7 @@ from ..service import (
     get_views,
     get_card,
     get_cards,
+    get_notes,
     record_view_start,
     record_answer,
     get_explanation,
@@ -29,20 +36,29 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def format_explanation(explanation):
+    """Format explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets."""
+    return re.sub(
+        r"\[([^\]]+)\]",
+        lambda match: f"\n_{match.group(1).lower()}_",
+        explanation,
+    )
+
+
 async def start(update: Update, context: CallbackContext) -> None:
     """Send a welcome message to the user when they start the bot."""
     logger.info("User %s started the bot.", update.effective_user.id)
     await update.message.reply_text(
         "Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.\n\n"
         "Here are the commands you can use:\n"
-        "/add <word1>[:<explanation1>]\n<word2>[:<explanation2>]...\n - Add new words to your study list. You can provide explanations or leave them out, and the bot will generate them for you. (Max 20 words per message)\n"
+        "Simply enter words separated by a newline to add them to your study list with automatic explanations.\n"
         "/list - See all the words you've added to your study list along with their details.\n"
         "/study - Start a study session with your queued words."
     )
 
 
-async def add_note(update: Update, context: CallbackContext):
-    """Add new word notes with the provided text, explanations, and language."""
+async def add_note_or_process_input(update: Update, context: CallbackContext):
+    """Add new word notes or process the input as words with the provided text, explanations, and language."""
     user_name = update.effective_user.username
     user = get_user(user_name)
     language = get_language("English")
@@ -60,7 +76,7 @@ async def add_note(update: Update, context: CallbackContext):
 
     for line in message_text:
         match = re.match(
-            r"(?:/[^ ]+ )?(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
+            r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
             line.strip(),
         )
         if not match:
@@ -71,8 +87,19 @@ async def add_note(update: Update, context: CallbackContext):
 
         text = match.group("text").strip()
 
-        # If no explanation provided, generate one with LLM.
-        if match.group("explanation"):
+        # Check if a note already exists for this word
+        existing_note = get_notes(
+            user_id=user.id, language_id=language.id, text=text
+        )
+
+        if existing_note:
+            explanation = existing_note[0].field2
+            logger.info(
+                "Fetched existing explanation for text '%s': '%s'",
+                text,
+                explanation,
+            )
+        elif match.group("explanation"):
             explanation = match.group("explanation").strip()
             logger.info(
                 "User provided explanation for text '%s': '%s'",
@@ -85,6 +112,7 @@ async def add_note(update: Update, context: CallbackContext):
                 "Fetched explanation for text '%s': '%s'", text, explanation
             )
 
+        explanation = format_explanation(explanation)
         logger.info(
             "User %s is adding a note with text '%s':'%s'",
             user_name,
@@ -93,18 +121,20 @@ async def add_note(update: Update, context: CallbackContext):
         )
 
         # Save note.
-        create_word_note(text, explanation, language.id, user.id)
-        added_notes.append(f"'{text}' with explanation '{explanation}'")
+        icon = ""  # existing note: no sign
+        if not existing_note:
+            create_word_note(text, explanation, language.id, user.id)
+            icon = "✔️"  # new note: plus sign
+        added_notes.append(f"*{text}* — {explanation} {icon}")
 
     if added_notes:
         await update.message.reply_text(
-            "Notes added: \n" + "\n".join(added_notes)
+            "\n\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
         )
 
 
 async def study_next_card(update: Update, context: CallbackContext):
-    """Fetch a study card for the user and display it
-    with a button to show the answer."""
+    """Fetch a study card for the user and display it with a button to show the answer."""
     user = get_user(update.effective_user.username)
     language = get_language("English")
 
@@ -142,7 +172,10 @@ async def study_next_card(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.id, card.front)
-    await reply_fn(card.front, reply_markup=reply_markup)
+    front = format_explanation(card.front)
+    await reply_fn(
+        front, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN
+    )
 
 
 async def handle_user_input(update: Update, context: CallbackContext):
@@ -166,11 +199,13 @@ async def handle_user_input(update: Update, context: CallbackContext):
         # Show the answer (showing back side of the card)
         card_id = int(user_response.split(":")[1])
         card = get_card(card_id)
+        front = format_explanation(card.front)
+        back = format_explanation(card.back)
         logger.info(
             "Showing answer for card %s to user %s: %s",
             card.id,
             query.from_user.id,
-            card.back,
+            back,
         )
         # ... record the moment user started answering
         view_id = record_view_start(card.id)
@@ -187,7 +222,9 @@ async def handle_user_input(update: Update, context: CallbackContext):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await query.edit_message_text(
-            f"{card.front} - {card.back}", reply_markup=reply_markup
+            f"{front}\n\n*{back}*",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN,
         )
 
     elif user_response.startswith("grade:"):
@@ -237,18 +274,38 @@ async def list_cards(update: Update, context: CallbackContext):
 
         messages.append(card_info)
 
-    await update.message.reply_text("\n\n".join(messages))
+    await update.message.reply_text(
+        "\n".join(messages), parse_mode=ParseMode.MARKDOWN
+    )
 
 
 def create_bot(token):
     """Create and configure the Telegram bot application with command and callback handlers."""
     application = Application.builder().token(token).build()
 
+    # Define bot commands for the menu
+    commands = [
+        BotCommand("start", "Start using the bot"),
+        BotCommand("study", "Start a study session"),
+        BotCommand("list", "List all your words"),
+    ]
+
+    async def set_commands():
+        await application.bot.set_my_commands(commands)
+
+    # application.run_task(set_commands())
+
     # Command Handlers
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("add", add_note))
     application.add_handler(CommandHandler("study", study_next_card))
     application.add_handler(CommandHandler("list", list_cards))
+
+    # MessageHandler for adding words or processing input by default
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND, add_note_or_process_input
+        )
+    )
 
     # CallbackQueryHandler for inline button responses
     application.add_handler(CallbackQueryHandler(handle_user_input))
