@@ -203,6 +203,67 @@ def get_card(card_id: int):
     return Card.query.filter_by(id=card_id).first()
 
 
+def get_notes(
+    user_id: int, language_id: int, text: str = None, explanation: str = None
+):
+    """
+    Retrieve notes for a specific user and language. Allows optional filtering by text and explanation.
+
+    Args:
+    user_id (int): The ID of the user.
+    language_id (int): The ID of the language.
+    text (str, optional): Filter by the text field of the note. Supports exact match, SQL LIKE pattern, or regex.
+    explanation (str, optional): Filter by the explanation field of the note. Supports exact match, SQL LIKE pattern, or regex.
+
+    Returns:
+    List[Note]: A list of Note objects matching the filter criteria.
+
+    """
+    logger.info(
+        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s'",
+        user_id,
+        language_id,
+        text,
+        explanation,
+    )
+    query = db.session.query(Note).filter_by(
+        user_id=user_id, language_id=language_id
+    )
+
+    if text:
+        if text.startswith("=~"):
+            logger.debug("Applying regex filter on text: '%s'", text[2:])
+            query = query.filter(Note.field1.op("REGEXP")(text[2:]))
+        elif "%" in text or "_" in text:
+            logger.debug("Applying SQL LIKE filter on text: '%s'", text)
+            query = query.filter(Note.field1.like(text))
+        else:
+            logger.debug("Applying exact match filter on text: '%s'", text)
+            query = query.filter(Note.field1 == text)
+
+    if explanation:
+        if explanation.startswith("=~"):
+            logger.debug(
+                "Applying regex filter on explanation: '%s'", explanation[2:]
+            )
+            query = query.filter(Note.field2.op("REGEXP")(explanation[2:]))
+        elif "%" in explanation or "_" in explanation:
+            logger.debug(
+                "Applying SQL LIKE filter on explanation: '%s'", explanation
+            )
+            query = query.filter(Note.field2.like(explanation))
+        else:
+            logger.debug(
+                "Applying exact match filter on explanation: '%s'", explanation
+            )
+            query = query.filter(Note.field2 == explanation)
+
+    results = query.all()
+    logger.info("Retrieved %i notes", len(results))
+    logger.debug("\n".join([str(note) for note in results]))
+    return results
+
+
 def get_cards(
     user_id: int,
     language_id: int = None,

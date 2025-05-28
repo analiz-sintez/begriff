@@ -6,6 +6,7 @@ from .srs import (
     get_views,
     get_card,
     get_cards,
+    get_notes,
     record_view_start,
     record_answer,
 )

@@ -209,38 +209,32 @@ async def list_cards(update: Update, context: CallbackContext):
     """List all cards with their stability, difficulty, view counts, and scheduled dates."""
     user = get_user(update.effective_user.username)
     logger.info("User %s requested to list cards.", user.login)
-    cards = get_cards(user.id, get_language("English").id)
+    notes = get_notes(user.id, get_language("English").id)
 
-    if not cards:
-        await update.message.reply_text("You have no cards.")
+    if not notes:
+        await update.message.reply_text("You have no notes.")
         return
 
     messages = []
-    for card in cards:
-        num_views = View.query.filter_by(card_id=card.id).count()
-        card_info = (
-            "{ts_scheduled}: {front} -> {back} "
-            "(id={id}, "
-            "s={stability}, "
-            "d={difficulty}, "
-            "views={views})"
-        ).format(
-            ts_scheduled=card.ts_scheduled.strftime("%Y-%m-%d %H:%M"),
-            front=card.front,
-            back=card.back,
-            id=card.id,
-            stability=(
-                f"{card.stability:.2f}"
-                if card.stability is not None
-                else "N/A"
-            ),
-            difficulty=(
-                f"{card.difficulty:.2f}"
-                if card.difficulty is not None
-                else "N/A"
-            ),
-            views=num_views,
-        )
+    for note_num, note in enumerate(notes):
+        card_info = f"{note_num+1}: {note.field1}"
+        # for card in note.cards:
+        #     num_views = View.query.filter_by(card_id=card.id).count()
+        #     days_to_repeat = (
+        #         card.ts_scheduled - datetime.now(timezone.utc)
+        #     ).days
+        #     stability = (
+        #         f"{card.stability:.2f}"
+        #         if card.stability is not None
+        #         else "N/A"
+        #     )
+        #     difficulty = (
+        #         f"{card.difficulty:.2f}"
+        #         if card.difficulty is not None
+        #         else "N/A"
+        #     )
+        #     card_info += f"\n- in {days_to_repeat} days, s={stability} d={difficulty} v={num_views}"
+
         messages.append(card_info)
 
     await update.message.reply_text("\n\n".join(messages))
