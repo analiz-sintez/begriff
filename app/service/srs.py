@@ -6,10 +6,22 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 from ..models import db, Note, Card, View, Language, Answer
 from ..config import Config
+from sqlalchemy import or_
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def log_sql_query(query):
+    if query is not None:
+        logger.info(
+            "SQL Query: %s",
+            str(
+                query.statement.compile(compile_kwargs={"literal_binds": True})
+            ),
+        )
 
 
 def get_language(name):
@@ -299,35 +311,35 @@ def get_cards(
         # only allow to review the reviewed card again.
         # ...step 1: Find all cards that were reviewed today
         recently_viewed_cards = (
-            db.session.query(View.card_id)
+            db.session.query(View.card_id.distinct().label("card_id"))
             .filter(
                 View.ts_review_finished
                 > (datetime.now(timezone.utc) - timedelta(hours=12))
             )
-            .subquery()
+            .cte("recently_viewed_cards")
             .select()
         )
-        # ...step 2: Find all notes associated with these cards
+        # ...step 2: Find distinct note_ids associated with these cards
         recent_notes = (
-            db.session.query(Card.note_id)
+            db.session.query(Card.note_id.distinct().label("note_id"))
             .filter(Card.id.in_(recently_viewed_cards))
-            .subquery()
+            .cte("recent_notes")
             .select()
         )
         # ...step 3: Allow only those cards which belong to notes found in step 2
         #    For other notes, allow all cards
-        alias_card = aliased(Card)
         query = query.filter(
             db.or_(
-                alias_card.note_id.in_(recent_notes)
-                & alias_card.id.in_(recently_viewed_cards),
-                ~alias_card.note_id.in_(recent_notes),
+                ~Card.note_id.in_(recent_notes),
+                Card.note_id.in_(recent_notes)
+                & Card.id.in_(recently_viewed_cards),
             )
         )
 
     if not randomize:
         query = query.order_by(Card.ts_scheduled.asc())
 
+    log_sql_query(query)
     results = query.all()
     if randomize:
         random.shuffle(results)
