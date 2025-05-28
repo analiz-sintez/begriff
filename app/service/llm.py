@@ -1,6 +1,7 @@
 import logging
 from openai import OpenAI
 from ..config import Config
+from .srs import get_notes
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -9,15 +10,14 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
-def get_explanation(input, language):
+def get_explanation(input, language, notes: list = None):
     logger.info(
         "Requesting explanation for input: '%s' in language: '%s'",
         input,
         language,
     )
-    response = client.responses.create(
-        model=Config.LLM["model"],
-        instructions=f"""
+
+    instructions = f"""
         Please explain this word in few words in simple {language}.
 
         Instructions:
@@ -35,7 +35,22 @@ def get_explanation(input, language):
         Example 2.
         Prompt: fixer
         Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, especially in politics or media.    
-        """,
+"""
+
+    if notes:
+        instructions += """
+        When appropriate, use the following words in your explanation: %s.
+        """ % ", ".join(
+            [note.field1 for note in notes]
+        )
+
+    logger.info(
+        f"Requesting explanation for {input} with instructions\n: {instructions}"
+    )
+
+    response = client.responses.create(
+        model=Config.LLM["model"],
+        instructions=instructions,
         input=input,
     )
     explanation = response.output_text

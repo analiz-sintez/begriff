@@ -6,7 +6,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
 from ..models import db, Note, Card, View, Language, Answer
 from ..config import Config
-from sqlalchemy import or_
+from sqlalchemy import and_, or_, func
+
+from enum import Enum
 
 
 # Set up logging
@@ -215,28 +217,40 @@ def get_card(card_id: int):
     return Card.query.filter_by(id=card_id).first()
 
 
+class Maturity(Enum):
+    NEW = "new"
+    YOUNG = "young"
+    MATURE = "mature"
+
+
 def get_notes(
-    user_id: int, language_id: int, text: str = None, explanation: str = None
+    user_id: int,
+    language_id: int,
+    text: str = None,
+    explanation: str = None,
+    maturity: list = None,
 ):
     """
-    Retrieve notes for a specific user and language. Allows optional filtering by text and explanation.
+    Retrieve notes for a specific user and language. Allows optional filtering by text, explanation, and maturity.
 
     Args:
     user_id (int): The ID of the user.
     language_id (int): The ID of the language.
     text (str, optional): Filter by the text field of the note. Supports exact match, SQL LIKE pattern, or regex.
     explanation (str, optional): Filter by the explanation field of the note. Supports exact match, SQL LIKE pattern, or regex.
+    maturity (list of Maturity, optional): Filter notes by their maturity.
 
     Returns:
     List[Note]: A list of Note objects matching the filter criteria.
 
     """
     logger.info(
-        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s'",
+        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s', maturity: '%s'",
         user_id,
         language_id,
         text,
         explanation,
+        maturity,
     )
     query = db.session.query(Note).filter_by(
         user_id=user_id, language_id=language_id
@@ -270,6 +284,52 @@ def get_notes(
             )
             query = query.filter(Note.field2 == explanation)
 
+    if maturity:
+        CardAlias = aliased(Card)
+        subqueries = []
+        for m in maturity:
+            if m == Maturity.NEW:
+                subqueries.append(
+                    db.session.query(CardAlias.note_id)
+                    .filter(CardAlias.ts_last_review.is_(None))
+                    .cte("new_cards")
+                )
+                # query = query.filter(Note.id.in_(subquery_new))
+            elif m == Maturity.YOUNG:
+                timetable_young = datetime.now(timezone.utc) + timedelta(
+                    days=2
+                )
+                subqueries.append(
+                    db.session.query(CardAlias.note_id)
+                    .filter(
+                        and_(
+                            CardAlias.ts_last_review.isnot(None),
+                            CardAlias.ts_scheduled <= timetable_young,
+                        )
+                    )
+                    .cte("young_cards")
+                )
+                # query = query.filter(Note.id.in_(subquery_young))
+            elif m == Maturity.MATURE:
+                timetable_mature = datetime.now(timezone.utc) + timedelta(
+                    days=2
+                )
+                subqueries.append(
+                    db.session.query(CardAlias.note_id)
+                    .filter(
+                        and_(
+                            CardAlias.ts_last_review.isnot(None),
+                            CardAlias.ts_scheduled > timetable_mature,
+                        )
+                    )
+                    .cte("mature_cards")
+                )
+
+        query = query.filter(
+            db.or_(*[Note.id.in_(subquery) for subquery in subqueries])
+        )
+
+    log_sql_query(query)
     results = query.all()
     logger.info("Retrieved %i notes", len(results))
     logger.debug("\n".join([str(note) for note in results]))

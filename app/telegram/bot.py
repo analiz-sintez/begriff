@@ -26,6 +26,7 @@ from ..service import (
     record_view_start,
     record_answer,
     get_explanation,
+    Maturity,
 )
 from datetime import datetime, timezone, timedelta
 from ..models import User, Answer, Card, View
@@ -57,7 +58,7 @@ async def start(update: Update, context: CallbackContext) -> None:
     )
 
 
-async def add_note_or_process_input(update: Update, context: CallbackContext):
+async def add_notes(update: Update, context: CallbackContext):
     """Add new word notes or process the input as words with the provided text, explanations, and language."""
     user_name = update.effective_user.username
     user = get_user(user_name)
@@ -73,6 +74,7 @@ async def add_note_or_process_input(update: Update, context: CallbackContext):
         return
 
     added_notes = []
+    notes_to_inject = None
 
     for line in message_text:
         match = re.match(
@@ -93,6 +95,7 @@ async def add_note_or_process_input(update: Update, context: CallbackContext):
         )
 
         if existing_note:
+            # Note already exists: reusing an explanation.
             explanation = existing_note[0].field2
             logger.info(
                 "Fetched existing explanation for text '%s': '%s'",
@@ -100,6 +103,7 @@ async def add_note_or_process_input(update: Update, context: CallbackContext):
                 explanation,
             )
         elif match.group("explanation"):
+            # Explanation provided: using it.
             explanation = match.group("explanation").strip()
             logger.info(
                 "User provided explanation for text '%s': '%s'",
@@ -107,7 +111,14 @@ async def add_note_or_process_input(update: Update, context: CallbackContext):
                 explanation,
             )
         else:
-            explanation = get_explanation(text, language.name)
+            # New note: making an explanation.
+            if not notes_to_inject:
+                notes_to_inject = get_notes(
+                    user.id,
+                    language.id,
+                    # maturity=[Maturity.YOUNG, Maturity.MATURE],
+                )
+            explanation = get_explanation(text, language.name, notes_to_inject)
             logger.info(
                 "Fetched explanation for text '%s': '%s'", text, explanation
             )
@@ -242,40 +253,55 @@ async def handle_user_input(update: Update, context: CallbackContext):
         await study_next_card(update, context)
 
 
+def format_note(note, show_cards=True):
+    card_info = f"{note.field1}"
+    if show_cards:
+        for card in note.cards:
+            num_views = View.query.filter_by(card_id=card.id).count()
+            days_to_repeat = (
+                card.ts_scheduled - datetime.now(timezone.utc)
+            ).days
+            stability = (
+                f"{card.stability:.2f}"
+                if card.stability is not None
+                else "N/A"
+            )
+            difficulty = (
+                f"{card.difficulty:.2f}"
+                if card.difficulty is not None
+                else "N/A"
+            )
+            card_info += f"\n- in {days_to_repeat} days, s={stability} d={difficulty} v={num_views}"
+    return card_info
+
+
 async def list_cards(update: Update, context: CallbackContext):
-    """List all cards with their stability, difficulty, view counts, and scheduled dates."""
+    """List all cards, displaying them separately as new, young, and mature along with their stability, difficulty, view counts, and scheduled dates."""
     user = get_user(update.effective_user.username)
     logger.info("User %s requested to list cards.", user.login)
-    notes = get_notes(user.id, get_language("English").id)
+    language_id = get_language("English").id
 
-    if not notes:
-        await update.message.reply_text("You have no notes.")
-        return
+    new_notes = get_notes(user.id, language_id, maturity=[Maturity.NEW])
+    young_notes = get_notes(user.id, language_id, maturity=[Maturity.YOUNG])
+    mature_notes = get_notes(user.id, language_id, maturity=[Maturity.MATURE])
 
-    messages = []
-    for note_num, note in enumerate(notes):
-        card_info = f"{note_num+1}: {note.field1}"
-        # for card in note.cards:
-        #     num_views = View.query.filter_by(card_id=card.id).count()
-        #     days_to_repeat = (
-        #         card.ts_scheduled - datetime.now(timezone.utc)
-        #     ).days
-        #     stability = (
-        #         f"{card.stability:.2f}"
-        #         if card.stability is not None
-        #         else "N/A"
-        #     )
-        #     difficulty = (
-        #         f"{card.difficulty:.2f}"
-        #         if card.difficulty is not None
-        #         else "N/A"
-        #     )
-        #     card_info += f"\n- in {days_to_repeat} days, s={stability} d={difficulty} v={num_views}"
+    def format_notes(notes, title):
+        messages = [
+            f"{note_num + 1}: {format_note(note, show_cards=False)}"
+            for note_num, note in enumerate(notes)
+        ]
+        return f"**{title}**\n" + (
+            "\n".join(messages) if messages else "No cards"
+        )
 
-        messages.append(card_info)
+    new_notes = format_notes(new_notes, "New Notes")
+    young_notes = format_notes(young_notes, "Young Notes")
+    mature_notes = format_notes(mature_notes, "Mature Notes")
+
+    response_message = f"{new_notes}\n\n{young_notes}\n\n{mature_notes}"
 
     await update.message.reply_text(
-        "\n".join(messages), parse_mode=ParseMode.MARKDOWN
+        response_message, parse_mode=ParseMode.MARKDOWN
     )
 
 
@@ -302,9 +328,7 @@ def create_bot(token):
 
     # MessageHandler for adding words or processing input by default
     application.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND, add_note_or_process_input
-        )
+        MessageHandler(filters.TEXT & ~filters.COMMAND, add_notes)
     )
 
     # CallbackQueryHandler for inline button responses
