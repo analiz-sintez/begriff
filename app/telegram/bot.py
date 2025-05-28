@@ -20,8 +20,8 @@ from ..service import (
     record_answer,
     get_explanation,
 )
-from datetime import datetime, timezone, date, timedelta
-from ..models import db, User, Answer, Card, View
+from datetime import datetime, timezone, timedelta
+from ..models import User, Answer, Card, View
 import logging
 
 # Set up logging
@@ -33,57 +33,72 @@ async def start(update: Update, context: CallbackContext) -> None:
     """Send a welcome message to the user when they start the bot."""
     logger.info("User %s started the bot.", update.effective_user.id)
     await update.message.reply_text(
-        "Welcome to the Begriff Bot! "
-        "I'll help you learn new words on foreign language."
+        "Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.\n\n"
+        "Here are the commands you can use:\n"
+        "/add <word1>[:<explanation1>]\n<word2>[:<explanation2>]...\n - Add new words to your study list. You can provide explanations or leave them out, and the bot will generate them for you. (Max 20 words per message)\n"
+        "/list - See all the words you've added to your study list along with their details.\n"
+        "/study - Start a study session with your queued words."
     )
 
 
 async def add_note(update: Update, context: CallbackContext):
-    """Add a new word note with the provided text, explanation, and language."""
+    """Add new word notes with the provided text, explanations, and language."""
     user_name = update.effective_user.username
     user = get_user(user_name)
     language = get_language("English")
 
-    # Get a word and possibly its explanation from user message.
-    message_text = (
-        update.message.text.split(" ", 1)[1]
-        if len(update.message.text.split(" ", 1)) > 1
-        else ""
-    )
+    # Get a list of words and possibly their explanations from user message.
+    message_text = update.message.text.split("\n")[1:]
 
-    match = re.match(
-        r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$", message_text
-    )
-    if not match:
-        await update.message.reply_text(f"Couldn't parse your text.")
+    if len(message_text) > 20:
+        await update.message.reply_text(
+            "You can add up to 20 words at a time."
+        )
         return
 
-    text = match.group("text").strip()
+    added_notes = []
 
-    # If no explanation provided, generate one with LLM.
-    if match.group("explanation"):
-        explanation = match.group("explanation").strip()
-        logger.info(
-            "User provided explanation for text '%s': '%s'", text, explanation
+    for line in message_text:
+        match = re.match(
+            r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$", line.strip()
         )
-    else:
-        explanation = get_explanation(text, language.name)
+        if not match:
+            await update.message.reply_text(
+                f"Couldn't parse the text: {line.strip()}"
+            )
+            continue
+
+        text = match.group("text").strip()
+
+        # If no explanation provided, generate one with LLM.
+        if match.group("explanation"):
+            explanation = match.group("explanation").strip()
+            logger.info(
+                "User provided explanation for text '%s': '%s'",
+                text,
+                explanation,
+            )
+        else:
+            explanation = get_explanation(text, language.name)
+            logger.info(
+                "Fetched explanation for text '%s': '%s'", text, explanation
+            )
+
         logger.info(
-            "Fetched explanation for text '%s': '%s'", text, explanation
+            "User %s is adding a note with text '%s':'%s'",
+            user_name,
+            text,
+            explanation,
         )
 
-    logger.info(
-        "User %s is adding a note with text '%s':'%s'",
-        user_name,
-        text,
-        explanation,
-    )
+        # Save note.
+        create_word_note(text, explanation, language.id, user.id)
+        added_notes.append(f"'{text}' with explanation '{explanation}'")
 
-    # Save note.
-    create_word_note(text, explanation, language.id, user.id)
-    await update.message.reply_text(
-        f"Note added for '{text}' with explanation '{explanation}'."
-    )
+    if added_notes:
+        await update.message.reply_text(
+            "Notes added: \n" + "\n".join(added_notes)
+        )
 
 
 async def study_next_card(update: Update, context: CallbackContext):
@@ -107,10 +122,11 @@ async def study_next_card(update: Update, context: CallbackContext):
         randomize=True,
     )
 
-    if update.callback_query:
-        reply_fn = update.callback_query.edit_message_text
-    else:
-        reply_fn = update.message.reply_text
+    reply_fn = (
+        update.callback_query.edit_message_text
+        if update.callback_query
+        else update.message.reply_text
+    )
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
@@ -179,7 +195,7 @@ async def handle_user_input(update: Update, context: CallbackContext):
         view_id = int(view_id)
         answer = Answer(answer_str)
         logger.info(
-            "User %s gradeed answer %s for view %s",
+            "User %s graded answer %s for view %s",
             query.from_user.id,
             answer.name,
             view_id,
@@ -192,7 +208,6 @@ async def list_cards(update: Update, context: CallbackContext):
     """List all cards with their stability, difficulty, view counts, and scheduled dates."""
     user = get_user(update.effective_user.username)
     logger.info("User %s requested to list cards.", user.login)
-    # cards = Card.query.filter(Card.note.has(user_id=user.id)).all()
     cards = get_cards(user.id, get_language("English").id)
 
     if not cards:
@@ -243,15 +258,4 @@ def create_bot(token):
     # CallbackQueryHandler for inline button responses
     application.add_handler(CallbackQueryHandler(handle_user_input))
 
-    # You may need to add more handlers for input validation, not included here.
-
     return application
-
-
-# def create_bot(token):
-#     """Start the Telegram bot."""
-#     application = Application.builder().token(token).build()
-#     application.bot.initialize()
-#     application.add_handler(CommandHandler('start', start))
-#     # application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-#     return application
