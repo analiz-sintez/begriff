@@ -24,7 +24,9 @@ tg:
 # Run unit-tests
 test:
 	. $(VENV_PATH)/bin/activate && pytest
-	# . $(VENV_PATH)/bin/activate && pytest -s --log-cli-level=INFO
+
+test-verbose:
+	. $(VENV_PATH)/bin/activate && pytest -s --log-cli-level=INFO
 
 # Initialize the database
 db-init:
