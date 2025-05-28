@@ -72,7 +72,6 @@ async def start(update: Update, context: CallbackContext) -> None:
     )
 
 
-
 __notes_to_inject_cache = {}
 
 
@@ -418,10 +417,10 @@ def create_bot(token: str) -> Application:
         BotCommand("list", "List all your words"),
     ]
 
-    async def set_commands():
+    async def set_commands(application):
         await application.bot.set_my_commands(commands)
 
-    # application.run_task(set_commands())
+    application.post_init = set_commands
 
     # Command Handlers
     application.add_handler(CommandHandler("start", start))
