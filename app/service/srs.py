@@ -8,13 +8,20 @@ from ..models import db, Note, Card, View, Language, Answer
 from ..config import Config
 from sqlalchemy import and_, or_, func
 from enum import Enum
+from typing import List, Optional
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def log_sql_query(query):
+def log_sql_query(query) -> None:
+    """
+    Log the SQL query statement if available.
+
+    Args:
+        query: SQLAlchemy query object.
+    """
     if query is not None:
         logger.info(
             "SQL Query: %s",
@@ -24,7 +31,16 @@ def log_sql_query(query):
         )
 
 
-def get_language(name):
+def get_language(name: str) -> Language:
+    """
+    Retrieve or create a language by name.
+
+    Args:
+        name: The name of the language.
+
+    Returns:
+        Language: The language object.
+    """
     logger.info("Retrieving language with name: %s", name)
     language = Language.query.filter_by(name=name).first()
     if not language:
@@ -50,6 +66,15 @@ def create_word_note(
 ) -> Note:
     """
     Add a note for studying: create cards and schedule them.
+
+    Args:
+        text: The word or phrase to add.
+        explanation: Explanation of the text.
+        language_id: ID of the language.
+        user_id: ID of the user.
+
+    Returns:
+        Note: The note object created.
     """
     logger.info(
         "Creating word note with text: '%s', explanation: '%s', "
@@ -100,7 +125,13 @@ def create_word_note(
         raise e
 
 
-def update_note(note):
+def update_note(note: Note) -> None:
+    """
+    Update the given note.
+
+    Args:
+        note: The note to update.
+    """
     logger.info("Updating note with id: %d", note.id)
     cards = Card.query.filter_by(note_id=note.id).all()
     for card in cards:
@@ -114,7 +145,16 @@ def update_note(note):
     logger.info("Note update committed successfully.")
 
 
-def get_view(view_id: int):
+def get_view(view_id: int) -> Optional[View]:
+    """
+    Get a view by id.
+
+    Args:
+        view_id: The id of the view.
+
+    Returns:
+        View: The view object, or None if not found.
+    """
     logger.info("Getting view by id '%d'", view_id)
     return View.query.filter_by(id=view_id).first()
 
@@ -122,8 +162,19 @@ def get_view(view_id: int):
 def get_views(
     user_id: int,
     language_id: int,
-    answers: list = None,
-):
+    answers: List[Optional[Answer]] = None,
+) -> List[View]:
+    """
+    Retrieve views for a specific user and language. Allows optional filtering by answers.
+
+    Args:
+        user_id: The ID of the user.
+        language_id: The ID of the language.
+        answers: Optional list of answers to filter views by.
+
+    Returns:
+        List[View]: A list of View objects matching the filter criteria.
+    """
     logger.info(
         "Getting views for user_id: '%d', language_id: '%d', answers: '%s'",
         user_id,
@@ -155,6 +206,12 @@ def get_views(
 def record_view_start(card_id: int) -> int:
     """
     Create a view and save the time it started.
+
+    Args:
+        card_id: ID of the card for which view is being created.
+
+    Returns:
+        int: The ID of the created view.
     """
     logger.info("Creating new view for card_id: %d", card_id)
     view = View(card_id=card_id, ts_review_started=datetime.now(timezone.utc))
@@ -164,14 +221,21 @@ def record_view_start(card_id: int) -> int:
     return view.id
 
 
-def record_answer(view_id: int, answer: Answer):
+def record_answer(view_id: int, answer: Answer) -> None:
+    """
+    Record an answer for a given view and update card memory state.
+
+    Args:
+        view_id: The ID of the view.
+        answer: The answer given by the user.
+    """
     logger.info(
         "Recording answer for view_id: '%d', answer: '%s'", view_id, answer
     )
     view = db.session.query(View).filter_by(id=view_id).first()
     if not view:
         logger.error("Found no view: %s, can't update the card.", view_id)
-        return None
+        return
     card = Card.query.filter_by(id=view.card_id).first()
 
     # Save answer and response time.
@@ -225,7 +289,16 @@ def record_answer(view_id: int, answer: Answer):
     )
 
 
-def get_card(card_id: int):
+def get_card(card_id: int) -> Optional[Card]:
+    """
+    Get a card by id.
+
+    Args:
+        card_id: The id of the card.
+
+    Returns:
+        Card: The card object, or None if not found.
+    """
     logger.info("Getting card by id '%d'", card_id)
     return Card.query.filter_by(id=card_id).first()
 
@@ -241,21 +314,20 @@ def get_notes(
     language_id: int,
     text: str = None,
     explanation: str = None,
-    maturity: list = None,
-):
+    maturity: List[Maturity] = None,
+) -> List[Note]:
     """
     Retrieve notes for a specific user and language. Allows optional filtering by text, explanation, and maturity.
 
     Args:
-    user_id (int): The ID of the user.
-    language_id (int): The ID of the language.
-    text (str, optional): Filter by the text field of the note. Supports exact match, SQL LIKE pattern, or regex.
-    explanation (str, optional): Filter by the explanation field of the note. Supports exact match, SQL LIKE pattern, or regex.
-    maturity (list of Maturity, optional): Filter notes by their maturity.
+        user_id: The ID of the user.
+        language_id: The ID of the language.
+        text: Optional text to filter notes by.
+        explanation: Optional explanation to filter notes by.
+        maturity: Optional list of maturity levels to filter notes by.
 
     Returns:
-    List[Note]: A list of Note objects matching the filter criteria.
-
+        List[Note]: A list of Note objects matching the filter criteria.
     """
     logger.info(
         "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s', maturity: '%s'",
@@ -351,12 +423,26 @@ def get_notes(
 
 def get_cards(
     user_id: int,
-    language_id: int = None,
-    start_ts: datetime = None,
-    end_ts: datetime = None,
+    language_id: Optional[int] = None,
+    start_ts: Optional[datetime] = None,
+    end_ts: Optional[datetime] = None,
     bury_siblings: bool = False,
     randomize: bool = False,
-):
+) -> List[Card]:
+    """
+    Retrieve cards for a specific user and language. Allows optional filtering by language, time, and other criteria.
+
+    Args:
+        user_id: The ID of the user.
+        language_id: Optional ID of the language.
+        start_ts: Optional start timestamp to filter cards by.
+        end_ts: Optional end timestamp to filter cards by.
+        bury_siblings: Optional flag to exclude sibling cards.
+        randomize: Optional flag to randomize the order of the cards.
+
+    Returns:
+        List[Card]: A list of Card objects matching the filter criteria.
+    """
     logger.info(
         "Getting cards for user_id: '%d', language_id: '%d', "
         "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
@@ -404,7 +490,7 @@ def get_cards(
         query = query.filter(
             db.or_(
                 ~Card.note_id.in_(recent_notes),
-                Card.note_id.in_(recent_notes)
+                Card.note_id.in_(recently_viewed_cards)
                 & Card.id.in_(recently_viewed_cards),
             )
         )
