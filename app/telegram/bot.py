@@ -48,7 +48,7 @@ async def add_note(update: Update, context: CallbackContext):
     language = get_language("English")
 
     # Get a list of words and possibly their explanations from user message.
-    message_text = update.message.text.split("\n")[1:]
+    message_text = update.message.text.split("\n")
 
     if len(message_text) > 20:
         await update.message.reply_text(
@@ -60,7 +60,8 @@ async def add_note(update: Update, context: CallbackContext):
 
     for line in message_text:
         match = re.match(
-            r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$", line.strip()
+            r"(?:/[^ ]+ )?(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
+            line.strip(),
         )
         if not match:
             await update.message.reply_text(
