@@ -7,9 +7,7 @@ from sqlalchemy.orm import aliased
 from ..models import db, Note, Card, View, Language, Answer
 from ..config import Config
 from sqlalchemy import and_, or_, func
-
 from enum import Enum
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -49,7 +47,7 @@ def get_language(name):
 
 def create_word_note(
     text: str, explanation: str, language_id: int, user_id: int
-):
+) -> Note:
     """
     Add a note for studying: create cards and schedule them.
     """
@@ -95,10 +93,25 @@ def create_word_note(
         logger.info(
             "Transaction committed successfully for word note creation."
         )
+        return note
     except IntegrityError as e:
         db.session.rollback()
         logger.error("Integrity error occurred: %s", e)
         raise e
+
+
+def update_note(note):
+    logger.info("Updating note with id: %d", note.id)
+    cards = Card.query.filter_by(note_id=note.id).all()
+    for card in cards:
+        if card.front == note.field1:
+            card.back = note.field2
+            logger.info("Card updated: %s", card)
+        elif card.back == note.field1:
+            card.front = note.field2
+            logger.info("Card updated: %s", card)
+    db.session.commit()
+    logger.info("Note update committed successfully.")
 
 
 def get_view(view_id: int):

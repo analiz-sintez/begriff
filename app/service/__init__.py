@@ -9,6 +9,7 @@ from .srs import (
     get_notes,
     record_view_start,
     record_answer,
+    update_note,
     Maturity,
 )
 from .llm import get_explanation

@@ -14,6 +14,7 @@ from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
 )
+from ..models import Note, User, Language
 from ..service import (
     get_user,
     get_language,
@@ -23,22 +24,30 @@ from ..service import (
     get_card,
     get_cards,
     get_notes,
+    update_note,
     record_view_start,
     record_answer,
     get_explanation,
     Maturity,
 )
 from datetime import datetime, timezone, timedelta
-from ..models import User, Answer, Card, View
 import logging
+from typing import Optional, Tuple
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def format_explanation(explanation):
-    """Format explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets."""
+def format_explanation(explanation: str) -> str:
+    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
+
+    Args:
+        explanation: The explanation string to format.
+
+    Returns:
+        The formatted explanation string.
+    """
     return re.sub(
         r"\[([^\]]+)\]",
         lambda match: f"\n_{match.group(1).lower()}_",
@@ -47,7 +56,12 @@ def format_explanation(explanation):
 
 
 async def start(update: Update, context: CallbackContext) -> None:
-    """Send a welcome message to the user when they start the bot."""
+    """Send a welcome message to the user when they start the bot.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
     logger.info("User %s started the bot.", update.effective_user.id)
     await update.message.reply_text(
         "Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.\n\n"
@@ -58,13 +72,119 @@ async def start(update: Update, context: CallbackContext) -> None:
     )
 
 
-async def add_notes(update: Update, context: CallbackContext):
-    """Add new word notes or process the input as words with the provided text, explanations, and language."""
+
+__notes_to_inject_cache = {}
+
+
+def __get_notes_to_inject(user: User, language: Language) -> list:
+    """Retrieve notes to inject for a specific user and language.
+
+    Args:
+        user: The user object.
+        language: The language object.
+
+    Returns:
+        A list of notes for the given user and language.
+    """
+    if (user.id, language.id) not in __notes_to_inject_cache:
+        __notes_to_inject_cache[(user.id, language.id)] = get_notes(
+            user.id,
+            language.id,
+            maturity=[Maturity.YOUNG, Maturity.MATURE],
+        )
+    return __notes_to_inject_cache[(user.id, language.id)]
+
+
+def add_note(
+    user: User,
+    language: Language,
+    text: str,
+    explanation: Optional[str] = None,
+) -> Tuple[Note, bool]:
+    """Add a note for a user and language. If the note already exists, it will update the explanation if provided.
+
+    Args:
+        user: The user object.
+        language: The language object.
+        text: The text of the note.
+        explanation: An optional explanation for the note.
+
+    Returns:
+        A tuple containing the note and a boolean indicating if it is a new note.
+    """
+    existing_notes = get_notes(
+        user_id=user.id, language_id=language.id, text=text
+    )
+
+    if existing_notes:
+        note = existing_notes[0]
+        if explanation:
+            note.field2 = explanation
+            update_note(note)
+            logger.info(
+                "Updated explanation for text '%s': '%s'",
+                text,
+                explanation,
+            )
+        else:
+            logger.info(
+                "Fetched existing explanation for text '%s': '%s'",
+                text,
+                note.field2,
+            )
+        return note, False
+    else:
+        if not explanation:
+            notes_to_inject = __get_notes_to_inject(user, language)
+            explanation = get_explanation(text, language.name, notes_to_inject)
+            logger.info(
+                "Fetched explanation for text '%s': '%s'", text, explanation
+            )
+        note = create_word_note(text, explanation, language.id, user.id)
+        logger.info(
+            "User %s added a new note with text '%s': '%s'",
+            user.login,
+            text,
+            explanation,
+        )
+        return note, True
+
+
+def __parse_word_line(line: str) -> Tuple[Optional[str], Optional[str]]:
+    """Parse a line of text into a word and its explanation, if present.
+
+    Args:
+        line: A line of text containing a word and possibly its explanation.
+
+    Returns:
+        A tuple containing the word and its explanation.
+    """
+    match = re.match(
+        r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
+        line.strip(),
+    )
+    if not match:
+        return None, None
+    text = match.group("text").strip()
+    explanation = (
+        match.group("explanation").strip()
+        if match.group("explanation")
+        else None
+    )
+    return text, explanation
+
+
+async def add_notes(update: Update, context: CallbackContext) -> None:
+    """Add new word notes or process the input as words with the provided text, explanations, and language.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
     user_name = update.effective_user.username
     user = get_user(user_name)
     language = get_language("English")
 
-    # Get a list of words and possibly their explanations from user message.
     message_text = update.message.text.split("\n")
 
     if len(message_text) > 20:
@@ -74,68 +194,19 @@ async def add_notes(update: Update, context: CallbackContext):
         return
 
     added_notes = []
-    notes_to_inject = None
 
     for line in message_text:
-        match = re.match(
-            r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
-            line.strip(),
-        )
-        if not match:
+        text, explanation = __parse_word_line(line)
+        if not text:
             await update.message.reply_text(
                 f"Couldn't parse the text: {line.strip()}"
             )
             continue
 
-        text = match.group("text").strip()
+        note, is_new = add_note(user, language, text, explanation)
 
-        # Check if a note already exists for this word
-        existing_note = get_notes(
-            user_id=user.id, language_id=language.id, text=text
-        )
-
-        if existing_note:
-            # Note already exists: reusing an explanation.
-            explanation = existing_note[0].field2
-            logger.info(
-                "Fetched existing explanation for text '%s': '%s'",
-                text,
-                explanation,
-            )
-        elif match.group("explanation"):
-            # Explanation provided: using it.
-            explanation = match.group("explanation").strip()
-            logger.info(
-                "User provided explanation for text '%s': '%s'",
-                text,
-                explanation,
-            )
-        else:
-            # New note: making an explanation.
-            if not notes_to_inject:
-                notes_to_inject = get_notes(
-                    user.id,
-                    language.id,
-                    # maturity=[Maturity.YOUNG, Maturity.MATURE],
-                )
-            explanation = get_explanation(text, language.name, notes_to_inject)
-            logger.info(
-                "Fetched explanation for text '%s': '%s'", text, explanation
-            )
-
-        explanation = format_explanation(explanation)
-        logger.info(
-            "User %s is adding a note with text '%s':'%s'",
-            user_name,
-            text,
-            explanation,
-        )
-
-        # Save note.
-        icon = ""  # existing note: no sign
-        if not existing_note:
-            create_word_note(text, explanation, language.id, user.id)
-            icon = "✔️"  # new note: plus sign
+        icon = "✔️" if is_new else ""  # new note: plus sign
+        explanation = format_explanation(note.field2)
         added_notes.append(f"*{text}* — {explanation} {icon}")
 
     if added_notes:
@@ -144,8 +215,13 @@ async def add_notes(update: Update, context: CallbackContext):
         )
 
 
-async def study_next_card(update: Update, context: CallbackContext):
-    """Fetch a study card for the user and display it with a button to show the answer."""
+async def study_next_card(update: Update, context: CallbackContext) -> None:
+    """Fetch a study card for the user and display it with a button to show the answer.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
     user = get_user(update.effective_user.username)
     language = get_language("English")
 
@@ -189,8 +265,13 @@ async def study_next_card(update: Update, context: CallbackContext):
     )
 
 
-async def handle_user_input(update: Update, context: CallbackContext):
-    """Handle button press from user to show answers and record responses."""
+async def handle_user_input(update: Update, context: CallbackContext) -> None:
+    """Handle button press from user to show answers and record responses.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
     query = update.callback_query
     user_response = query.data
     await query.answer()  # Acknowledge the callback query
@@ -253,7 +334,16 @@ async def handle_user_input(update: Update, context: CallbackContext):
         await study_next_card(update, context)
 
 
-def format_note(note, show_cards=True):
+def format_note(note: Note, show_cards: bool = True) -> str:
+    """Format a note for display.
+
+    Args:
+        note: The note to format.
+        show_cards: A flag indicating whether to show card information.
+
+    Returns:
+        A formatted string representing the note.
+    """
     card_info = f"{note.field1}"
     if show_cards:
         for card in note.cards:
@@ -275,8 +365,13 @@ def format_note(note, show_cards=True):
     return card_info
 
 
-async def list_cards(update: Update, context: CallbackContext):
-    """List all cards, displaying them separately as new, young, and mature along with their stability, difficulty, view counts, and scheduled dates."""
+async def list_cards(update: Update, context: CallbackContext) -> None:
+    """List all cards, displaying them separately as new, young, and mature along with their stability, difficulty, view counts, and scheduled dates.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
     user = get_user(update.effective_user.username)
     logger.info("User %s requested to list cards.", user.login)
     language_id = get_language("English").id
@@ -305,8 +400,15 @@ async def list_cards(update: Update, context: CallbackContext):
     )
 
 
-def create_bot(token):
-    """Create and configure the Telegram bot application with command and callback handlers."""
+def create_bot(token: str) -> Application:
+    """Create and configure the Telegram bot application with command and callback handlers.
+
+    Args:
+        token: The bot token for authentication.
+
+    Returns:
+        A configured Application instance representing the bot.
+    """
     application = Application.builder().token(token).build()
 
     # Define bot commands for the menu
