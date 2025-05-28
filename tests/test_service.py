@@ -5,11 +5,13 @@ from app.models import User, Note, Card, View, Language, Answer
 from app.service import (
     create_word_note,
     get_cards,
+    get_notes,
     record_view_start,
     record_answer,
     get_language,
     get_user,
     update_note,
+    Maturity,
 )
 
 
@@ -182,3 +184,142 @@ def test_update_note_function(app):
                 assert card.back == "an updated sample explanation"
             elif card.back == updated_note.field1:
                 assert card.front == "an updated sample explanation"
+
+
+def test_get_notes_filters(app):
+    with app.app_context():
+        user_id = get_user("test_user").id
+        language_id = get_language("English").id
+
+        create_word_note(
+            text="apple",
+            explanation="a fruit",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        create_word_note(
+            text="banana",
+            explanation="another fruit",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        create_word_note(
+            text="cat",
+            explanation="an animal",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        # Test text filter
+        notes = get_notes(
+            user_id=user_id, language_id=language_id, text="apple"
+        )
+        assert len(notes) == 1
+        assert notes[0].field1 == "apple"
+
+        # Test regex filter on text
+        notes = get_notes(
+            user_id=user_id, language_id=language_id, text="=~^a.*"
+        )
+        assert len(notes) == 1
+        assert notes[0].field1 == "apple"
+
+        # Test SQL LIKE filter on text
+        notes = get_notes(user_id=user_id, language_id=language_id, text="a%")
+        assert len(notes) == 1
+        fetched_texts = {note.field1 for note in notes}
+        assert "apple" in fetched_texts
+        assert "banana" not in fetched_texts
+
+        # Test explanation filter
+        notes = get_notes(
+            user_id=user_id, language_id=language_id, explanation="animal"
+        )
+        assert len(notes) == 0
+
+        # Test regex filter on explanation
+        notes = get_notes(
+            user_id=user_id, language_id=language_id, explanation="=~^an.*"
+        )
+        assert len(notes) == 2
+        fetched_explanations = {note.field2 for note in notes}
+        assert "an animal" in fetched_explanations
+        assert "a fruit" not in fetched_explanations
+
+        # Test SQL LIKE filter on explanation
+        notes = get_notes(
+            user_id=user_id, language_id=language_id, explanation="an%"
+        )
+        assert len(notes) == 2
+        fetched_explanations = {note.field2 for note in notes}
+        assert "an animal" in fetched_explanations
+        assert "a fruit" not in fetched_explanations
+
+
+def test_maturity_filter(app):
+    with app.app_context():
+        user_id = get_user("test_user").id
+        language_id = get_language("English").id
+
+        note1 = create_word_note(
+            text="zebra",
+            explanation="a striped animal",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        note2 = create_word_note(
+            text="elephant",
+            explanation="a large mammal",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        note3 = create_word_note(
+            text="lion",
+            explanation="king of the jungle",
+            language_id=language_id,
+            user_id=user_id,
+        )
+
+        # Simulate reviews to modify maturity
+        card1 = note1.cards[0]
+        card2 = note2.cards[0]
+        card3 = note3.cards[0]
+
+        # Note1: Make it YOUNG, set review intervals to tomorrow
+        view_id1 = record_view_start(card1.id)
+        record_answer(view_id1, Answer.GOOD)
+        card1.ts_scheduled = datetime.now(timezone.utc) - timedelta(days=1)
+        db.session.commit()
+
+        # Note2: Make it MATURE, set review intervals beyond 2 days
+        view_id2 = record_view_start(card2.id)
+        record_answer(view_id2, Answer.GOOD)
+        card2.ts_scheduled = datetime.now(timezone.utc) + timedelta(days=3)
+        db.session.commit()
+
+        # Note3 is still NEW as it hasn't been reviewed yet
+
+        # Test maturity filter
+        notes_new = get_notes(
+            user_id=user_id, language_id=language_id, maturity=[Maturity.NEW]
+        )
+        assert len(notes_new) == 1
+        assert notes_new[0].field1 == "lion"
+
+        notes_young = get_notes(
+            user_id=user_id, language_id=language_id, maturity=[Maturity.YOUNG]
+        )
+        assert len(notes_young) == 1
+        assert notes_young[0].field1 == "zebra"
+
+        notes_mature = get_notes(
+            user_id=user_id,
+            language_id=language_id,
+            maturity=[Maturity.MATURE],
+        )
+        assert len(notes_mature) == 1
+        assert notes_mature[0].field1 == "elephant"

@@ -371,20 +371,21 @@ def get_notes(
 
     if maturity:
         CardAlias = aliased(Card)
-        subqueries = []
+        conditions = []
         for m in maturity:
             if m == Maturity.NEW:
-                subqueries.append(
+                subquery = (
                     db.session.query(CardAlias.note_id)
-                    .filter(CardAlias.ts_last_review.is_(None))
+                    .filter(~CardAlias.ts_last_review.is_(None))
                     .cte("new_cards")
                 )
+                conditions.append(~Note.id.in_(subquery.select()))
                 # query = query.filter(Note.id.in_(subquery_new))
             elif m == Maturity.YOUNG:
                 timetable_young = datetime.now(timezone.utc) + timedelta(
                     days=2
                 )
-                subqueries.append(
+                subquery = (
                     db.session.query(CardAlias.note_id)
                     .filter(
                         and_(
@@ -394,12 +395,13 @@ def get_notes(
                     )
                     .cte("young_cards")
                 )
+                conditions.append(Note.id.in_(subquery.select()))
                 # query = query.filter(Note.id.in_(subquery_young))
             elif m == Maturity.MATURE:
                 timetable_mature = datetime.now(timezone.utc) + timedelta(
                     days=2
                 )
-                subqueries.append(
+                subquery = (
                     db.session.query(CardAlias.note_id)
                     .filter(
                         and_(
@@ -409,10 +411,9 @@ def get_notes(
                     )
                     .cte("mature_cards")
                 )
+                conditions.append(Note.id.in_(subquery.select()))
 
-        query = query.filter(
-            db.or_(*[Note.id.in_(subquery) for subquery in subqueries])
-        )
+        query = query.filter(db.or_(*[condition for condition in conditions]))
 
     log_sql_query(query)
     results = query.all()
