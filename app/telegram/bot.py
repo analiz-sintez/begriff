@@ -28,6 +28,7 @@ from ..service import (
     record_view_start,
     record_answer,
     get_explanation,
+    get_recap,
     Maturity,
 )
 from datetime import datetime, timezone, timedelta
@@ -64,15 +65,79 @@ async def start(update: Update, context: CallbackContext) -> None:
     """
     logger.info("User %s started the bot.", update.effective_user.id)
     await update.message.reply_text(
-        "Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.\n\n"
-        "Here are the commands you can use:\n"
-        "Simply enter words separated by a newline to add them to your study list with automatic explanations.\n"
-        "/list - See all the words you've added to your study list along with their details.\n"
-        "/study - Start a study session with your queued words."
+        """
+Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
+        
+Here are the commands you can use:
+Simply enter words separated by a newline to add them to your study list with automatic explanations.
+/list - See all the words you've added to your study list along with their details.
+/study - Start a study session with your queued words.
+"""
     )
 
 
+def __is_note_format(text: str) -> bool:
+    """Check if every line in the input text is in the format suitable for notes.
+
+    Args:
+        text: The input text to check.
+
+    Returns:
+        True if every line is in the note format, otherwise False.
+    """
+    lines = text.strip().split("\n")
+    return all(re.match(r".{1,32}(?::.*)?", line.strip()) for line in lines)
+
+
+async def router(update: Update, context: CallbackContext) -> None:
+    """Route the input text to the appropriate handler.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
+
+    text = update.message.text
+    url_pattern = re.compile(r"https?://\S+")
+    if url_pattern.match(text):
+        await process_url(update, context)
+    elif __is_note_format(text):
+        await add_notes(update, context)
+    else:
+        await process_text(update, context)
+
+
+async def process_url(update: Update, context: CallbackContext) -> None:
+    user_name = update.effective_user.username
+    user = get_user(user_name)
+    language = get_language("English")
+
+    recap = get_recap(
+        update.message.text,
+        language.name,
+        __get_notes_to_inject(user, language),
+    )
+    await update.message.reply_text(recap, parse_mode=ParseMode.MARKDOWN)
+
+
+async def process_text(update: Update, context: CallbackContext) -> None:
+    """Process longer text input.
+
+    Args:
+        update: The Telegram update that triggered this function.
+        context: The callback context as part of the Telegram framework.
+    """
+    # This function will handle longer text inputs
+    pass
+
+
 __notes_to_inject_cache = {}
+
+
+import time
+
+_notes_to_inject_cache = {}
+_cache_time = {}
 
 
 def __get_notes_to_inject(user: User, language: Language) -> list:
@@ -85,13 +150,19 @@ def __get_notes_to_inject(user: User, language: Language) -> list:
     Returns:
         A list of notes for the given user and language.
     """
-    if (user.id, language.id) not in __notes_to_inject_cache:
-        __notes_to_inject_cache[(user.id, language.id)] = get_notes(
-            user.id,
-            language.id,
-            maturity=[Maturity.YOUNG, Maturity.MATURE],
-        )
-    return __notes_to_inject_cache[(user.id, language.id)]
+    current_time = time.time()
+    cache_key = (user.id, language.id)
+
+    # Invalidate cache if older than 1 minute
+    if cache_key in _cache_time and current_time - _cache_time[cache_key] > 60:
+        del _notes_to_inject_cache[cache_key]
+        del _cache_time[cache_key]
+
+    if cache_key not in _notes_to_inject_cache:
+        _notes_to_inject_cache[cache_key] = get_notes(user.id, language.id)
+        _cache_time[cache_key] = current_time
+
+    return _notes_to_inject_cache[cache_key]
 
 
 def add_note(
@@ -149,7 +220,7 @@ def add_note(
         return note, True
 
 
-def __parse_word_line(line: str) -> Tuple[Optional[str], Optional[str]]:
+def __parse_note_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     """Parse a line of text into a word and its explanation, if present.
 
     Args:
@@ -186,7 +257,7 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
 
     message_text = update.message.text.split("\n")
 
-    if len(message_text) > 20:
+    if len(message_text) > 200:
         await update.message.reply_text(
             "You can add up to 20 words at a time."
         )
@@ -194,8 +265,8 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
 
     added_notes = []
 
-    for line in message_text:
-        text, explanation = __parse_word_line(line)
+    for index, line in enumerate(message_text):
+        text, explanation = __parse_note_line(line)
         if not text:
             await update.message.reply_text(
                 f"Couldn't parse the text: {line.strip()}"
@@ -204,13 +275,21 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
 
         note, is_new = add_note(user, language, text, explanation)
 
-        icon = "✔️" if is_new else ""  # new note: plus sign
+        icon = "🟢" if is_new else "🟡"  # new note: green ball
         explanation = format_explanation(note.field2)
-        added_notes.append(f"*{text}* — {explanation} {icon}")
+        added_notes.append(f"{icon} *{text}* — {explanation}")
 
+        # Send batch of notes every 10 words
+        if (index + 1) % 10 == 0:
+            await update.message.reply_text(
+                "\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
+            )
+            added_notes = []
+
+    # Send remaining notes if any
     if added_notes:
         await update.message.reply_text(
-            "\n\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
+            "\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
         )
 
 
@@ -400,7 +479,9 @@ async def list_cards(update: Update, context: CallbackContext) -> None:
 
 
 def create_bot(token: str) -> Application:
-    """Create and configure the Telegram bot application with command and callback handlers.
+    """
+    Create and configure the Telegram bot application
+    with command and callback handlers.
 
     Args:
         token: The bot token for authentication.
@@ -429,7 +510,7 @@ def create_bot(token: str) -> Application:
 
     # MessageHandler for adding words or processing input by default
     application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, add_notes)
+        MessageHandler(filters.TEXT & ~filters.COMMAND, router)
     )
 
     # CallbackQueryHandler for inline button responses

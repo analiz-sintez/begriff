@@ -2,6 +2,8 @@ import logging
 from openai import OpenAI
 from ..config import Config
 from .srs import get_notes
+from bs4 import BeautifulSoup
+import requests
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -58,5 +60,47 @@ def get_explanation(input, language, notes: list = None):
     return explanation
 
 
-# Example usage:
-# explanation = get_explanation("demise", "English")
+def get_recap(url, language, notes: list = None):
+    logger.info("Fetching URL content for recap: %s", url)
+
+    response = requests.get(url)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    # Extract text from paragraphs
+    text_content = " ".join(p.get_text() for p in soup.find_all("p"))
+    logger.info("Fetched text content from URL.")
+
+    instructions = f"""
+You are {language} tutor helping a student to learn new language. The student studies new words using spaced repetition algo, so it would be beneficial for them to see the words in use in real text.
+
+Please summarize the following text into one paragraph using simple {language}.
+
+Instructions:
+- Create one concise paragraph.
+- Use simple language.
+- Keep the summary simple and clear."""
+
+    if notes:
+        instructions += """
+- Integrate the following words into the text: %s. Feel free to change their form and to use their derivatives.
+- Mark those, and only those words in text with single underscores: _word_.
+""" % ", ".join(
+            [note.field1 for note in notes]
+        )
+
+    logger.info(
+        "Requesting recap for text from URL: %s.\nInstructions:\n%s",
+        url,
+        instructions,
+    )
+
+    response = client.responses.create(
+        # model=Config.LLM["model"],
+        model="chatgpt-4o-latest",
+        instructions=instructions,
+        input=text_content,
+    )
+    recap = response.output_text
+    logger.info("Received recap: '%s'", recap)
+    return recap
