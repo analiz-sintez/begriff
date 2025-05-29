@@ -14,7 +14,7 @@ from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
 )
-from ..models import Note, User, Language
+from ..models import Note, User, Language, Answer
 from ..service import (
     get_user,
     get_language,
