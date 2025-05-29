@@ -78,13 +78,13 @@ Please summarize the following text into one paragraph using simple {language}.
 
 Instructions:
 - Create one concise paragraph.
-- Use simple language.
+- Use simple language, and write only in {language}.
 - Keep the summary simple and clear."""
 
     if notes:
         instructions += """
 - Integrate the following words into the text: %s. Feel free to change their form and to use their derivatives.
-- Mark those, and only those words in text with single underscores: _word_.
+- Mark those and ONLY those words in text with single underscores: _word_.
 """ % ", ".join(
             [note.field1 for note in notes]
         )

@@ -1,4 +1,7 @@
 import re
+
+# from flask import Config
+from ..config import Config
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -99,7 +102,8 @@ async def router(update: Update, context: CallbackContext) -> None:
 
     text = update.message.text
     url_pattern = re.compile(r"https?://\S+")
-    if url_pattern.match(text):
+    last_line = text.strip().split("\n")[-1]
+    if url_pattern.match(last_line):
         await process_url(update, context)
     elif __is_note_format(text):
         await add_notes(update, context)
@@ -112,10 +116,16 @@ async def process_url(update: Update, context: CallbackContext) -> None:
     user = get_user(user_name)
     language = get_language("English")
 
+    if "recap" in Config.LLM["inject_notes"]:
+        notes_to_inject = __get_notes_to_inject(user, language)
+    else:
+        notes_to_inject = None
+
+    last_line = update.message.text.strip().split("\n")[-1]
     recap = get_recap(
-        update.message.text,
+        last_line,
         language.name,
-        __get_notes_to_inject(user, language),
+        notes=notes_to_inject,
     )
     await update.message.reply_text(recap, parse_mode=ParseMode.MARKDOWN)
 
@@ -205,8 +215,17 @@ def add_note(
         return note, False
     else:
         if not explanation:
-            notes_to_inject = __get_notes_to_inject(user, language)
-            explanation = get_explanation(text, language.name, notes_to_inject)
+            # TODO: move it to `get_explanation`, it belongs to its
+            # area of responsiblity
+            if "explanation" in Config.LLM["inject_notes"]:
+                notes_to_inject = __get_notes_to_inject(user, language)
+            else:
+                notes_to_inject = None
+            explanation = get_explanation(
+                text,
+                language.name,
+                notes=notes_to_inject,
+            )
             logger.info(
                 "Fetched explanation for text '%s': '%s'", text, explanation
             )
@@ -343,7 +362,9 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     )
 
 
-async def handle_user_input(update: Update, context: CallbackContext) -> None:
+async def handle_study_session(
+    update: Update, context: CallbackContext
+) -> None:
     """Handle button press from user to show answers and record responses.
 
     Args:
@@ -392,7 +413,7 @@ async def handle_user_input(update: Update, context: CallbackContext) -> None:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await query.edit_message_text(
-            f"{front}\n\n*{back}*",
+            f"{front}\n\n{back}",
             reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -514,6 +535,6 @@ def create_bot(token: str) -> Application:
     )
 
     # CallbackQueryHandler for inline button responses
-    application.add_handler(CallbackQueryHandler(handle_user_input))
+    application.add_handler(CallbackQueryHandler(handle_study_session))
 
     return application

@@ -31,6 +31,11 @@ class Config:
         "host": "https://api.openai.com/v1",
         "api_key": os.getenv("OPENAI_API_KEY") or "dummy",
         "model": "gpt-4o-mini",
+        "inject_notes": [
+            # "explanation",
+            "recap",
+        ],
+        # "inject_maturity":
     }
 
     TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}
