@@ -414,7 +414,7 @@ def get_notes(
                 )
                 conditions.append(~Note.id.in_(subquery.select()))
 
-        query = query.filter(db.or_(*[condition for condition in conditions]))
+        query = query.filter(db.or_(*conditions))
 
     if order_by in ["field1", "field2"]:
         query = query.order_by(getattr(Note, order_by))

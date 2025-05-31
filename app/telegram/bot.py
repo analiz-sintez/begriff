@@ -176,7 +176,10 @@ def __get_notes_to_inject(user: User, language: Language) -> list:
         notes = get_notes(
             user.id,
             language.id,
-            maturity=[Maturity[m] for m in Config.LLM["inject_maturity"]],
+            maturity=[
+                getattr(Maturity, m.upper())
+                for m in Config.LLM["inject_maturity"]
+            ],
         )
         # Randomly select inject_count notes
         _notes_to_inject_cache[cache_key] = notes
@@ -337,18 +340,28 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     language = get_language("English")
 
     logger.info("User %s requested to study.", user.login)
+
     now = datetime.now(timezone.utc)
     tomorrow = (
         now
         - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)
         + timedelta(days=1)
     )
+    new_cards_remaining = Config.FSRS[
+        "new_cards_per_session"
+    ] - count_new_cards_studied(user.id, language.id, 12)
+    logger.info("%d new cards remaining.", new_cards_remaining)
     cards = get_cards(
         user_id=user.id,
         language_id=language.id,
         end_ts=tomorrow,
         bury_siblings=True,
         randomize=True,
+        maturity=(
+            None
+            if new_cards_remaining > 0
+            else [Maturity.YOUNG, Maturity.MATURE]
+        ),
     )
 
     reply_fn = (
