@@ -1,7 +1,6 @@
 import logging
 from openai import OpenAI
 from ..config import Config
-from .srs import get_notes
 from bs4 import BeautifulSoup
 import requests
 
@@ -12,15 +11,21 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
-def get_explanation(input, language, notes: list = None):
+def get_explanation(
+    input: str, src_language: str, dst_language: str = None, notes: list = None
+):
+    if not dst_language:
+        dst_language = src_language
+
     logger.info(
-        "Requesting explanation for input: '%s' in language: '%s'",
+        "Requesting explanation for input: '%s' (%s) in language: '%s'",
         input,
-        language,
+        src_language,
+        dst_language,
     )
 
     instructions = f"""
-        Please explain this word in few words in simple {language}.
+        Please explain this {src_language} word in few words in simple {dst_language}.
 
         Instructions:
         - Don't use this exact word in your explanation.
@@ -28,13 +33,13 @@ def get_explanation(input, language, notes: list = None):
         - Try to pack your whole reply in one line. Don't use empty lines between lines. Don't use `;` symbol, use `.` instead.
         - If the word is used in special context (e.g. official documents, office slang, street slang), mention it in square brackets.
         - If there are several contexts, and meanings vary significantly, give meanings for 2 most frequent contexts.
-        - The whole response, including context denotions, should be in {language}.
+        - The whole response, including context denotions, should be in {dst_language}.
 
-        Example 1.
+        Example 1 (for English).
         Prompt: to gorge
         Reply: To eat a large amount quickly.
 
-        Example 2.
+        Example 2 (for English).
         Prompt: fixer
         Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, especially in politics or media.    
 """
@@ -72,7 +77,7 @@ def get_recap(url, language, notes: list = None):
     logger.info("Fetched text content from URL.")
 
     instructions = f"""
-You are {language} tutor helping a student to learn new language. The student studies new words using spaced repetition algo, so it would be beneficial for them to see the words in use in real text.
+You are {language} tutor helping a student to learn new language. The student studies new words using flashcards, so it would be beneficial for them to see the words in use in real text.
 
 Please summarize the following text into one paragraph using simple {language}.
 
