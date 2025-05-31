@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from app import create_app, db
+from app.config import Config as DefaultConfig
 from app.models import User, Note, Card, View, Language, Answer
 from app.service import (
     create_word_note,
@@ -15,7 +16,7 @@ from app.service import (
 )
 
 
-class Config:
+class Config(DefaultConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
 
@@ -286,7 +287,8 @@ def test_maturity_filter(app):
 
         # Simulate reviews to modify maturity
         card1 = note1.cards[0]
-        card2 = note2.cards[0]
+        card2a = note2.cards[0]
+        card2b = note2.cards[1]
         card3 = note3.cards[0]
 
         # Note1: Make it YOUNG, set review intervals to tomorrow
@@ -296,9 +298,16 @@ def test_maturity_filter(app):
         db.session.commit()
 
         # Note2: Make it MATURE, set review intervals beyond 2 days
-        view_id2 = record_view_start(card2.id)
-        record_answer(view_id2, Answer.GOOD)
-        card2.ts_scheduled = datetime.now(timezone.utc) + timedelta(days=3)
+        view_id2a = record_view_start(card2a.id)
+        record_answer(view_id2a, Answer.GOOD)
+        card2a.ts_scheduled = datetime.now(timezone.utc) + timedelta(
+            days=Config.FSRS["mature_threshold"] + 1
+        )
+        view_id2b = record_view_start(card2b.id)
+        record_answer(view_id2b, Answer.GOOD)
+        card2b.ts_scheduled = datetime.now(timezone.utc) + timedelta(
+            days=Config.FSRS["mature_threshold"] + 1
+        )
         db.session.commit()
 
         # Note3 is still NEW as it hasn't been reviewed yet
