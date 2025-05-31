@@ -315,9 +315,10 @@ def get_notes(
     text: str = None,
     explanation: str = None,
     maturity: List[Maturity] = None,
+    order_by: str = None,
 ) -> List[Note]:
     """
-    Retrieve notes for a specific user and language. Allows optional filtering by text, explanation, and maturity.
+    Retrieve notes for a specific user and language. Allows optional filtering by text, explanation, and maturity, with optional sorting.
 
     Args:
         user_id: The ID of the user.
@@ -325,17 +326,19 @@ def get_notes(
         text: Optional text to filter notes by.
         explanation: Optional explanation to filter notes by.
         maturity: Optional list of maturity levels to filter notes by.
+        order_by: Optional field to sort results by ('field1' or 'field2').
 
     Returns:
         List[Note]: A list of Note objects matching the filter criteria.
     """
     logger.info(
-        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s', maturity: '%s'",
+        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s', maturity: '%s', order_by: '%s'",
         user_id,
         language_id,
         text,
         explanation,
         maturity,
+        order_by,
     )
     query = db.session.query(Note).filter_by(
         user_id=user_id, language_id=language_id
@@ -372,44 +375,49 @@ def get_notes(
     if maturity:
         CardAlias = aliased(Card)
         conditions = []
-        timetable_mature = datetime.now(timezone.utc) + timedelta(days=10)
+        # This is incorrect since it depends on the current date.
+        # Definition of maturity shouldn't depend on it.
+        # But maybe for the injection menas it is good.
+        timetable_mature = datetime.now(timezone.utc) + timedelta(
+            days=Config.FSRS["mature_threshold"]
+        )
         for m in maturity:
             if m == Maturity.NEW:
                 subquery = (
-                    db.session.query(CardAlias.note_id)
+                    db.session.query(CardAlias.note_id.distinct())
                     .filter(~CardAlias.ts_last_review.is_(None))
-                    .cte("new_cards")
+                    .cte("new_notes")
                 )
                 conditions.append(~Note.id.in_(subquery.select()))
             elif m == Maturity.YOUNG:
                 subquery = (
-                    db.session.query(CardAlias.note_id)
+                    db.session.query(CardAlias.note_id.distinct())
                     .filter(
                         and_(
                             CardAlias.ts_last_review.isnot(None),
                             CardAlias.ts_scheduled <= timetable_mature,
                         )
                     )
-                    .cte("young_cards")
+                    .cte("young_notes")
                 )
                 conditions.append(Note.id.in_(subquery.select()))
             elif m == Maturity.MATURE:
-                timetable_mature = datetime.now(timezone.utc) + timedelta(
-                    days=2
-                )
                 subquery = (
-                    db.session.query(CardAlias.note_id)
+                    db.session.query(CardAlias.note_id.distinct())
                     .filter(
                         ~and_(
                             CardAlias.ts_last_review.isnot(None),
                             CardAlias.ts_scheduled > timetable_mature,
                         )
                     )
-                    .cte("mature_cards")
+                    .cte("mature_notes")
                 )
                 conditions.append(~Note.id.in_(subquery.select()))
 
         query = query.filter(db.or_(*[condition for condition in conditions]))
+
+    if order_by in ["field1", "field2"]:
+        query = query.order_by(getattr(Note, order_by))
 
     log_sql_query(query)
     results = query.all()
@@ -418,12 +426,51 @@ def get_notes(
     return results
 
 
+def count_new_cards_studied(
+    user_id: int, language_id: int, hours_ago: int
+) -> int:
+    """
+    Calculate how many cards were studied for the first time during the last
+    specified hours.
+
+    A card is studied the first time if it has views with answers, and the earliest
+    such view was within the past specified hours.
+
+    Args:
+        user_id: The ID of the user.
+        language_id: The ID of the language.
+        hours_ago: The number of hours to look back.
+
+    Returns:
+        The number of cards studied for the first time in the last specified hours.
+    """
+    time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+    cards = (
+        Card.query.join(Note)
+        .filter(Note.user_id == user_id, Note.language_id == language_id)
+        .all()
+    )
+    new_cards_studied = 0
+
+    for card in cards:
+        views_with_answers = [view for view in card.views if view.answer]
+        if views_with_answers:
+            earliest_view = min(
+                view.ts_review_started for view in views_with_answers
+            )
+            if earliest_view > time_threshold:
+                new_cards_studied += 1
+
+    return new_cards_studied
+
+
 def get_cards(
     user_id: int,
     language_id: Optional[int] = None,
     start_ts: Optional[datetime] = None,
     end_ts: Optional[datetime] = None,
     bury_siblings: bool = False,
+    maturity: Optional[List[Maturity]] = None,
     randomize: bool = False,
 ) -> List[Card]:
     """
@@ -491,6 +538,31 @@ def get_cards(
                 & Card.id.in_(recently_viewed_cards),
             )
         )
+
+    if maturity:
+        conditions = []
+        timetable_mature = datetime.now(timezone.utc) + timedelta(
+            days=Config.FSRS["mature_threshold"]
+        )
+        for m in maturity:
+            if m == Maturity.NEW:
+                conditions.append(Card.ts_last_review.is_(None))
+            elif m == Maturity.YOUNG:
+                conditions.append(
+                    and_(
+                        Card.ts_last_review.isnot(None),
+                        Card.ts_scheduled <= timetable_mature,
+                    )
+                )
+            elif m == Maturity.MATURE:
+                conditions.append(
+                    and_(
+                        Card.ts_last_review.isnot(None),
+                        Card.ts_scheduled > timetable_mature,
+                    )
+                )
+
+        query = query.filter(db.or_(*conditions))
 
     if not randomize:
         query = query.order_by(Card.ts_scheduled.asc())

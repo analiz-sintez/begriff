@@ -1,4 +1,5 @@
 import re
+import random
 
 # from flask import Config
 from ..config import Config
@@ -32,6 +33,7 @@ from ..service import (
     record_answer,
     get_explanation,
     get_recap,
+    count_new_cards_studied,
     Maturity,
 )
 from datetime import datetime, timezone, timedelta
@@ -151,14 +153,14 @@ _cache_time = {}
 
 
 def __get_notes_to_inject(user: User, language: Language) -> list:
-    """Retrieve notes to inject for a specific user and language.
+    """Retrieve notes to inject for a specific user and language, filtering by maturity and returning a random subset.
 
     Args:
         user: The user object.
         language: The language object.
 
     Returns:
-        A list of notes for the given user and language.
+        A list of notes for the given user and language, filtered and randomized.
     """
     current_time = time.time()
     cache_key = (user.id, language.id)
@@ -169,10 +171,22 @@ def __get_notes_to_inject(user: User, language: Language) -> list:
         del _cache_time[cache_key]
 
     if cache_key not in _notes_to_inject_cache:
-        _notes_to_inject_cache[cache_key] = get_notes(user.id, language.id)
+        # Fetch only notes of specified maturity
+
+        notes = get_notes(
+            user.id,
+            language.id,
+            maturity=[Maturity[m] for m in Config.LLM["inject_maturity"]],
+        )
+        # Randomly select inject_count notes
+        _notes_to_inject_cache[cache_key] = notes
         _cache_time[cache_key] = current_time
 
-    return _notes_to_inject_cache[cache_key]
+    notes = _notes_to_inject_cache[cache_key]
+    random_notes = random.sample(
+        notes, min(Config.LLM["inject_count"], len(notes))
+    )
+    return random_notes
 
 
 def add_note(
@@ -475,9 +489,15 @@ async def list_cards(update: Update, context: CallbackContext) -> None:
     logger.info("User %s requested to list cards.", user.login)
     language_id = get_language("English").id
 
-    new_notes = get_notes(user.id, language_id, maturity=[Maturity.NEW])
-    young_notes = get_notes(user.id, language_id, maturity=[Maturity.YOUNG])
-    mature_notes = get_notes(user.id, language_id, maturity=[Maturity.MATURE])
+    new_notes = get_notes(
+        user.id, language_id, maturity=[Maturity.NEW], order_by="field1"
+    )
+    young_notes = get_notes(
+        user.id, language_id, maturity=[Maturity.YOUNG], order_by="field1"
+    )
+    mature_notes = get_notes(
+        user.id, language_id, maturity=[Maturity.MATURE], order_by="field1"
+    )
 
     def format_notes(notes, title):
         messages = [

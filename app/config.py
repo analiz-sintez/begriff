@@ -35,9 +35,14 @@ class Config:
             # "explanation",
             "recap",
         ],
-        # "inject_maturity":
+        "inject_maturity": ["young"],
+        "inject_count": 10,
     }
 
     TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}
 
-    FSRS = {"target_retention": 0.9}
+    FSRS = {
+        "target_retention": 0.9,
+        "mature_threshold": 2,
+        "new_cards_per_session": 10,
+    }
