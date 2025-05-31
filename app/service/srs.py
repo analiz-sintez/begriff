@@ -372,6 +372,7 @@ def get_notes(
     if maturity:
         CardAlias = aliased(Card)
         conditions = []
+        timetable_mature = datetime.now(timezone.utc) + timedelta(days=10)
         for m in maturity:
             if m == Maturity.NEW:
                 subquery = (
@@ -380,23 +381,18 @@ def get_notes(
                     .cte("new_cards")
                 )
                 conditions.append(~Note.id.in_(subquery.select()))
-                # query = query.filter(Note.id.in_(subquery_new))
             elif m == Maturity.YOUNG:
-                timetable_young = datetime.now(timezone.utc) + timedelta(
-                    days=2
-                )
                 subquery = (
                     db.session.query(CardAlias.note_id)
                     .filter(
                         and_(
                             CardAlias.ts_last_review.isnot(None),
-                            CardAlias.ts_scheduled <= timetable_young,
+                            CardAlias.ts_scheduled <= timetable_mature,
                         )
                     )
                     .cte("young_cards")
                 )
                 conditions.append(Note.id.in_(subquery.select()))
-                # query = query.filter(Note.id.in_(subquery_young))
             elif m == Maturity.MATURE:
                 timetable_mature = datetime.now(timezone.utc) + timedelta(
                     days=2
@@ -404,14 +400,14 @@ def get_notes(
                 subquery = (
                     db.session.query(CardAlias.note_id)
                     .filter(
-                        and_(
+                        ~and_(
                             CardAlias.ts_last_review.isnot(None),
                             CardAlias.ts_scheduled > timetable_mature,
                         )
                     )
                     .cte("mature_cards")
                 )
-                conditions.append(Note.id.in_(subquery.select()))
+                conditions.append(~Note.id.in_(subquery.select()))
 
         query = query.filter(db.or_(*[condition for condition in conditions]))
 
