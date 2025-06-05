@@ -1,74 +1,178 @@
 import pytest
-from telegram import User as TelegramUser, Message, Update
-from telegram.ext import CallbackContext
 from unittest.mock import MagicMock
-# from app.telegram.bot import parse_report, handle_message
+from datetime import datetime, timedelta, timezone
+import asyncio
+
+from app.telegram.bot import (
+    __parse_note_line,
+    format_note,
+    handle_study_session,
+)
+from app.config import Config as DefaultConfig
 from app import create_app
+from app.core import db, User, get_user
+from app.srs import (
+    Note,
+    Card,
+    create_word_note,
+    get_language,
+    record_view_start,
+    get_card,
+)
 
-# def test_parse_report():
-#     valid_message = "Project/Task/Implement feature: 4.5 (Refactored old code)"
-#     invalid_message = "Invalid message format"
 
-#     # Test valid message parsing
-#     result = parse_report(valid_message)
-#     assert result == ("Implement feature", 4.5, "Project", "Task", "Refactored old code")
-
-#     # Test message without project and task
-#     result = parse_report("Implement feature: 3")
-#     assert result == ("Implement feature", 3, None, None, None)
-
-#     # Test invalid message parsing
-#     with pytest.raises(ValueError):
-#         parse_report(invalid_message)
-
-class Config:
+class Config(DefaultConfig):
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+
 
 @pytest.fixture
 def app():
     app = create_app(Config)
     with app.app_context():
-        user = User(login='test_user')
+        user = User(login="test_user")
         db.session.add(user)
         db.session.commit()
     yield app
 
-def mock_update_with_message(text, username):
-    """
-    Helper function to create a mock telegram update object
-    with given message text and username.
-    """
-    mock_user = TelegramUser(id=1, first_name="Mock", is_bot=False, username=username)
-    mock_message = Message(message_id=1, from_user=mock_user, date=None, chat=None, text=text)
-    mock_update = Update(update_id=1, message=mock_message)
-    return mock_update
 
-# def test_handle_message(mocker, app):
-#     # Ensure application context is used for any DB operations
-#     with app.app_context():
-#         # Mock the database access and creation
-#         mocker.patch('app.telegram.bot.create_report', return_value=MagicMock(description="Implement feature", hours_spent=4.5))
+def test_parse_note_line():
+    # Test cases for __parse_note_line function
+    cases = [
+        ("word: explanation", ("word", "explanation")),
+        (
+            "word with spaces : explanation with spaces",
+            ("word with spaces", "explanation with spaces"),
+        ),
+        ("word: multiline\nexplanation", ("word", "multiline\nexplanation")),
+        ("word", ("word", None)),
+        ("", (None, None)),
+    ]
 
-#         # Mock user existence check and creation
-#         user = User(login='mock_user')
-#         db.session.add(user)
-#         db.session.commit()
+    for input_text, expected in cases:
+        assert __parse_note_line(input_text) == expected
 
-#         mocker.patch('app.models.User.query.filter_by', return_value=MockQuery(user))
 
-#         # Simulate incoming update from Telegram
-#         update = mock_update_with_message("Project/Task/Implement feature: 4.5", 'mock_user')
-#         context = MagicMock(CallbackContext)
+def test_format_note(app):
+    # Creating a mock note and card data to test the format_note function
+    with app.app_context():
+        note = Note(
+            id=1,
+            field1="Test Word",
+            field2="Test Explanation",
+            user_id=1,
+            language_id=1,
+        )
 
-#         # Call the message handler
-#         handle_message(update, context)
+        card1 = Card(
+            id=1,
+            note_id=note.id,
+            front=note.field1,
+            back=note.field2,
+            ts_scheduled=datetime.now(timezone.utc) + timedelta(hours=1),
+            stability=3.5,
+            difficulty=2.0,
+        )
 
-#         # Verify that the bot attempted to reply to the message
-#         update.message.reply_text.assert_called_once_with('Report created: Implement feature for 4.5 hours.')
+        card2 = Card(
+            id=2,
+            note_id=note.id,
+            front=note.field2,
+            back=note.field1,
+            ts_scheduled=datetime.now(timezone.utc) + timedelta(hours=1),
+            stability=None,
+            difficulty=None,
+        )
+
+        # Linking cards to the note
+        note.cards = [card1, card2]
+
+        # Testing the output of the format_note function
+        expected_output = (
+            "Test Word\n"
+            "- in 0 days, s=3.50 d=2.00 v=0\n"
+            "- in 0 days, s=N/A d=N/A v=0"
+        )
+        assert format_note(note) == expected_output
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super(AsyncMock, self).__call__(*args, **kwargs)
+
+
+def test_study_session(app):
+    Config.FSRS["bury_siblings"] = True
+    with app.app_context():
+        # Initialize user, language, note, and card
+        user = get_user("test_user")
+        language = get_language("English")
+        note = create_word_note(
+            "test_word", "test_explanation", language.id, user.id
+        )
+        note2 = create_word_note(
+            "another_test_word",
+            "another_test_explanation",
+            language.id,
+            user.id,
+        )
+
+        # Initialize the card from the note
+        first_card = note.cards[0]
+        second_card = note.cards[1]
+
+        # Record a new view for the first card
+        view_id = record_view_start(first_card.id)
+
+        # Mocking the update and context for handle_study_session
+        mock_query = AsyncMock()
+        mock_user = AsyncMock()
+        mock_user.username = user.login
+        mock_update = AsyncMock()
+        mock_update.callback_query = mock_query
+        mock_update.effective_user = mock_user
+        mock_context = AsyncMock()
+
+        # 1. Emulate requesting card answer.
+        mock_query.data = f"answer:{view_id}"
+        asyncio.run(handle_study_session(mock_update, mock_context))
+        # ... verify if the answer method on query was called
+        mock_query.answer.assert_called_once()
+
+        # 2. Emulate sending card grade.
+        mock_query.data = f"grade:{view_id}:good"
+        asyncio.run(handle_study_session(mock_update, mock_context))
+
+        # Fetch the updated first card
+        updated_first_card = get_card(first_card.id)
+
+        # Verify the first card has non-null stability and difficulty
+        assert (
+            updated_first_card.stability is not None
+        ), "First card stability should not be None."
+        assert (
+            updated_first_card.difficulty is not None
+        ), "First card difficulty should not be None."
+
+        # Verify the first card is scheduled to some date in the future
+        assert updated_first_card.ts_scheduled > datetime.now(
+            timezone.utc
+        ), "First card should be scheduled for a future date."
+
+        # Verify that the second card has a view
+        assert (
+            len(second_card.views) == 0
+        ), "Second card should NOT have another view since siblings are buried."
+
+        assert mock_context.user_data["current_card_id"] not in {
+            first_card.id,
+            second_card.id,
+        }
+
 
 class MockQuery:
     """A mock query class to simulate SQLAlchemy query."""
+
     def __init__(self, return_value):
         self.return_value = return_value
 

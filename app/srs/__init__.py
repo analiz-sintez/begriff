@@ -1,5 +1,7 @@
 from .models import (
     Note,
+    Card,
+    View,
     Language,
     Answer,
 )

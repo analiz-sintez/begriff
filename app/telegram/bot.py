@@ -1,7 +1,7 @@
 import re
+import time
 import random
 
-# from flask import Config
 from ..config import Config
 from telegram import (
     Update,
@@ -21,6 +21,8 @@ from telegram.ext import (
 from ..core import User, get_user
 from ..srs import (
     Note,
+    Card,
+    View,
     Language,
     Answer,
     Maturity,
@@ -42,10 +44,13 @@ from ..llm import (
 )
 from datetime import datetime, timezone, timedelta
 import logging
-from typing import Optional, Tuple
 
 # Set up logging
+from typing import Optional, Tuple
+
 logging.basicConfig(level=logging.INFO)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -146,11 +151,6 @@ async def process_text(update: Update, context: CallbackContext) -> None:
     # This function will handle longer text inputs
     pass
 
-
-__notes_to_inject_cache = {}
-
-
-import time
 
 _notes_to_inject_cache = {}
 _cache_time = {}
@@ -272,6 +272,7 @@ def __parse_note_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     match = re.match(
         r"(?P<text>.+?)(?:\s*:\s*(?P<explanation>.*))?$",
         line.strip(),
+        re.DOTALL,
     )
     if not match:
         return None, None
@@ -319,8 +320,8 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
         explanation = format_explanation(note.field2)
         added_notes.append(f"{icon} *{text}* — {explanation}")
 
-        # Send batch of notes every 10 words
-        if (index + 1) % 10 == 0:
+        # Send each note right after creating it.
+        if (index + 1) % 1 == 0:
             await update.message.reply_text(
                 "\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
             )
@@ -359,7 +360,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         user_id=user.id,
         language_id=language.id,
         end_ts=tomorrow,
-        bury_siblings=True,
+        bury_siblings=Config.FSRS["bury_siblings"],
         randomize=True,
         maturity=(
             None
@@ -370,7 +371,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
     reply_fn = (
         update.callback_query.edit_message_text
-        if update.callback_query
+        if update.callback_query is not None
         else update.message.reply_text
     )
 

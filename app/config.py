@@ -45,4 +45,5 @@ class Config:
         "target_retention": 0.9,
         "mature_threshold": 2,
         "new_cards_per_session": 10,
+        "bury_siblings": True,
     }
