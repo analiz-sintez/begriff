@@ -18,9 +18,12 @@ from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
 )
-from ..models import Note, User, Language, Answer
-from ..service import (
-    get_user,
+from ..core import User, get_user
+from ..srs import (
+    Note,
+    Language,
+    Answer,
+    Maturity,
     get_language,
     create_word_note,
     get_view,
@@ -31,10 +34,11 @@ from ..service import (
     update_note,
     record_view_start,
     record_answer,
+    count_new_cards_studied,
+)
+from ..llm import (
     get_explanation,
     get_recap,
-    count_new_cards_studied,
-    Maturity,
 )
 from datetime import datetime, timezone, timedelta
 import logging

@@ -4,7 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flasgger import Swagger
 
-from .models import db
+from .core import db
+
 
 def create_app(config=None):
     app = Flask(__name__)
@@ -28,6 +29,7 @@ def create_app(config=None):
 
     # Import and register blueprints here
     from .routes import srs_bp
+
     app.register_blueprint(srs_bp)
     logger.info("Blueprints registered.")
 

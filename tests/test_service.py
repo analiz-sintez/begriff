@@ -2,15 +2,24 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from app import create_app, db
 from app.config import Config as DefaultConfig
-from app.models import User, Note, Card, View, Language, Answer
-from app.service import (
+from app.core import (
+    User,
+    get_user,
+)
+from app.srs.models import (
+    Note,
+    Card,
+    View,
+    Language,
+    Answer,
+)
+from app.srs import (
     create_word_note,
     get_cards,
     get_notes,
     record_view_start,
     record_answer,
     get_language,
-    get_user,
     update_note,
     Maturity,
 )

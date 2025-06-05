@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
-from ..models import db, User
+from .models import db, User
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +20,8 @@ def get_user(login):
             logger.info("User created successfully: %s", user)
         except IntegrityError as e:
             db.session.rollback()
-            logger.error("Integrity error occurred while creating a user: %s", e)
+            logger.error(
+                "Integrity error occurred while creating a user: %s", e
+            )
             raise ValueError("Integrity error occurred while creating a user.")
     return user

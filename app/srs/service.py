@@ -4,7 +4,7 @@ import fsrs_rs_python as fsrs
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import aliased
-from ..models import db, Note, Card, View, Language, Answer
+from .models import db, Note, Card, View, Language, Answer
 from ..config import Config
 from sqlalchemy import and_, or_, func
 from enum import Enum

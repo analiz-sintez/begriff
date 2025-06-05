@@ -1,5 +1,9 @@
-from .core import get_user
-from .srs import (
+from .models import (
+    Note,
+    Language,
+    Answer,
+)
+from .service import (
     get_language,
     create_word_note,
     get_view,
@@ -13,4 +17,3 @@ from .srs import (
     count_new_cards_studied,
     Maturity,
 )
-from .llm import get_explanation, get_recap

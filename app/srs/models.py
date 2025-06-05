@@ -12,7 +12,7 @@ from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from enum import Enum
-from .core import db, User
+from ..core import db, User
 
 
 class Language(db.Model):
