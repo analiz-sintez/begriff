@@ -8,7 +8,7 @@ from .models import db, Note, Card, View, Language, Answer
 from ..config import Config
 from sqlalchemy import and_, or_, func
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,21 +31,30 @@ def log_sql_query(query) -> None:
         )
 
 
-def get_language(name: str) -> Language:
+def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
     """
-    Retrieve or create a language by name.
+    Retrieve or create a language by name or id. The provided identifier
+    is considered as a name if it's a string, or an id if it's an integer.
 
     Args:
-        name: The name of the language.
+        identifier: The name or id of the language.
 
     Returns:
         Language: The language object.
     """
-    logger.info("Retrieving language with name: %s", name)
-    language = Language.query.filter_by(name=name).first()
-    if not language:
-        logger.info("Language not found, creating new language: %s", name)
-        language = Language(name=name)
+    if isinstance(identifier, str):
+        logger.info("Retrieving language with name: %s", identifier)
+        language = Language.query.filter_by(name=identifier).first()
+    elif isinstance(identifier, int):
+        logger.info("Retrieving language with id: %d", identifier)
+        language = Language.query.filter_by(id=identifier).first()
+    else:
+        raise ValueError("Identifier must be a string (name) or integer (id).")
+
+    if not language and isinstance(identifier, str):
+        logger.info("Language not found, creating new one: %s", identifier)
+        language = Language(name=identifier)
+
         try:
             db.session.add(language)
             db.session.commit()
@@ -58,6 +67,7 @@ def get_language(name: str) -> Language:
             raise ValueError(
                 "Integrity error occurred while creating a language."
             )
+
     return language
 
 
@@ -311,7 +321,7 @@ class Maturity(Enum):
 
 def get_notes(
     user_id: int,
-    language_id: int,
+    language_id: int = None,
     text: str = None,
     explanation: str = None,
     maturity: List[Maturity] = None,
@@ -340,9 +350,10 @@ def get_notes(
         maturity,
         order_by,
     )
-    query = db.session.query(Note).filter_by(
-        user_id=user_id, language_id=language_id
-    )
+    query = db.session.query(Note).filter_by(user_id=user_id)
+
+    if language_id:
+        query = query.filter_by(language_id=language_id)
 
     if text:
         if text.startswith("=~"):

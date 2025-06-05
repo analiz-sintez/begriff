@@ -125,7 +125,7 @@ async def router(update: Update, context: CallbackContext) -> None:
 async def process_url(update: Update, context: CallbackContext) -> None:
     user_name = update.effective_user.username
     user = get_user(user_name)
-    language = get_language("English")
+    language = get_language(user.get_option("studied_language", "English"))
 
     if "recap" in Config.LLM["inject_notes"]:
         notes_to_inject = __get_notes_to_inject(user, language)
@@ -294,7 +294,7 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
     """
     user_name = update.effective_user.username
     user = get_user(user_name)
-    language = get_language("English")
+    language = get_language(user.get_option("studied_language", "English"))
 
     message_text = update.message.text.split("\n")
 
@@ -342,7 +342,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         context: The callback context as part of the Telegram framework.
     """
     user = get_user(update.effective_user.username)
-    language = get_language("English")
+    language = get_language(user.get_option("studied_language", "English"))
 
     logger.info("User %s requested to study.", user.login)
 
@@ -360,7 +360,9 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         user_id=user.id,
         language_id=language.id,
         end_ts=tomorrow,
-        bury_siblings=Config.FSRS["bury_siblings"],
+        bury_siblings=user.get_option(
+            "fsrs/bury_siblings", Config.FSRS["bury_siblings"]
+        ),
         randomize=True,
         maturity=(
             None
@@ -504,17 +506,21 @@ async def list_cards(update: Update, context: CallbackContext) -> None:
         context: The callback context as part of the Telegram framework.
     """
     user = get_user(update.effective_user.username)
-    logger.info("User %s requested to list cards.", user.login)
-    language_id = get_language("English").id
+    language = get_language(user.get_option("studied_language", "English"))
+    logger.info(
+        "User %s requested to list cards for language %s.",
+        user.login,
+        language.name,
+    )
 
     new_notes = get_notes(
-        user.id, language_id, maturity=[Maturity.NEW], order_by="field1"
+        user.id, language.id, maturity=[Maturity.NEW], order_by="field1"
     )
     young_notes = get_notes(
-        user.id, language_id, maturity=[Maturity.YOUNG], order_by="field1"
+        user.id, language.id, maturity=[Maturity.YOUNG], order_by="field1"
     )
     mature_notes = get_notes(
-        user.id, language_id, maturity=[Maturity.MATURE], order_by="field1"
+        user.id, language.id, maturity=[Maturity.MATURE], order_by="field1"
     )
 
     def format_notes(notes, title):
@@ -537,6 +543,79 @@ async def list_cards(update: Update, context: CallbackContext) -> None:
     )
 
 
+async def change_language(update: Update, context: CallbackContext) -> None:
+    message_text = update.message.text.strip()
+    user = get_user(update.effective_user.username)
+
+    if not message_text.startswith("/language"):
+        response_message = (
+            "Invalid command format. Use /language <language_name>."
+        )
+        await update.message.reply_text(
+            response_message, parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    language_name = message_text.split("/language", 1)[1].strip()
+
+    if language_name:
+        # Setting a language.
+        language = get_language(language_name)
+        user.set_option("studied_language", language.id)
+        response_message = f"Language changed to {language_name}."
+        await update.message.reply_text(
+            response_message, parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        # Showing current language with language options to choose
+        user_notes = get_notes(user_id=user.id)
+        available_languages = {note.language_id for note in user_notes}
+        language_buttons = [
+            InlineKeyboardButton(
+                get_language(lang_id).name,
+                callback_data=f"set_language:{lang_id}",
+            )
+            for lang_id in available_languages
+        ]
+
+        response_message = (
+            "You study %s now."
+            % get_language(user.get_option("studied_language", "English")).name
+        )
+
+        if language_buttons:
+            response_message += "\n\nChoose a language you want to study:"
+            reply_markup = InlineKeyboardMarkup.from_column(language_buttons)
+        else:
+            response_message += "\n\nYou don't have any notes for other languages. Add notes to get language options."
+            reply_markup = None
+
+        await update.message.reply_text(
+            response_message,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup,
+        )
+
+
+async def handle_language_change(
+    update: Update, context: CallbackContext
+) -> None:
+    query = update.callback_query
+    data = query.data
+
+    if data.startswith("set_language:"):
+        language_id = int(data.split(":")[1])
+        user = get_user(query.from_user.username)
+        language = get_language(language_id)
+
+        user.set_option("studied_language", language.id)
+        response_message = f"Language changed to {language.name}."
+        await query.answer()
+        await query.edit_message_text(
+            response_message, parse_mode=ParseMode.MARKDOWN
+        )
+
+
 def create_bot(token: str) -> Application:
     """
     Create and configure the Telegram bot application
@@ -555,6 +634,7 @@ def create_bot(token: str) -> Application:
         BotCommand("start", "Start using the bot"),
         BotCommand("study", "Start a study session"),
         BotCommand("list", "List all your words"),
+        BotCommand("language", "Change studied language"),
     ]
 
     async def set_commands(application):
@@ -566,6 +646,7 @@ def create_bot(token: str) -> Application:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("study", study_next_card))
     application.add_handler(CommandHandler("list", list_cards))
+    application.add_handler(CommandHandler("language", change_language))
 
     # MessageHandler for adding words or processing input by default
     application.add_handler(
@@ -573,6 +654,11 @@ def create_bot(token: str) -> Application:
     )
 
     # CallbackQueryHandler for inline button responses
-    application.add_handler(CallbackQueryHandler(handle_study_session))
+    application.add_handler(
+        CallbackQueryHandler(handle_language_change, pattern=r"^set_language:")
+    )
+    application.add_handler(
+        CallbackQueryHandler(handle_study_session, pattern=r"^(answer|grade):")
+    )
 
     return application
