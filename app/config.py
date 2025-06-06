@@ -24,13 +24,27 @@ class Config:
     SWAGGER = {"title": "Begriff Bot API", "uiversion": 3, "openapi": "3.0.0"}
 
     LLM = {
-        # this one doesn't work because `responses` endpoint is not supported,
-        # only `chat` is.
-        # "host": "http://192.168.10.22:11434/v1",
-        # "model": "qwen3:8b",
+        # # Ollama config
+        # # this one doesn't work because `responses` endpoint is not supported,
+        # # only `chat` is.
+        # "host": "http://localhost:11434/v1",
+        # "api_key": "ollama",
+        # "models": {
+        #     "default": "olmo2:7b",
+        #     "base_form": "olmo2:7b",
+        #     "explanation": "olmo2:7b",
+        #     "recap": "olmo2:7b",
+        # },
+        # OpenAI config
         "host": "https://api.openai.com/v1",
         "api_key": os.getenv("OPENAI_API_KEY") or "dummy",
-        "model": "gpt-4o-mini",
+        "models": {
+            "default": "gpt-4.1-mini",
+            "base_form": "gpt-4.1-mini",
+            "explanation": "gpt-4.1-mini",
+            "recap": "gpt-4o-latest",
+        },
+        # General settings
         "inject_notes": [
             # "explanation",
             "recap",

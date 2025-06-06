@@ -11,6 +11,21 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
+def query_llm(instructions: str, input: str, model: str = None):
+    if not model:
+        model = Config.LLM["models"]["default"]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": instructions},
+            {"role": "user", "content": input},
+        ],
+    )
+    result = response.choices[0].message.content.strip()
+    return result
+
+
 def get_explanation(
     input: str,
     src_language: str,
@@ -42,15 +57,14 @@ def get_explanation(
     )
 
     instructions = f"""
-Please explain this {src_language} word in few words in simple {dst_language}.
+You are an expert linguist tasked with explaining words in simple terms. You must explain the given {src_language} word or phrase in {dst_language} using the following guidelines:
 
-Instructions:
-- Don't use this exact word in your explanation.
-- Treat the word as a verb only if there's a \"to\" before it.
-- Try to pack your whole reply in one line. Don't use empty lines between lines. Don't use `;` symbol, use `.` instead.
-- If the word is used in special context (e.g. official documents, office slang, street slang), mention it in square brackets.
-- If there are several contexts, and meanings vary significantly, give meanings for 2 most frequent contexts.
-- The whole response, including context denotions, should be in {dst_language}.
+- Avoid using the exact word or phrase in the explanation.
+- Only treat the word as a verb if preceded by 'to'.
+- Keep the explanation concise, fitting it on one line without using empty lines or the ';' symbol, using '.' instead.
+- Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets.
+- If a word has multiple significant meanings, provide explanations for the two most common contexts.
+- The explanation should be entirely in {dst_language}.
 
 Example 1 (for English).
 Prompt: to gorge
@@ -62,30 +76,18 @@ Reply: [General] Someone who solves problems, often in a quick or discreet manne
 """
 
     if notes:
-        instructions += """
-When appropriate, use the following words in your explanation: %s.
-        """ % ", ".join(
-            [note.field1 for note in notes]
-        )
+        instructions += f"Integrate these words when relevant: {', '.join(note.field1 for note in notes)}.\n"
 
     if context:
-        instructions += (
-            """
-Here's the context where the word appeared: "%s".
-        """
-            % context
-        )
+        instructions += f"Consider this context for the word: '{context}'.\n"
 
     logger.info(
         f"Requesting explanation for {input} with instructions\n: {instructions}"
     )
 
-    response = client.responses.create(
-        model=Config.LLM["model"],
-        instructions=instructions,
-        input=input,
+    explanation = query_llm(
+        instructions, input, model=Config.LLM["models"]["explanation"]
     )
-    explanation = response.output_text
     logger.info("Received explanation: '%s'", explanation)
     return explanation
 
@@ -118,7 +120,7 @@ You are {language} tutor helping a student to learn new language. The student st
 Please summarize the following text into one paragraph using simple {language}.
 
 Instructions:
-- Create one concise paragraph.
+- Create one concise paragraph of 100-150 words.
 - Use simple language, and write only in {language}.
 - Keep the summary simple and clear."""
 
@@ -136,13 +138,9 @@ Instructions:
         instructions,
     )
 
-    response = client.responses.create(
-        # model=Config.LLM["model"],
-        model="chatgpt-4o-latest",
-        instructions=instructions,
-        input=text_content,
+    recap = query_llm(
+        instructions, text_content, model=Config.LLM["models"]["recap"]
     )
-    recap = response.output_text
     logger.info("Received recap: '%s'", recap)
     return recap
 
@@ -177,11 +175,8 @@ Instructions:
         f"Requesting base form for {input} with instructions:\n{instructions}"
     )
 
-    response = client.responses.create(
-        model=Config.LLM["model"],
-        instructions=instructions,
-        input=input,
+    base_form = query_llm(
+        instructions, input, model=Config.LLM["models"]["base_form"]
     )
-    base_form = response.output_text.strip()
     logger.info("Received base form: '%s'", base_form)
     return base_form
