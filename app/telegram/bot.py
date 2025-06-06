@@ -41,6 +41,7 @@ from ..srs import (
 from ..llm import (
     get_explanation,
     get_recap,
+    get_base_form,
 )
 from datetime import datetime, timezone, timedelta
 import logging
@@ -139,7 +140,7 @@ async def process_url(update: Update, context: CallbackContext) -> None:
             language.name,
             notes=notes_to_inject,
         )
-        response = f"{recap} ([source]({last_line}))"
+        response = f"{recap} [(source)]({last_line})"
     except:
         response = "Couldn't process page, possibly it's too large."
 
@@ -329,6 +330,11 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
                 f"Couldn't parse the text: {line.strip()}"
             )
             continue
+
+        if Config.LLM["convert_to_base_form"]:
+            text_base_form = get_base_form(text, language.name)
+            logger.info("Converted %s to base form: %s", text, text_base_form)
+            text = text_base_form
 
         # Pass the context to get_explanation if available
         note, is_new = add_note(

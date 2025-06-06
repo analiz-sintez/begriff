@@ -37,6 +37,7 @@ class Config:
         ],
         "inject_maturity": ["young"],
         "inject_count": 10,
+        "convert_to_base_form": True,
     }
 
     TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}

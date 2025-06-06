@@ -145,3 +145,43 @@ Instructions:
     recap = response.output_text
     logger.info("Received recap: '%s'", recap)
     return recap
+
+
+def get_base_form(input: str, language: str) -> str:
+    """
+    Request the base form of a word in a specified language.
+
+    Args:
+        input (str): The word or phrase to convert to its base form.
+        language (str): The language of the input word.
+
+    Returns:
+        str: The base form of the word or phrase.
+    """
+
+    logger.info(
+        "Requesting base form for input: '%s' in language: '%s'",
+        input,
+        language,
+    )
+
+    instructions = f"""
+Please convert the following {language} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).
+
+Instructions:
+- Return the word in its base form.
+- If the word is already in its base form, return it as is.
+"""
+
+    logger.info(
+        f"Requesting base form for {input} with instructions:\n{instructions}"
+    )
+
+    response = client.responses.create(
+        model=Config.LLM["model"],
+        instructions=instructions,
+        input=input,
+    )
+    base_form = response.output_text.strip()
+    logger.info("Received base form: '%s'", base_form)
+    return base_form
