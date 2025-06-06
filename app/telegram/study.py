@@ -1,9 +1,12 @@
+import os
 import logging
 from datetime import datetime, timedelta, timezone
 from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputFile,
+    InputMediaPhoto,
 )
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
@@ -17,14 +20,78 @@ from ..srs import (
     record_answer,
     Answer,
     Maturity,
+    count_new_cards_studied,
+    get_notes,
 )
+from ..image import generate_image
 from ..config import Config
-from ..srs import count_new_cards_studied
 from .note import format_explanation
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _generate_images(user, language):
+    """
+    Generate images for YOUNG notes that have at least one leech card using the image.generate_image function.
+    """
+    logger.info(
+        "Starting image generation process for YOUNG notes with leech cards."
+    )
+    notes = get_notes(
+        user_id=user.id,
+        language_id=language.id,
+        maturity=[Maturity.YOUNG],
+    )
+
+    for note in notes:
+        if any(card.is_leech() for card in note.cards):
+            logger.info("Generating image for note: %s", note)
+            path = generate_image(note.field2)
+            note.set_option("image/path", path)
+
+
+def get_default_image():
+    image_path = generate_image(
+        "A cat teacher in round glasses teaches"
+        " young cat students in a university hall."
+    )
+    return image_path
+
+
+def get_finish_image():
+    image_path = generate_image(
+        "A cat teacher in round glasses and his young"
+        " cat students celebrate the end of the lection."
+    )
+    return image_path
+
+
+async def create_image_message(update, context, caption, image, markup=None):
+    with open(image, "rb") as photo:
+        await context.bot.send_photo(
+            chat_id=update.effective_chat.id,
+            photo=photo,
+            caption=caption,
+            reply_markup=markup,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+async def update_image_message(update, context, caption, image, markup=None):
+    message = (
+        update.message if update.message else update.callback_query.message
+    )
+    with open(image, "rb") as photo:
+        await message.edit_media(
+            media=InputMediaPhoto(
+                media=photo,
+                caption=caption,
+                parse_mode=ParseMode.MARKDOWN,
+            ),
+            reply_markup=markup,
+        )
 
 
 async def study_next_card(update: Update, context: CallbackContext) -> None:
@@ -64,18 +131,31 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         ),
     )
 
-    reply_fn = (
-        update.callback_query.edit_message_text
-        if update.callback_query is not None
-        else update.message.reply_text
-    )
+    if update.callback_query is not None:
+        # If the session continues, edit photo object.
+        reply = update_image_message
+    else:
+        # If the session just starts, send photo object.
+        reply = create_image_message
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
-        await reply_fn("All done for today.")
+        await reply(update, context, "All done for today.", get_finish_image())
         return
 
     card = cards[0]
+    note = card.note
+
+    image_path = get_default_image()
+    note_image_path = note.get_option("image/path")
+    if note_image_path and os.path.exists(note_image_path):
+        image_path = note_image_path
+    elif card.is_leech():
+        try:
+            image_path = generate_image(note.field2)
+            note.set_option("image/path", image_path)
+        except:
+            logger.warning("Couldn't generate image for note: %s", card.note)
 
     keyboard = [
         [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
@@ -84,9 +164,8 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.id, card.front)
     front = format_explanation(card.front)
-    await reply_fn(
-        front, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN
-    )
+
+    await reply(update, context, front, image_path, reply_markup)
 
 
 async def handle_study_session(
@@ -138,11 +217,9 @@ async def handle_study_session(
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await query.edit_message_text(
-            f"{front}\n\n{back}",
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN,
+        image_path = card.note.get_option("image/path", get_default_image())
+        await update_image_message(
+            update, context, f"{front}\n\n{back}", image_path, reply_markup
         )
 
     elif user_response.startswith("grade:"):
