@@ -12,7 +12,8 @@ from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime, timezone
 from enum import Enum
-from ..core import db, User
+from ..config import Config
+from ..core import db, User, OptionsMixin
 
 
 class Language(db.Model):
@@ -27,7 +28,7 @@ class Language(db.Model):
         return f"<Language(id={self.id}, name={self.name})>"
 
 
-class Note(db.Model):
+class Note(db.Model, OptionsMixin):
     __tablename__ = "notes"
     id = Column(Integer, primary_key=True)
     field1 = Column(String)
