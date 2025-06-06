@@ -33,6 +33,7 @@ def generate_image(description: str, force: bool = False) -> str:
     image_path = os.path.join("data", "images", f"{description_hash}.jpg")
 
     if os.path.exists(image_path) and not force:
+        logger.info("Cached image found, returning it.")
         return image_path
 
     logger.info("Generated image filename: %s", image_path)

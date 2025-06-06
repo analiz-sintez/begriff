@@ -23,6 +23,7 @@ from ..srs import (
     count_new_cards_studied,
     get_notes,
 )
+from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation
@@ -152,7 +153,11 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         image_path = note_image_path
     elif card.is_leech():
         try:
-            image_path = generate_image(note.field2)
+            explanation = note.field2
+            if not note.language.name == "English":
+                explanation = translate(explanation, note.language.name)
+                note.set_option("explanation/en", explanation)
+            image_path = generate_image(explanation)
             note.set_option("image/path", image_path)
         except:
             logger.warning("Couldn't generate image for note: %s", card.note)
