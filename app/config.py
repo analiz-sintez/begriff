@@ -54,6 +54,12 @@ class Config:
         "convert_to_base_form": True,
     }
 
+    IMAGE = {
+        "model": "imagen-4.0-generate-preview-05-20",
+        "prompt": "%s (sketchy, colorful)",
+        "vertexai_project_id": "begriff",
+    }
+
     TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}
 
     FSRS = {

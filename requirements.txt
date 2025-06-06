@@ -14,3 +14,5 @@ fsrs-rs-python @ git+https://github.com/open-spaced-repetition/fsrs-rs-python.gi
 requests
 BeautifulSoup4
 pandas
+vertexai
+pillow
