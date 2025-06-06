@@ -61,4 +61,8 @@ class Config:
         "mature_threshold": 2,
         "new_cards_per_session": 10,
         "bury_siblings": True,
+        "card_is_leech": {
+            "difficulty": 5.0,
+            "view_cnt": 1,
+        },
     }

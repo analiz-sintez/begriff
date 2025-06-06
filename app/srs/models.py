@@ -94,6 +94,13 @@ class Card(db.Model):
             f"ts_scheduled={self.ts_scheduled})>"
         )
 
+    def is_leech(self):
+        return (
+            self.difficulty is not None
+            and self.difficulty >= Config.FSRS["card_is_leech"]["difficulty"]
+            and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
+        )
+
 
 class Answer(Enum):
     """
