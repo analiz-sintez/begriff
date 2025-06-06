@@ -3,11 +3,9 @@ from unittest.mock import MagicMock
 from datetime import datetime, timedelta, timezone
 import asyncio
 
-from app.telegram.bot import (
-    __parse_note_line,
-    format_note,
-    handle_study_session,
-)
+from app.telegram.note import __parse_note_line
+from app.telegram.note_list import format_note
+from app.telegram.study import handle_study_session
 from app.config import Config as DefaultConfig
 from app import create_app
 from app.core import db, User, get_user
