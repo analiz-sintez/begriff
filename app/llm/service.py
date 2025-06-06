@@ -12,8 +12,25 @@ client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
 def get_explanation(
-    input: str, src_language: str, dst_language: str = None, notes: list = None
+    input: str,
+    src_language: str,
+    dst_language: str = None,
+    notes: list = None,
+    context: str = None,
 ):
+    """
+    Request an explanation for a word in a specified language.
+
+    Args:
+        input (str): The word or phrase to explain.
+        src_language (str): The source language of the input word.
+        dst_language (str, optional): The target language for the explanation. Defaults to the source language.
+        notes (list, optional): Additional notes for context. Defaults to None.
+        context (str, optional): Additional context for the explanation. Defaults to None.
+
+    Returns:
+        str: The explanation of the word or phrase.
+    """
     if not dst_language:
         dst_language = src_language
 
@@ -25,30 +42,38 @@ def get_explanation(
     )
 
     instructions = f"""
-        Please explain this {src_language} word in few words in simple {dst_language}.
+Please explain this {src_language} word in few words in simple {dst_language}.
 
-        Instructions:
-        - Don't use this exact word in your explanation.
-        - Treat the word as a verb only if there's a \"to\" before it.
-        - Try to pack your whole reply in one line. Don't use empty lines between lines. Don't use `;` symbol, use `.` instead.
-        - If the word is used in special context (e.g. official documents, office slang, street slang), mention it in square brackets.
-        - If there are several contexts, and meanings vary significantly, give meanings for 2 most frequent contexts.
-        - The whole response, including context denotions, should be in {dst_language}.
+Instructions:
+- Don't use this exact word in your explanation.
+- Treat the word as a verb only if there's a \"to\" before it.
+- Try to pack your whole reply in one line. Don't use empty lines between lines. Don't use `;` symbol, use `.` instead.
+- If the word is used in special context (e.g. official documents, office slang, street slang), mention it in square brackets.
+- If there are several contexts, and meanings vary significantly, give meanings for 2 most frequent contexts.
+- The whole response, including context denotions, should be in {dst_language}.
 
-        Example 1 (for English).
-        Prompt: to gorge
-        Reply: To eat a large amount quickly.
+Example 1 (for English).
+Prompt: to gorge
+Reply: To eat a large amount quickly.
 
-        Example 2 (for English).
-        Prompt: fixer
-        Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, especially in politics or media.    
+Example 2 (for English).
+Prompt: fixer
+Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, especially in politics or media.    
 """
 
     if notes:
         instructions += """
-        When appropriate, use the following words in your explanation: %s.
+When appropriate, use the following words in your explanation: %s.
         """ % ", ".join(
             [note.field1 for note in notes]
+        )
+
+    if context:
+        instructions += (
+            """
+Here's the context where the word appeared: "%s".
+        """
+            % context
         )
 
     logger.info(
@@ -66,6 +91,17 @@ def get_explanation(
 
 
 def get_recap(url, language, notes: list = None):
+    """
+    Fetch the content of a URL and request a summary recap in a specific language.
+
+    Args:
+        url (str): The URL of the content to summarize.
+        language (str): The target language for the summary.
+        notes (list, optional): Additional words to integrate into the recap. Defaults to None.
+
+    Returns:
+        str: The summarized recap of the content in the specified language.
+    """
     logger.info("Fetching URL content for recap: %s", url)
 
     response = requests.get(url)

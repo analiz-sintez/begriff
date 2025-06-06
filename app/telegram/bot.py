@@ -133,12 +133,21 @@ async def process_url(update: Update, context: CallbackContext) -> None:
         notes_to_inject = None
 
     last_line = update.message.text.strip().split("\n")[-1]
-    recap = get_recap(
-        last_line,
-        language.name,
-        notes=notes_to_inject,
+    try:
+        recap = get_recap(
+            last_line,
+            language.name,
+            notes=notes_to_inject,
+        )
+        response = f"{recap} ([source]({last_line}))"
+    except:
+        response = "Couldn't process page, possibly it's too large."
+
+    await update.message.reply_text(
+        response,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_to_message_id=update.message.message_id,
     )
-    await update.message.reply_text(recap, parse_mode=ParseMode.MARKDOWN)
 
 
 async def process_text(update: Update, context: CallbackContext) -> None:
@@ -201,6 +210,7 @@ def add_note(
     language: Language,
     text: str,
     explanation: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> Tuple[Note, bool]:
     """Add a note for a user and language. If the note already exists, it will update the explanation if provided.
 
@@ -246,6 +256,7 @@ def add_note(
                 text,
                 language.name,
                 notes=notes_to_inject,
+                context=context,
             )
             logger.info(
                 "Fetched explanation for text '%s': '%s'", text, explanation
@@ -306,6 +317,11 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
 
     added_notes = []
 
+    # Check if the message is a reply to another message
+    context_message = None
+    if update.message.reply_to_message:
+        context_message = update.message.reply_to_message.text
+
     for index, line in enumerate(message_text):
         text, explanation = __parse_note_line(line)
         if not text:
@@ -314,7 +330,10 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
             )
             continue
 
-        note, is_new = add_note(user, language, text, explanation)
+        # Pass the context to get_explanation if available
+        note, is_new = add_note(
+            user, language, text, explanation, context=context_message
+        )
 
         icon = "🟢" if is_new else "🟡"  # new note: green ball
         explanation = format_explanation(note.field2)
