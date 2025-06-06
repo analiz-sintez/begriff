@@ -119,3 +119,22 @@ def test_language_creation(app):
         fetched_language = Language.query.filter_by(name="French").first()
         assert fetched_language is not None
         assert fetched_language.name == "French"
+
+
+def test_user_options(app):
+    with app.app_context():
+        user = User.query.filter_by(login="test_user").first()
+
+        # Set and persist user options
+        user.set_option("notifications/enable", True)
+        user.set_option("theme/color", "dark")
+
+        # Fetch the user again to simulate a fresh retrieval
+        fetched_user = User.query.filter_by(login="test_user").first()
+
+        assert fetched_user.get_option("notifications/enable") is True
+        assert fetched_user.get_option("theme/color") == "dark"
+        assert (
+            fetched_user.get_option("nonexistent/option", "default")
+            == "default"
+        )
