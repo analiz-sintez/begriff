@@ -12,6 +12,9 @@ venv:
 	fi
 	. $(VENV_PATH)/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
 
+poetry:
+	cat ./requirements.txt | grep -v "@" | xargs poetry add
+
 # Run the Flask application in development mode
 run: 
 	. $(VENV_PATH)/bin/activate && FLASK_APP=run.py FLASK_ENV=development flask run --debug
