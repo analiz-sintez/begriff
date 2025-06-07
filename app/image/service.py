@@ -8,7 +8,7 @@ from vertexai.preview.vision_models import ImageGenerationModel
 from ..config import Config
 from ..srs import Note
 
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 vertexai.init(

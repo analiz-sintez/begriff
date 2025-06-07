@@ -3,7 +3,7 @@ from .srs import get_views
 import logging
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 srs_bp = Blueprint("srs_bp", __name__)

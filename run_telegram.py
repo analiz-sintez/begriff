@@ -2,14 +2,28 @@ import os
 import logging
 from telegram import Update
 from app.telegram.bot import create_bot
-
 from app import create_app
 from app.config import Config
+from datetime import datetime
 
 
 def main():
+    # Ensure the directory for logs exists
+    log_dir = "./logs"
+    os.makedirs(log_dir, exist_ok=True)
+
     # Set up logging
-    logging.basicConfig(level=logging.INFO)
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(
+                f"{log_dir}/telegram-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log"
+            ),
+        ],
+    )
     logger = logging.getLogger(__name__)
 
     token = Config.TELEGRAM["bot_token"]

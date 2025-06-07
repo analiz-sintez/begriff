@@ -11,7 +11,6 @@ from ..llm import get_recap
 from .note import get_notes_to_inject
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

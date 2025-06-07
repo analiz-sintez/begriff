@@ -19,7 +19,6 @@ from .language import change_language, handle_language_change
 from .recap import recap_url
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

@@ -29,7 +29,6 @@ from ..config import Config
 from .note import format_explanation
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

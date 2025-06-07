@@ -25,7 +25,6 @@ from ..llm import (
 )
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

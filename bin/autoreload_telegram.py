@@ -10,7 +10,8 @@ from watchdog.events import PatternMatchingEventHandler
 # might as well use `py-mon`: https://pypi.org/project/py-mon/
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
+
 
 class RestartEventHandler(PatternMatchingEventHandler):
     def __init__(self, command, **kwargs):

@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from .models import db, User
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 

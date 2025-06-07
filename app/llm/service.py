@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])

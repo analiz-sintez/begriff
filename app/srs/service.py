@@ -11,7 +11,7 @@ from enum import Enum
 from typing import List, Optional, Union
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 
