@@ -19,6 +19,7 @@ from ..srs import (
     get_view,
     record_view_start,
     record_answer,
+    Note,
     Answer,
     Maturity,
     count_new_cards_studied,
@@ -31,26 +32,6 @@ from .note import format_explanation
 
 
 logger = logging.getLogger(__name__)
-
-
-async def _generate_images(user, language):
-    """
-    Generate images for YOUNG notes that have at least one leech card using the image.generate_image function.
-    """
-    logger.info(
-        "Starting image generation process for YOUNG notes with leech cards."
-    )
-    notes = get_notes(
-        user_id=user.id,
-        language_id=language.id,
-        maturity=[Maturity.YOUNG],
-    )
-
-    for note in notes:
-        if any(card.is_leech() for card in note.cards):
-            logger.info("Generating image for note: %s", note)
-            path = generate_image(note.field2)
-            note.set_option("image/path", path)
 
 
 def get_default_image():
@@ -70,6 +51,21 @@ def get_finish_image():
     return image_path
 
 
+async def send_message(
+    update: Update,
+    context: CallbackContext,
+    caption: str,
+    markup=None,
+):
+    """Send or update message, without image."""
+    reply_fn = (
+        update.callback_query.edit_message_text
+        if update.callback_query is not None
+        else update.message.reply_text
+    )
+    await reply_fn(caption, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
+
+
 async def send_image_message(
     update: Update,
     context: CallbackContext,
@@ -77,10 +73,16 @@ async def send_image_message(
     image: str = None,
     markup=None,
 ):
-    if update.callback_query is not None:
+    """Send or update photo message."""
+    if not Config.IMAGE["enable"]:
+        logging.info("Images in study mode are disabled, ignoring them.")
+        await send_message(update, context, caption, markup)
+    elif update.callback_query is not None:
         # If the session continues, edit photo object.
         message = (
-            update.message if update.message else update.callback_query.message
+            update.callback_query.message
+            if update.message is None
+            else update.message
         )
         if image:
             await message.edit_media(
@@ -106,6 +108,43 @@ async def send_image_message(
             reply_markup=markup,
             parse_mode=ParseMode.MARKDOWN,
         )
+
+
+def _generate_image_for_note(note: Note) -> str:
+    explanation = note.field2
+    if not note.language.name == "English":
+        explanation = translate(explanation, note.language.name)
+        note.set_option("explanation/en", explanation)
+    image_path = generate_image(explanation)
+    note.set_option("image/path", image_path)
+    return image_path
+
+
+def _get_previous_card(update: Update):
+    if update.callback_query is None:
+        return None
+    query = update.callback_query
+    if query.data.startswith("grade:"):
+        view_id = int(query.data.split(":")[1])
+        return get_view(view_id).card
+
+
+def _get_image_for_show(card, previous_card):
+    note = card.note
+    image_path = note.get_option("image/path")
+    # Note has image: use it.
+    if image_path and os.path.exists(image_path):
+        return image_path
+    # Note doesn't have image but has leech cards: generate an image.
+    if card.is_leech():
+        try:
+            return _generate_image_for_note(note)
+        except:
+            logger.warning("Couldn't generate image for note: %s", note)
+            return None
+    # Note shouldn't have image but previous one has: set default one.
+    if not previous_card or previous_card.note.get_option("image/path"):
+        return get_default_image()
 
 
 async def study_next_card(update: Update, context: CallbackContext) -> None:
@@ -147,46 +186,20 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
-        await reply(update, context, "All done for today.", get_finish_image())
+        await send_image_message(
+            update, context, "All done for today.", get_finish_image()
+        )
         return
 
     card = cards[0]
-    note = card.note
-
-    previous_note = None
-    if update.callback_query:
-        query = update.callback_query
-        logger.info("User query: %s", query)
-        if query.data.startswith("grade:"):
-            view_id = int(query.data.split(":")[1])
-            previous_note = get_view(view_id).card.note
-
-    image_path = None
-    note_image_path = note.get_option("image/path")
-    if note_image_path and os.path.exists(note_image_path):
-        # Note has image: use it.
-        image_path = note_image_path
-    elif card.is_leech():
-        # Note doesn't have image but has leech cards: generate an image.
-        try:
-            explanation = note.field2
-            if not note.language.name == "English":
-                explanation = translate(explanation, note.language.name)
-                note.set_option("explanation/en", explanation)
-            image_path = generate_image(explanation)
-            note.set_option("image/path", image_path)
-        except:
-            logger.warning("Couldn't generate image for note: %s", card.note)
-    elif not previous_note or previous_note.get_option("image/path"):
-        # Note shouldn't have image but previous one has: set default one.
-        image_path = get_default_image()
+    image_path = _get_image_for_show(card, _get_previous_card(update))
 
     keyboard = [
         [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.user_data["current_card_id"] = card.id
-    logger.info("Display card front for user %s: %s", user.id, card.front)
+    logger.info("Display card front for user %s: %s", user.login, card.front)
     front = format_explanation(card.front)
 
     await send_image_message(update, context, front, image_path, reply_markup)
@@ -201,12 +214,11 @@ async def handle_study_session(
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
+    user = get_user(update.effective_user.username)
     query = update.callback_query
     user_response = query.data
     await query.answer()  # Acknowledge the callback query
-    logger.info(
-        "User %s pressed a button: %s", query.from_user.id, user_response
-    )
+    logger.info("User %s pressed a button: %s", user.login, user_response)
 
     # States: ASK -> ANSWER -> RECORD
     # - ASK: show the front side of the card, wait when user requests
@@ -225,7 +237,7 @@ async def handle_study_session(
         logger.info(
             "Showing answer for card %s to user %s: %s",
             card.id,
-            query.from_user.id,
+            user.login,
             back,
         )
         # ... record the moment user started answering
@@ -253,7 +265,7 @@ async def handle_study_session(
         answer = Answer(answer_str)
         logger.info(
             "User %s graded answer %s for view %s",
-            query.from_user.id,
+            user.login,
             answer.name,
             view_id,
         )
