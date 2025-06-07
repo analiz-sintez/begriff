@@ -23,12 +23,10 @@ def log_sql_query(query) -> None:
         query: SQLAlchemy query object.
     """
     if query is not None:
-        logger.info(
-            "SQL Query: %s",
-            str(
-                query.statement.compile(compile_kwargs={"literal_binds": True})
-            ),
+        query_text = str(
+            query.statement.compile(compile_kwargs={"literal_binds": True})
         )
+        logger.debug("SQL Query: %s", query_text)
 
 
 def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
@@ -342,7 +340,7 @@ def get_notes(
         List[Note]: A list of Note objects matching the filter criteria.
     """
     logger.info(
-        "Getting notes for user_id: '%d', language_id: '%d', text: '%s', explanation: '%s', maturity: '%s', order_by: '%s'",
+        "Getting notes for user_id: '%s', language_id: '%s', text: '%s', explanation: '%s', maturity: '%s', order_by: '%s'",
         user_id,
         language_id,
         text,

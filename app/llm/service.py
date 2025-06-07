@@ -81,7 +81,7 @@ Reply: [General] Someone who solves problems, often in a quick or discreet manne
     if context:
         instructions += f"Consider this context for the word: '{context}'.\n"
 
-    logger.info(
+    logger.debug(
         f"Requesting explanation for {input} with instructions\n: {instructions}"
     )
 
@@ -132,11 +132,8 @@ Instructions:
             [note.field1 for note in notes]
         )
 
-    logger.info(
-        "Requesting recap for text from URL: %s.\nInstructions:\n%s",
-        url,
-        instructions,
-    )
+    logger.info("Requesting recap for text from URL: %s", url)
+    logger.debug("Recap instructions:\n%s", instructions)
 
     recap = query_llm(
         instructions, text_content, model=Config.LLM["models"]["recap"]
@@ -171,7 +168,7 @@ Instructions:
 - If the word is already in its base form, return it as is.
 """
 
-    logger.info(
+    logger.debug(
         f"Requesting base form for {input} with instructions:\n{instructions}"
     )
 

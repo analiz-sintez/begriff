@@ -8,22 +8,26 @@ from datetime import datetime
 
 
 def main():
-    # Ensure the directory for logs exists
+    # Set up logging:
+    # ... ensure the directory for logs exists
     log_dir = "./logs"
     os.makedirs(log_dir, exist_ok=True)
-
-    # Set up logging
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    log_filename = (
+        f"telegram-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log"
+    )
+    # ... set handlers and their levels
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(f"{log_dir}/{log_filename}")
+    file_handler.setLevel(logging.DEBUG)
+    # ... install handlers and set common settings
+    log_format = "%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s"
     logging.basicConfig(
         level=logging.INFO,
         format=log_format,
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(
-                f"{log_dir}/telegram-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log"
-            ),
-        ],
+        handlers=[console_handler, file_handler],
     )
+
     logger = logging.getLogger(__name__)
 
     token = Config.TELEGRAM["bot_token"]
