@@ -15,14 +15,17 @@ venv:
 poetry:
 	cat ./requirements.txt | grep -v "@" | xargs poetry add
 
-# Run the Flask application in development mode
-run: 
+# Run the web application in development mode
+web: 
 	. $(VENV_PATH)/bin/activate && FLASK_APP=run.py FLASK_ENV=development flask run --debug
 
 # Run the Telegram bot pooling for testing purposes
 tg: 
 	. $(VENV_PATH)/bin/activate && python bin/autoreload_telegram.py
-	# . $(VENV_PATH)/bin/activate && python run_telegram.py
+
+# Run background jobs
+jobs:
+	. $(VENV_PATH)/bin/activate && python bin/generate_note_images.py
 
 # Run unit-tests
 test:
