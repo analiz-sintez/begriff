@@ -1,6 +1,7 @@
 import os
 import hashlib
 import logging
+from PIL import Image
 
 import vertexai
 from vertexai.preview.vision_models import ImageGenerationModel
@@ -31,10 +32,18 @@ def generate_image(description: str, force: bool = False) -> str:
     # Generate a hash for the field2 content to use as the image filename
     description_hash = hashlib.md5(description.encode()).hexdigest()
     image_path = os.path.join("data", "images", f"{description_hash}.jpg")
+    small_image_path = os.path.join(
+        "data", "images", f"small.{description_hash}.jpg"
+    )
+
+    if os.path.exists(small_image_path) and not force:
+        logger.info("Cached small image found, returning it.")
+        return small_image_path
 
     if os.path.exists(image_path) and not force:
-        logger.info("Cached image found, returning it.")
-        return image_path
+        logger.info("Large image found without small version, resampling.")
+        _resample_image(image_path, small_image_path)
+        return small_image_path
 
     logger.info("Generated image filename: %s", image_path)
 
@@ -59,8 +68,22 @@ def generate_image(description: str, force: bool = False) -> str:
     )
     logger.info("Image generation completed.")
 
-    # Save the image to the specified path
+    # Save the original image
     response.images[0].save(image_path)
-    logger.info("Image saved at: %s", image_path)
+    logger.info("Original image saved at: %s", image_path)
 
-    return image_path
+    # Downsample the original image
+    _resample_image(image_path, small_image_path)
+
+    logger.info("Downsampled image saved at: %s", small_image_path)
+
+    return small_image_path
+
+
+def _resample_image(image_path: str, small_image_path: str) -> None:
+    with Image.open(image_path) as img:
+        original_size = img.size
+        img = img.resize(
+            (original_size[0] // 2, original_size[1] // 2), Image.LANCZOS
+        )
+        img.save(small_image_path, quality=60)

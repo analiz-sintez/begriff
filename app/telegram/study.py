@@ -16,6 +16,7 @@ from ..srs import (
     get_language,
     get_cards,
     get_card,
+    get_view,
     record_view_start,
     record_answer,
     Answer,
@@ -69,29 +70,41 @@ def get_finish_image():
     return image_path
 
 
-async def create_image_message(update, context, caption, image, markup=None):
-    with open(image, "rb") as photo:
+async def send_image_message(
+    update: Update,
+    context: CallbackContext,
+    caption: str,
+    image: str = None,
+    markup=None,
+):
+    if update.callback_query is not None:
+        # If the session continues, edit photo object.
+        message = (
+            update.message if update.message else update.callback_query.message
+        )
+        if image:
+            await message.edit_media(
+                media=InputMediaPhoto(
+                    media=open(image, "rb"),
+                    caption=caption,
+                    parse_mode=ParseMode.MARKDOWN,
+                ),
+                reply_markup=markup,
+            )
+        else:
+            await message.edit_caption(
+                caption=caption,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
+    else:
+        # If the session just starts, send photo object.
         await context.bot.send_photo(
             chat_id=update.effective_chat.id,
-            photo=photo,
+            photo=open(image, "rb") if image else None,
             caption=caption,
             reply_markup=markup,
             parse_mode=ParseMode.MARKDOWN,
-        )
-
-
-async def update_image_message(update, context, caption, image, markup=None):
-    message = (
-        update.message if update.message else update.callback_query.message
-    )
-    with open(image, "rb") as photo:
-        await message.edit_media(
-            media=InputMediaPhoto(
-                media=photo,
-                caption=caption,
-                parse_mode=ParseMode.MARKDOWN,
-            ),
-            reply_markup=markup,
         )
 
 
@@ -132,13 +145,6 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         ),
     )
 
-    if update.callback_query is not None:
-        # If the session continues, edit photo object.
-        reply = update_image_message
-    else:
-        # If the session just starts, send photo object.
-        reply = create_image_message
-
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
         await reply(update, context, "All done for today.", get_finish_image())
@@ -147,11 +153,21 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     card = cards[0]
     note = card.note
 
-    image_path = get_default_image()
+    previous_note = None
+    if update.callback_query:
+        query = update.callback_query
+        logger.info("User query: %s", query)
+        if query.data.startswith("grade:"):
+            view_id = int(query.data.split(":")[1])
+            previous_note = get_view(view_id).card.note
+
+    image_path = None
     note_image_path = note.get_option("image/path")
     if note_image_path and os.path.exists(note_image_path):
+        # Note has image: use it.
         image_path = note_image_path
     elif card.is_leech():
+        # Note doesn't have image but has leech cards: generate an image.
         try:
             explanation = note.field2
             if not note.language.name == "English":
@@ -161,6 +177,9 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
             note.set_option("image/path", image_path)
         except:
             logger.warning("Couldn't generate image for note: %s", card.note)
+    elif not previous_note or previous_note.get_option("image/path"):
+        # Note shouldn't have image but previous one has: set default one.
+        image_path = get_default_image()
 
     keyboard = [
         [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
@@ -170,7 +189,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     logger.info("Display card front for user %s: %s", user.id, card.front)
     front = format_explanation(card.front)
 
-    await reply(update, context, front, image_path, reply_markup)
+    await send_image_message(update, context, front, image_path, reply_markup)
 
 
 async def handle_study_session(
@@ -222,9 +241,9 @@ async def handle_study_session(
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        image_path = card.note.get_option("image/path", get_default_image())
-        await update_image_message(
-            update, context, f"{front}\n\n{back}", image_path, reply_markup
+        # image_path = card.note.get_option("image/path", get_default_image())
+        await send_image_message(
+            update, context, f"{front}\n\n{back}", None, reply_markup
         )
 
     elif user_response.startswith("grade:"):
