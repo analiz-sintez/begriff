@@ -29,6 +29,7 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation
+from .router import router
 
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,7 @@ def _get_image_for_show(card, previous_card):
         return get_default_image()
 
 
+@router.command("study", "Start a study session")
 async def study_next_card(update: Update, context: CallbackContext) -> None:
     """Fetch a study card for the user and display it with a button to show the answer.
 
@@ -204,22 +206,6 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
     await send_image_message(update, context, front, image_path, reply_markup)
 
-
-async def handle_study_session(
-    update: Update, context: CallbackContext
-) -> None:
-    """Handle button press from user to show answers and record responses.
-
-    Args:
-        update: The Telegram update that triggered this function.
-        context: The callback context as part of the Telegram framework.
-    """
-    user = get_user(update.effective_user.username)
-    query = update.callback_query
-    user_response = query.data
-    await query.answer()  # Acknowledge the callback query
-    logger.info("User %s pressed a button: %s", user.login, user_response)
-
     # States: ASK -> ANSWER -> RECORD
     # - ASK: show the front side of the card, wait when user requests
     #   the back side;
@@ -227,47 +213,72 @@ async def handle_study_session(
     # - GRADE: got the answer, record it, update card memorization params
     #   and reschedule it.
 
-    if user_response.startswith("answer:"):
-        # ASK -> ANSWER:
-        # Show the answer (showing back side of the card)
-        card_id = int(user_response.split(":")[1])
-        card = get_card(card_id)
-        front = format_explanation(card.front)
-        back = format_explanation(card.back)
-        logger.info(
-            "Showing answer for card %s to user %s: %s",
-            card.id,
-            user.login,
-            back,
-        )
-        # ... record the moment user started answering
-        view_id = record_view_start(card.id)
-        # ... prepare the keyboard with memorization quality buttons
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    answer.name,
-                    callback_data=f"grade:{view_id}:{answer.value}",
-                )
-                for answer in Answer
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        # image_path = card.note.get_option("image/path", get_default_image())
-        await send_image_message(
-            update, context, f"{front}\n\n{back}", None, reply_markup
-        )
 
-    elif user_response.startswith("grade:"):
-        # ANSWER -> GRADE
-        _, view_id, answer_str = user_response.split(":")
-        view_id = int(view_id)
-        answer = Answer(answer_str)
-        logger.info(
-            "User %s graded answer %s for view %s",
-            user.login,
-            answer.name,
-            view_id,
-        )
-        record_answer(view_id, answer)
-        await study_next_card(update, context)
+@router.callback_query("^answer:")
+async def handle_study_answer(
+    update: Update, context: CallbackContext
+) -> None:
+    """
+    Handle ANSWER button press and show grade buttons.
+    """
+    user = get_user(update.effective_user.username)
+    query = update.callback_query
+    user_response = query.data
+    await query.answer()  # Acknowledge the callback query
+    logger.info("User %s pressed a button: %s", user.login, user_response)
+
+    # ASK -> ANSWER:
+    # Show the answer (showing back side of the card)
+    card_id = int(user_response.split(":")[1])
+    card = get_card(card_id)
+    front = format_explanation(card.front)
+    back = format_explanation(card.back)
+    logger.info(
+        "Showing answer for card %s to user %s: %s",
+        card.id,
+        user.login,
+        back,
+    )
+    # ... record the moment user started answering
+    view_id = record_view_start(card.id)
+    # ... prepare the keyboard with memorization quality buttons
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                answer.name,
+                callback_data=f"grade:{view_id}:{answer.value}",
+            )
+            for answer in Answer
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    # image_path = card.note.get_option("image/path", get_default_image())
+    await send_image_message(
+        update, context, f"{front}\n\n{back}", None, reply_markup
+    )
+
+
+@router.callback_query("^grade:")
+async def handle_study_grade(update: Update, context: CallbackContext) -> None:
+    """
+    Handle grade buttons press (AGAIN ... EASY) from user to and record
+    the answer.
+    """
+    user = get_user(update.effective_user.username)
+    query = update.callback_query
+    user_response = query.data
+    await query.answer()  # Acknowledge the callback query
+    logger.info("User %s pressed a button: %s", user.login, user_response)
+
+    # ANSWER -> GRADE
+    _, view_id, answer_str = user_response.split(":")
+    view_id = int(view_id)
+    answer = Answer(answer_str)
+    logger.info(
+        "User %s graded answer %s for view %s",
+        user.login,
+        answer.name,
+        view_id,
+    )
+    record_answer(view_id, answer)
+    await study_next_card(update, context)

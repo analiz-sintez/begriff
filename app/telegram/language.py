@@ -16,11 +16,13 @@ from ..srs import (
     View,
     get_notes,
 )
+from .router import router
 
 
 logger = logging.getLogger(__name__)
 
 
+@router.command("language", "Change studied language")
 async def change_language(update: Update, context: CallbackContext) -> None:
     message_text = update.message.text.strip()
     user = get_user(update.effective_user.username)
@@ -75,6 +77,7 @@ async def change_language(update: Update, context: CallbackContext) -> None:
         )
 
 
+@router.callback_query("^set_language:")
 async def handle_language_change(
     update: Update, context: CallbackContext
 ) -> None:

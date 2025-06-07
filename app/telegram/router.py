@@ -21,6 +21,8 @@ class Router:
 
     When attached to an application, it adds all functions it decorates
     to this application.
+
+    Idea: https://www.reddit.com/r/learnpython/comments/54gzw7/how_do_you_actually_use_decorators/
     """
 
     def __init__(self):
@@ -110,7 +112,7 @@ class Router:
         def decorator(fn):
             logger.info(f"Decorating message with pattern: {pattern}")
             if isinstance(pattern, str) or isinstance(pattern, re.Pattern):
-                pattern_filter = filters.regex(pattern)
+                pattern_filter = filters.Regex(pattern)
             elif callable(pattern):
                 pattern_filter = filters.create(pattern)
             else:
@@ -148,3 +150,6 @@ class Router:
                 return fn(update, context)
 
         return wrapped
+
+
+router = Router()

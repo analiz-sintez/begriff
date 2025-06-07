@@ -13,6 +13,7 @@ from ..srs import (
     Maturity,
     get_notes,
 )
+from .router import router
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ def format_note(note: Note, show_cards: bool = True) -> str:
     return card_info
 
 
+@router.command("list", "List all your words")
 async def list_cards(update: Update, context: CallbackContext) -> None:
     """List all cards, displaying them separately as new, young, and mature along with their stability, difficulty, view counts, and scheduled dates.
 

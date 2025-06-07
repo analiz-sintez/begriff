@@ -5,23 +5,19 @@ from telegram import Update, BotCommand
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
     CallbackContext,
-    CallbackQueryHandler,
 )
 
-from .note import add_notes, get_notes_to_inject
-from .study import study_next_card, handle_study_session
-from .note_list import list_cards
-from .language import change_language, handle_language_change
+from . import note, study, note_list, language, recap
+from .note import add_notes
 from .recap import recap_url
+from .router import router
 
 
 logger = logging.getLogger(__name__)
 
 
+@router.command("start", "Start using the bot")
 async def start(update: Update, context: CallbackContext) -> None:
     """Send a welcome message to the user when they start the bot.
 
@@ -50,7 +46,8 @@ def __is_note_format(text: str) -> bool:
     return all(re.match(r".{1,32}(?::.*)?", line.strip()) for line in lines)
 
 
-async def router(update: Update, context: CallbackContext) -> None:
+@router.message("")
+async def route_message(update: Update, context: CallbackContext) -> None:
     """Route the input text to the appropriate handler.
 
     Args:
@@ -92,37 +89,5 @@ def create_bot(token: str) -> Application:
         A configured Application instance representing the bot.
     """
     application = Application.builder().token(token).build()
-
-    # Define bot commands for the menu
-    commands = [
-        BotCommand("start", "Start using the bot"),
-        BotCommand("study", "Start a study session"),
-        BotCommand("list", "List all your words"),
-        BotCommand("language", "Change studied language"),
-    ]
-
-    async def set_commands(application):
-        await application.bot.set_my_commands(commands)
-
-    application.post_init = set_commands
-
-    # Command Handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("study", study_next_card))
-    application.add_handler(CommandHandler("list", list_cards))
-    application.add_handler(CommandHandler("language", change_language))
-
-    # MessageHandler for adding words or processing input by default
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, router)
-    )
-
-    # CallbackQueryHandler for inline button responses
-    application.add_handler(
-        CallbackQueryHandler(handle_language_change, pattern=r"^set_language:")
-    )
-    application.add_handler(
-        CallbackQueryHandler(handle_study_session, pattern=r"^(answer|grade):")
-    )
-
+    router.attach(application)
     return application
