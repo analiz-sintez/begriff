@@ -23,6 +23,7 @@ from ..llm import (
     get_explanation,
     get_base_form,
 )
+from .router import router
 
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,19 @@ def __parse_note_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     return text, explanation
 
 
+def __is_note_format(text: str) -> bool:
+    """
+    Check if every line in the input text is in the format suitable for notes.
+    """
+    lines = text.strip().split("\n")
+    result = all(
+        re.match(r"^.{1,32}(?:: .*)?$", line.strip()) for line in lines
+    )
+    logging.info(f"Message {text} contains notes = {result}")
+    return result
+
+
+@router.message(__is_note_format)
 async def add_notes(update: Update, context: CallbackContext) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 

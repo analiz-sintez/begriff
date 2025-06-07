@@ -5,7 +5,7 @@ import asyncio
 
 from app.telegram.note import __parse_note_line
 from app.telegram.note_list import format_note
-from app.telegram.study import handle_study_session
+from app.telegram.study import handle_study_answer, handle_study_grade
 from app.config import Config as DefaultConfig
 from app import create_app
 from app.core import db, User, get_user
@@ -133,13 +133,13 @@ def test_study_session(app):
 
         # 1. Emulate requesting card answer.
         mock_query.data = f"answer:{view_id}"
-        asyncio.run(handle_study_session(mock_update, mock_context))
+        asyncio.run(handle_study_answer(mock_update, mock_context))
         # ... verify if the answer method on query was called
         mock_query.answer.assert_called_once()
 
         # 2. Emulate sending card grade.
         mock_query.data = f"grade:{view_id}:good"
-        asyncio.run(handle_study_session(mock_update, mock_context))
+        asyncio.run(handle_study_grade(mock_update, mock_context))
 
         # Fetch the updated first card
         updated_first_card = get_card(first_card.id)

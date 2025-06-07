@@ -8,9 +8,7 @@ from telegram.ext import (
     CallbackContext,
 )
 
-from . import note, study, note_list, language, recap
-from .note import add_notes
-from .recap import recap_url
+from . import recap, note, study, note_list, language
 from .router import router
 
 
@@ -36,45 +34,6 @@ Simply enter words separated by a newline to add them to your study list with au
 /study - Start a study session with your queued words.
 """
     )
-
-
-def __is_note_format(text: str) -> bool:
-    """
-    Check if every line in the input text is in the format suitable for notes.
-    """
-    lines = text.strip().split("\n")
-    return all(re.match(r".{1,32}(?::.*)?", line.strip()) for line in lines)
-
-
-@router.message("")
-async def route_message(update: Update, context: CallbackContext) -> None:
-    """Route the input text to the appropriate handler.
-
-    Args:
-        update: The Telegram update that triggered this function.
-        context: The callback context as part of the Telegram framework.
-    """
-
-    text = update.message.text
-    url_pattern = re.compile(r"https?://\S+")
-    last_line = text.strip().split("\n")[-1]
-    if url_pattern.match(last_line):
-        await recap_url(update, context)
-    elif __is_note_format(text):
-        await add_notes(update, context)
-    else:
-        await process_text(update, context)
-
-
-async def process_text(update: Update, context: CallbackContext) -> None:
-    """Process longer text input.
-
-    Args:
-        update: The Telegram update that triggered this function.
-        context: The callback context as part of the Telegram framework.
-    """
-    # This function will handle longer text inputs
-    pass
 
 
 def create_bot(token: str) -> Application:

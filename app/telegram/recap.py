@@ -1,3 +1,4 @@
+import re
 import logging
 
 from telegram import Update
@@ -9,12 +10,16 @@ from ..srs import get_language
 from ..config import Config
 from ..llm import get_recap
 from .note import get_notes_to_inject
+from .router import router
 
 
 logger = logging.getLogger(__name__)
 
 
-async def recap_url(update: Update, context: CallbackContext) -> None:
+@router.message(re.compile("(?P<url>https?://\S+)$", re.MULTILINE))
+async def recap_url(
+    update: Update, context: CallbackContext, url: str
+) -> None:
     user_name = update.effective_user.username
     user = get_user(user_name)
     language = get_language(user.get_option("studied_language", "English"))
@@ -23,14 +28,10 @@ async def recap_url(update: Update, context: CallbackContext) -> None:
     if "recap" in Config.LLM["inject_notes"]:
         notes_to_inject = get_notes_to_inject(user, language)
 
-    last_line = update.message.text.strip().split("\n")[-1]
+    # url = update.message.text.strip().split("\n")[-1]
     try:
-        recap = get_recap(
-            last_line,
-            language.name,
-            notes=notes_to_inject,
-        )
-        response = f"{recap} [(source)]({last_line})"
+        recap = get_recap(url, language.name, notes=notes_to_inject)
+        response = f"{recap} [(source)]({url})"
     except Exception as e:
         logging.error(f"Got error while recapping: {e}")
         response = "Couldn't process page, possibly it's too large."

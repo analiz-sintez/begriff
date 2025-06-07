@@ -1,5 +1,6 @@
 import re
 import logging
+from typing import Callable, Optional
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -7,9 +8,30 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from telegram import BotCommand
+from telegram import BotCommand, Message
 
 logger = logging.getLogger(__name__)
+
+
+class Lambda(filters.MessageFilter):
+    """
+    A function filter: applies a function to message text
+    and returns either bool or a dict with fetched arguments for
+    a handler.
+    """
+
+    __slots__ = ("fn",)
+
+    def __init__(self, fn: Callable):
+        self.fn: Callable = fn
+        super().__init__(name=f"filters.Lambda({self.fn})", data_filter=True)
+
+    def filter(
+        self, message: Message
+    ) -> Optional[dict[str, list[re.Match[str]]]]:
+        if message.text and (match := self.fn(message.text)):
+            return {"matches": [match]}
+        return {}
 
 
 class Router:
@@ -114,7 +136,7 @@ class Router:
             if isinstance(pattern, str) or isinstance(pattern, re.Pattern):
                 pattern_filter = filters.Regex(pattern)
             elif callable(pattern):
-                pattern_filter = filters.create(pattern)
+                pattern_filter = Lambda(pattern)
             else:
                 raise ValueError("Pattern must be a regexp or a callable.")
 
@@ -138,9 +160,13 @@ class Router:
                 f"Calling function {fn.__name__} "
                 f"with update: {update} and context: {context}"
             )
+            kwargs = None
             match = context.matches[0] if context.matches else None
-            if match:
+            if isinstance(match, re.Match):
                 kwargs = match.groupdict()
+            elif isinstance(match, dict):
+                kwargs = match
+            if kwargs:
                 logger.info(
                     f"Function {fn.__name__} called with args: {kwargs}"
                 )
