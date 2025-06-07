@@ -68,7 +68,7 @@ class Config:
         "new_cards_per_session": 10,
         "bury_siblings": True,
         "card_is_leech": {
-            "difficulty": 5.0,
-            "view_cnt": 1,
+            "difficulty": 8.0,
+            "view_cnt": 3,
         },
     }
