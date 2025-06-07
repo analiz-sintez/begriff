@@ -30,26 +30,33 @@ class RestartEventHandler(PatternMatchingEventHandler):
 
     def on_modified(self, event):
         if not self.should_ignore(event.src_path):
-            logging.info("File modified: %s, restarting bot...", event.src_path)
+            logging.info(
+                "File modified: %s, restarting bot...", event.src_path
+            )
             self.restart_process()
 
     def should_ignore(self, path):
-        if any(x in path for x in ['venv', '.git', '__pycache__']):
+        if any(x in path for x in ["venv", ".git", "__pycache__"]):
             return True
-        if os.path.basename(path).startswith('.') or os.path.basename(path).endswith('~'):
+        if os.path.basename(path).startswith(".") or os.path.basename(
+            path
+        ).endswith("~"):
             return True
-        if os.path.basename(path).startswith('#') and os.path.basename(path).endswith('#'):
+        if os.path.basename(path).startswith("#") and os.path.basename(
+            path
+        ).endswith("#"):
             return True
         return False
 
-        
+
 def main():
     logging.info("Initializing BotReloader...")
     command = ["python", "run_telegram.py"]  # Command to run the bot
     event_handler = RestartEventHandler(
-        command, patterns=["*.py"], ignore_directories=True)
+        command, patterns=["*.py"], ignore_directories=True
+    )
     observer = Observer()
-    observer.schedule(event_handler, path='.', recursive=True)
+    observer.schedule(event_handler, path=".", recursive=True)
     observer.start()
     try:
         while True:
@@ -57,6 +64,7 @@ def main():
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
+
 
 if __name__ == "__main__":
     main()
