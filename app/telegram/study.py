@@ -55,8 +55,9 @@ async def _generate_images(user, language):
 
 def get_default_image():
     image_path = generate_image(
-        "A cat teacher in round glasses teaches"
-        " young cat students in a university hall."
+        # "A cat teacher in round glasses teaches"
+        # " young cat students in a university hall."
+        "Stars in the deep night sky."
     )
     return image_path
 
