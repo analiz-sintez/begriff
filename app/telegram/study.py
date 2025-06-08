@@ -214,23 +214,19 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     #   and reschedule it.
 
 
-@router.callback_query("^answer:")
+@router.callback_query(r"^answer:(?P<card_id>\d+)$")
 async def handle_study_answer(
-    update: Update, context: CallbackContext
+    update: Update, context: CallbackContext, card_id: str
 ) -> None:
     """
     Handle ANSWER button press and show grade buttons.
     """
     user = get_user(update.effective_user.username)
-    query = update.callback_query
-    user_response = query.data
-    await query.answer()  # Acknowledge the callback query
-    logger.info("User %s pressed a button: %s", user.login, user_response)
+    logger.info("User %s pressed a button: ANSWER", user.login)
 
     # ASK -> ANSWER:
     # Show the answer (showing back side of the card)
-    card_id = int(user_response.split(":")[1])
-    card = get_card(card_id)
+    card = get_card(int(card_id))
     front = format_explanation(card.front)
     back = format_explanation(card.back)
     logger.info(
@@ -258,20 +254,22 @@ async def handle_study_answer(
     )
 
 
-@router.callback_query("^grade:")
-async def handle_study_grade(update: Update, context: CallbackContext) -> None:
+@router.callback_query(
+    r"^grade:(?P<view_id>\d+):(?P<answer_str>again|hard|good|easy)"
+)
+async def handle_study_grade(
+    update: Update,
+    context: CallbackContext,
+    view_id: str,
+    answer_str: str,
+) -> None:
     """
     Handle grade buttons press (AGAIN ... EASY) from user to and record
     the answer.
     """
     user = get_user(update.effective_user.username)
-    query = update.callback_query
-    user_response = query.data
-    await query.answer()  # Acknowledge the callback query
-    logger.info("User %s pressed a button: %s", user.login, user_response)
-
+    logger.info("User %s pressed a button: %s", user.login, answer_str)
     # ANSWER -> GRADE
-    _, view_id, answer_str = user_response.split(":")
     view_id = int(view_id)
     answer = Answer(answer_str)
     logger.info(

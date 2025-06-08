@@ -16,7 +16,7 @@ from .router import router
 logger = logging.getLogger(__name__)
 
 
-@router.message(re.compile("(?P<url>https?://\S+)$", re.MULTILINE))
+@router.message(re.compile(r"(?P<url>https?://\S+)$", re.MULTILINE))
 async def recap_url(
     update: Update, context: CallbackContext, url: str
 ) -> None:
