@@ -42,7 +42,7 @@ class Config:
             "default": "gpt-4.1-mini",
             "base_form": "gpt-4.1-mini",
             "explanation": "gpt-4.1-mini",
-            "recap": "gpt-4o-latest",
+            "recap": "gpt-4o",
         },
         # General settings
         "inject_notes": [
