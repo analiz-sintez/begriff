@@ -4,18 +4,10 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-from datetime import datetime, timedelta, timezone
-
 from telegram.ext import CallbackContext
-from telegram.constants import ParseMode
 
 from ..core import get_user
-from ..srs import (
-    get_language,
-    Note,
-    View,
-    get_notes,
-)
+from ..srs import get_language, get_notes
 from .utils import send_message
 from .router import router
 
@@ -34,7 +26,6 @@ async def change_language(
     language_name: str = None,
     native_language_name: str = None,
 ) -> None:
-    message_text = update.message.text.strip()
     user = get_user(update.effective_user.username)
 
     if language_name:
@@ -50,7 +41,7 @@ async def change_language(
                 f"languages/{language.id}/native_language", native_language.id
             )
             response_message += (
-                f"\nNative language for studying {language_name} "
+                f"\n\nNative language for studying {language_name} "
                 f"set to {native_language_name}. "
                 f"All explanations will be in {native_language_name}. "
                 f"To retain explanations in {language_name}, just pass it "
