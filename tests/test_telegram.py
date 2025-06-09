@@ -132,14 +132,18 @@ def test_study_session(app):
         mock_context = AsyncMock()
 
         # 1. Emulate requesting card answer.
-        mock_query.data = f"answer:{view_id}"
-        asyncio.run(handle_study_answer(mock_update, mock_context))
+        mock_query.data = f"answer:{first_card.id}"
+        asyncio.run(
+            handle_study_answer(mock_update, mock_context, first_card.id)
+        )
         # ... verify if the answer method on query was called
-        mock_query.answer.assert_called_once()
+        mock_update.message.edit_caption.assert_called_once()
 
         # 2. Emulate sending card grade.
         mock_query.data = f"grade:{view_id}:good"
-        asyncio.run(handle_study_grade(mock_update, mock_context))
+        asyncio.run(
+            handle_study_grade(mock_update, mock_context, view_id, "good")
+        )
 
         # Fetch the updated first card
         updated_first_card = get_card(first_card.id)

@@ -5,10 +5,7 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputFile,
-    InputMediaPhoto,
 )
-from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
 from ..core import get_user
@@ -29,6 +26,7 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation
+from .utils import send_image_message
 from .router import router
 
 
@@ -50,65 +48,6 @@ def get_finish_image():
         " cat students celebrate the end of the lection."
     )
     return image_path
-
-
-async def send_message(
-    update: Update,
-    context: CallbackContext,
-    caption: str,
-    markup=None,
-):
-    """Send or update message, without image."""
-    reply_fn = (
-        update.callback_query.edit_message_text
-        if update.callback_query is not None
-        else update.message.reply_text
-    )
-    await reply_fn(caption, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
-
-
-async def send_image_message(
-    update: Update,
-    context: CallbackContext,
-    caption: str,
-    image: str = None,
-    markup=None,
-):
-    """Send or update photo message."""
-    if not Config.IMAGE["enable"]:
-        logging.info("Images in study mode are disabled, ignoring them.")
-        await send_message(update, context, caption, markup)
-    elif update.callback_query is not None:
-        # If the session continues, edit photo object.
-        message = (
-            update.callback_query.message
-            if update.message is None
-            else update.message
-        )
-        if image:
-            await message.edit_media(
-                media=InputMediaPhoto(
-                    media=open(image, "rb"),
-                    caption=caption,
-                    parse_mode=ParseMode.MARKDOWN,
-                ),
-                reply_markup=markup,
-            )
-        else:
-            await message.edit_caption(
-                caption=caption,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=markup,
-            )
-    else:
-        # If the session just starts, send photo object.
-        await context.bot.send_photo(
-            chat_id=update.effective_chat.id,
-            photo=open(image, "rb") if image else None,
-            caption=caption,
-            reply_markup=markup,
-            parse_mode=ParseMode.MARKDOWN,
-        )
 
 
 def _generate_image_for_note(note: Note) -> str:
@@ -216,7 +155,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
 @router.callback_query(r"^answer:(?P<card_id>\d+)$")
 async def handle_study_answer(
-    update: Update, context: CallbackContext, card_id: str
+    update: Update, context: CallbackContext, card_id: int
 ) -> None:
     """
     Handle ANSWER button press and show grade buttons.
@@ -226,7 +165,7 @@ async def handle_study_answer(
 
     # ASK -> ANSWER:
     # Show the answer (showing back side of the card)
-    card = get_card(int(card_id))
+    card = get_card(card_id)
     front = format_explanation(card.front)
     back = format_explanation(card.back)
     logger.info(
@@ -248,7 +187,6 @@ async def handle_study_answer(
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    # image_path = card.note.get_option("image/path", get_default_image())
     await send_image_message(
         update, context, f"{front}\n\n{back}", None, reply_markup
     )
@@ -260,7 +198,7 @@ async def handle_study_answer(
 async def handle_study_grade(
     update: Update,
     context: CallbackContext,
-    view_id: str,
+    view_id: int,
     answer_str: str,
 ) -> None:
     """
@@ -270,7 +208,6 @@ async def handle_study_grade(
     user = get_user(update.effective_user.username)
     logger.info("User %s pressed a button: %s", user.login, answer_str)
     # ANSWER -> GRADE
-    view_id = int(view_id)
     answer = Answer(answer_str)
     logger.info(
         "User %s graded answer %s for view %s",

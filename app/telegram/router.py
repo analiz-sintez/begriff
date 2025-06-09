@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Callable, Optional
+from typing import Callable, Optional, get_type_hints
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -152,25 +152,38 @@ class Router:
     def _wrap_fn_with_args(self, fn):
         """
         A helper function to wrap the handler function
-        and extract named groups for its arguments.
+        and extract named groups for its arguments, coercing types.
         """
+
+        type_hints = get_type_hints(fn)
 
         def wrapped(update, context):
             logger.debug(
                 f"Calling function {fn.__name__} "
                 f"with update: {update} and context: {context}"
             )
+            # ... look for argume
             kwargs = None
             match = context.matches[0] if context.matches else None
             if isinstance(match, re.Match):
                 kwargs = match.groupdict()
             elif isinstance(match, dict):
                 kwargs = match
+
             if kwargs:
+                # ... use type hints to coerce fetched arguments
+                coerced_kwargs = {
+                    k: (
+                        type_hints.get(k, lambda x: x)(v)
+                        if k in type_hints
+                        else v
+                    )
+                    for k, v in kwargs.items()
+                }
                 logger.info(
-                    f"Function {fn.__name__} called with args: {kwargs}"
+                    f"Function {fn.__name__} called with args: {coerced_kwargs}"
                 )
-                return fn(update, context, **kwargs)
+                return fn(update, context, **coerced_kwargs)
             else:
                 logger.info(f"Function {fn.__name__} called with no args.")
                 return fn(update, context)

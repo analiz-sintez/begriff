@@ -16,6 +16,7 @@ from ..srs import (
     View,
     get_notes,
 )
+from .utils import send_message
 from .router import router
 
 
@@ -65,33 +66,22 @@ async def change_language(update: Update, context: CallbackContext) -> None:
 
         if language_buttons:
             response_message += "\n\nChoose a language you want to study:"
-            reply_markup = InlineKeyboardMarkup.from_column(language_buttons)
+            keyboard = InlineKeyboardMarkup.from_column(language_buttons)
         else:
             response_message += "\n\nYou don't have any notes for other languages. Add notes to get language options."
-            reply_markup = None
+            keyboard = None
 
-        await update.message.reply_text(
-            response_message,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup,
-        )
+        await send_message(update, context, response_message, keyboard)
 
 
-@router.callback_query("^set_language:")
+@router.callback_query("^set_language:(?P<language_id>\d+)$")
 async def handle_language_change(
-    update: Update, context: CallbackContext
+    update: Update, context: CallbackContext, language_id: str
 ) -> None:
     query = update.callback_query
-    data = query.data
+    user = get_user(query.from_user.username)
+    language = get_language(int(language_id))
 
-    if data.startswith("set_language:"):
-        language_id = int(data.split(":")[1])
-        user = get_user(query.from_user.username)
-        language = get_language(language_id)
-
-        user.set_option("studied_language", language.id)
-        response_message = f"Language changed to {language.name}."
-        await query.answer()
-        await query.edit_message_text(
-            response_message, parse_mode=ParseMode.MARKDOWN
-        )
+    user.set_option("studied_language", language.id)
+    response_message = f"Language changed to {language.name}."
+    await send_message(update, context, response_message)
