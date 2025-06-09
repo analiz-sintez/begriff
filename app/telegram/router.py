@@ -82,25 +82,43 @@ class Router:
         application.post_init = set_commands
         logger.info("Commands set with descriptions: %s", commands)
 
-    def command(self, command: str, description: str = ""):
+    def _wrap_command_fn(self, fn, arg_names):
+        type_hints = get_type_hints(fn)
+
+        def wrapped(update, context):
+            args = context.args if hasattr(context, "args") else []
+            args_dict = {name: None for name in arg_names}
+
+            for arg, name in zip(args, arg_names[: len(args)]):
+                if name in type_hints:
+                    args_dict[name] = type_hints[name](arg)
+
+            logger.debug(
+                f"Calling function {fn.__name__} "
+                f"with coerced args: {args_dict}"
+            )
+            return fn(update, context, **args_dict)
+
+        return wrapped
+
+    def command(self, command: str, args: list = [], description: str = None):
         """
         A decorator for Telegram commands.
 
-        A command is a regexp which should be applied for the command.
-        If it contains named groups, they become parameters for the
-        wrapped function.
-
         Args:
-            command: The command name.
+            command: The command name with its expected argument names.
+            arg: List of optional sequential arguments.
             description: Description of the command for application menu.
         """
+        if not description:
+            description = command
 
         def decorator(fn):
             logger.info(
                 f"Decorating command: {command} with description: {description}"
             )
             self.command_descriptions[command] = description
-            handler = CommandHandler(command, self._wrap_fn_with_args(fn))
+            handler = CommandHandler(command, self._wrap_command_fn(fn, args))
             self.command_handlers.append(handler)
             return fn
 
@@ -162,7 +180,7 @@ class Router:
                 f"Calling function {fn.__name__} "
                 f"with update: {update} and context: {context}"
             )
-            # ... look for argume
+            # ... look for arguments from regexps
             kwargs = None
             match = context.matches[0] if context.matches else None
             if isinstance(match, re.Match):

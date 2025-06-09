@@ -23,30 +23,42 @@ from .router import router
 logger = logging.getLogger(__name__)
 
 
-@router.command("language", "Change studied language")
-async def change_language(update: Update, context: CallbackContext) -> None:
+@router.command(
+    "language",
+    args=["language_name", "native_language_name"],
+    description="Change studied language",
+)
+async def change_language(
+    update: Update,
+    context: CallbackContext,
+    language_name: str = None,
+    native_language_name: str = None,
+) -> None:
     message_text = update.message.text.strip()
     user = get_user(update.effective_user.username)
-
-    if not message_text.startswith("/language"):
-        response_message = (
-            "Invalid command format. Use /language <language_name>."
-        )
-        await update.message.reply_text(
-            response_message, parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    language_name = message_text.split("/language", 1)[1].strip()
 
     if language_name:
         # Setting a language.
         language = get_language(language_name)
         user.set_option("studied_language", language.id)
         response_message = f"Language changed to {language_name}."
-        await update.message.reply_text(
-            response_message, parse_mode=ParseMode.MARKDOWN
-        )
+
+        if native_language_name and not native_language_name == language_name:
+            # Setting native language for this language.
+            native_language = get_language(native_language_name)
+            user.set_option(
+                f"languages/{language.id}/native_language", native_language.id
+            )
+            response_message += (
+                f"\nNative language for studying {language_name} "
+                f"set to {native_language_name}. "
+                f"All explanations will be in {native_language_name}. "
+                f"To retain explanations in {language_name}, just pass it "
+                f"as native language: /language {language_name} {language_name}."
+            )
+
+        await send_message(update, context, response_message)
+
     else:
         # Showing current language with language options to choose
         user_notes = get_notes(user_id=user.id)
@@ -76,11 +88,11 @@ async def change_language(update: Update, context: CallbackContext) -> None:
 
 @router.callback_query("^set_language:(?P<language_id>\d+)$")
 async def handle_language_change(
-    update: Update, context: CallbackContext, language_id: str
+    update: Update, context: CallbackContext, language_id: int
 ) -> None:
     query = update.callback_query
     user = get_user(query.from_user.username)
-    language = get_language(int(language_id))
+    language = get_language(language_id)
 
     user.set_option("studied_language", language.id)
     response_message = f"Language changed to {language.name}."

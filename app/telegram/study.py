@@ -87,7 +87,7 @@ def _get_image_for_show(card, previous_card):
         return get_default_image()
 
 
-@router.command("study", "Start a study session")
+@router.command("study", description="Start a study session")
 async def study_next_card(update: Update, context: CallbackContext) -> None:
     """Fetch a study card for the user and display it with a button to show the answer.
 
