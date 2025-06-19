@@ -1,6 +1,9 @@
 import os
 import logging
 from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+import asyncio
+
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -20,7 +23,6 @@ from ..srs import (
     Answer,
     Maturity,
     count_new_cards_studied,
-    get_notes,
 )
 from ..llm import translate
 from ..image import generate_image
@@ -28,13 +30,45 @@ from ..config import Config
 from .note import format_explanation
 from .utils import send_image_message
 from .router import router
+from ..ui import Signal, bus
+
+
+@dataclass
+class StudySessionRequested(Signal):
+    user_id: int
+
+
+@dataclass
+class CardQuestionShown(Signal):
+    card_id: int
+
+
+@dataclass
+class CardAnswerRequested(Signal):
+    card_id: int
+
+
+@dataclass
+class CardAnswerShown(Signal):
+    card_id: int
+
+
+@dataclass
+class CardGraded(Signal):
+    card_id: int
+    answer: Answer
+
+
+@dataclass
+class StudySessionFinished(Signal):
+    user_id: int
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_default_image():
-    image_path = generate_image(
+async def get_default_image():
+    image_path = await generate_image(
         # "A cat teacher in round glasses teaches"
         # " young cat students in a university hall."
         "Stars in the deep night sky."
@@ -42,21 +76,11 @@ def get_default_image():
     return image_path
 
 
-def get_finish_image():
-    image_path = generate_image(
+async def get_finish_image():
+    image_path = await generate_image(
         "A cat teacher in round glasses and his young"
         " cat students celebrate the end of the lection."
     )
-    return image_path
-
-
-def _generate_image_for_note(note: Note) -> str:
-    explanation = note.field2
-    if not note.language.name == "English":
-        explanation = translate(explanation, note.language.name)
-        note.set_option("explanation/en", explanation)
-    image_path = generate_image(explanation)
-    note.set_option("image/path", image_path)
     return image_path
 
 
@@ -69,27 +93,38 @@ def _get_previous_card(update: Update):
         return get_view(view_id).card
 
 
-def _get_image_for_show(card, previous_card):
+async def _get_image_for_show(card, previous_card):
     note = card.note
     image_path = note.get_option("image/path")
     # Note has image: use it.
     if image_path and os.path.exists(image_path):
         return image_path
-    # Note doesn't have image but has leech cards: generate an image.
-    if card.is_leech():
-        try:
-            return _generate_image_for_note(note)
-        except:
-            logger.warning("Couldn't generate image for note: %s", note)
-            return None
+    # # Note doesn't have image but has leech cards: generate an image.
+    # if card.is_leech():
+    #     try:
+    #         return _generate_image_for_note(note)
+    #     except:
+    #         logger.warning("Couldn't generate image for note: %s", note)
+    #         return None
     # Note shouldn't have image but previous one has: set default one.
     if not previous_card or previous_card.note.get_option("image/path"):
-        return get_default_image()
+        return await get_default_image()
 
 
 @router.command("study", description="Start a study session")
+async def start_study_session(
+    update: Update, context: CallbackContext
+) -> None:
+    user = get_user(update.effective_user.username)
+    logger.info("User %s requested to study.", user.login)
+    bus.emit(StudySessionRequested(user.id))
+    await study_next_card(update, context)
+
+
 async def study_next_card(update: Update, context: CallbackContext) -> None:
-    """Fetch a study card for the user and display it with a button to show the answer.
+    """
+    Fetch a study card for the user and display it with a button to show
+    the answer.
 
     Args:
         update: The Telegram update that triggered this function.
@@ -97,8 +132,6 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     """
     user = get_user(update.effective_user.username)
     language = get_language(user.get_option("studied_language", "English"))
-
-    logger.info("User %s requested to study.", user.login)
 
     now = datetime.now(timezone.utc)
     tomorrow = (
@@ -127,13 +160,13 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
+        bus.emit(StudySessionFinished(user.id))
         await send_image_message(
-            update, context, "All done for today.", get_finish_image()
+            update, context, "All done for today.", await get_finish_image()
         )
-        return
 
     card = cards[0]
-    image_path = _get_image_for_show(card, _get_previous_card(update))
+    image_path = await _get_image_for_show(card, _get_previous_card(update))
 
     keyboard = [
         [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
@@ -168,6 +201,7 @@ async def handle_study_answer(
     card = get_card(card_id)
     front = format_explanation(card.front)
     back = format_explanation(card.back)
+    bus.emit(CardAnswerRequested(card.id))
     logger.info(
         "Showing answer for card %s to user %s: %s",
         card.id,
@@ -206,6 +240,7 @@ async def handle_study_grade(
     the answer.
     """
     user = get_user(update.effective_user.username)
+    view = get_view(view_id)
     logger.info("User %s pressed a button: %s", user.login, answer_str)
     # ANSWER -> GRADE
     answer = Answer(answer_str)
@@ -213,7 +248,37 @@ async def handle_study_grade(
         "User %s graded answer %s for view %s",
         user.login,
         answer.name,
-        view_id,
+        view.id,
     )
-    record_answer(view_id, answer)
+    record_answer(view.id, answer)
+    bus.emit(CardGraded(view.card.id, answer))
     await study_next_card(update, context)
+
+
+@bus.on(CardGraded)
+async def maybe_generate_image(card_id, answer):
+    card = get_card(card_id)
+
+    # Generate images only for leech cards
+    if not card.is_leech():
+        return
+
+    note = card.note
+
+    # Don't generate new image if an old one is in place.
+    image_path = note.get_option("image/path")
+    if image_path and os.path.exists(image_path):
+        return
+
+    # Translate any language to English since models understand it.
+    explanation = note.field2
+    if not note.language.name == "English":
+        explanation = translate(explanation, note.language.name)
+        note.set_option("explanation/en", explanation)
+
+    # Generate an image.
+    try:
+        image_path = await generate_image(explanation)
+        note.set_option("image/path", image_path)
+    except:
+        logger.warning("Couldn't generate image for note: %s", note)

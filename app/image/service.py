@@ -1,6 +1,8 @@
 import os
 import hashlib
 import logging
+from asyncio import to_thread
+
 from PIL import Image
 
 import vertexai
@@ -17,7 +19,7 @@ vertexai.init(
 )
 
 
-def generate_image(description: str, force: bool = False) -> str:
+async def generate_image(description: str, force: bool = False) -> str:
     """
     Generate an image based on the Note's field2 content using Vertex AI, and save it to the ./data/images directory.
 
@@ -59,7 +61,8 @@ def generate_image(description: str, force: bool = False) -> str:
     # Generate the image
     prompt = Config.IMAGE["prompt"] % description
     logger.info("Generating image with prompt: %s", prompt)
-    response = image_model.generate_images(
+    response = await to_thread(
+        image_model.generate_images,
         prompt=prompt,
         number_of_images=1,
         aspect_ratio="16:9",
