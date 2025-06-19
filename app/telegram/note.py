@@ -88,7 +88,7 @@ def get_notes_to_inject(user: User, language: Language) -> list:
     return random_notes
 
 
-def add_note(
+async def add_note(
     user: User,
     language: Language,
     text: str,
@@ -135,7 +135,7 @@ def add_note(
                 notes_to_inject = get_notes_to_inject(user, language)
             else:
                 notes_to_inject = None
-            explanation = get_explanation(
+            explanation = await get_explanation(
                 text,
                 language.name,
                 notes=notes_to_inject,
@@ -227,12 +227,12 @@ async def add_notes(update: Update, context: CallbackContext) -> None:
             continue
 
         if Config.LLM["convert_to_base_form"]:
-            text_base_form = get_base_form(text, language.name)
+            text_base_form = await get_base_form(text, language.name)
             logger.info("Converted %s to base form: %s", text, text_base_form)
             text = text_base_form
 
         # Pass the context to get_explanation if available
-        note, is_new = add_note(
+        note, is_new = await add_note(
             user, language, text, explanation, context=context_message
         )
 

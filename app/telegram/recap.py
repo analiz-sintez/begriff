@@ -30,7 +30,7 @@ async def recap_url(
 
     # url = update.message.text.strip().split("\n")[-1]
     try:
-        recap = get_recap(url, language.name, notes=notes_to_inject)
+        recap = await get_recap(url, language.name, notes=notes_to_inject)
         response = f"{recap} [(source)]({url})"
     except Exception as e:
         logging.error(f"Got error while recapping: {e}")

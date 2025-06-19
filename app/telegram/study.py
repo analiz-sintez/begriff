@@ -164,6 +164,7 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         await send_image_message(
             update, context, "All done for today.", await get_finish_image()
         )
+        return
 
     card = cards[0]
     image_path = await _get_image_for_show(card, _get_previous_card(update))
@@ -273,7 +274,7 @@ async def maybe_generate_image(card_id, answer):
     # Translate any language to English since models understand it.
     explanation = note.field2
     if not note.language.name == "English":
-        explanation = translate(explanation, note.language.name)
+        explanation = await translate(explanation, note.language.name)
         note.set_option("explanation/en", explanation)
 
     # Generate an image.

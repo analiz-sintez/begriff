@@ -1,4 +1,5 @@
 import logging
+from asyncio import to_thread
 from openai import OpenAI
 from ..config import Config
 from bs4 import BeautifulSoup
@@ -11,11 +12,12 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
-def query_llm(instructions: str, input: str, model: str = None):
+async def query_llm(instructions: str, input: str, model: str = None):
     if not model:
         model = Config.LLM["models"]["default"]
 
-    response = client.chat.completions.create(
+    response = await to_thread(
+        client.chat.completions.create,
         model=model,
         messages=[
             {"role": "system", "content": instructions},
@@ -26,7 +28,7 @@ def query_llm(instructions: str, input: str, model: str = None):
     return result
 
 
-def get_explanation(
+async def get_explanation(
     input: str,
     src_language: str,
     dst_language: str = None,
@@ -85,14 +87,14 @@ Reply: [General] Someone who solves problems, often in a quick or discreet manne
         f"Requesting explanation for {input} with instructions\n: {instructions}"
     )
 
-    explanation = query_llm(
+    explanation = await query_llm(
         instructions, input, model=Config.LLM["models"]["explanation"]
     )
     logger.info("Received explanation: '%s'", explanation)
     return explanation
 
 
-def get_recap(url, language, notes: list = None):
+async def get_recap(url, language, notes: list = None):
     """
     Fetch the content of a URL and request a summary recap in a specific language.
 
@@ -135,14 +137,14 @@ Instructions:
     logger.info("Requesting recap for text from URL: %s", url)
     logger.debug("Recap instructions:\n%s", instructions)
 
-    recap = query_llm(
+    recap = await query_llm(
         instructions, text_content, model=Config.LLM["models"]["recap"]
     )
     logger.info("Received recap: '%s'", recap)
     return recap
 
 
-def get_base_form(input: str, language: str) -> str:
+async def get_base_form(input: str, language: str) -> str:
     """
     Request the base form of a word in a specified language.
 
@@ -172,14 +174,14 @@ Instructions:
         f"Requesting base form for {input} with instructions:\n{instructions}"
     )
 
-    base_form = query_llm(
+    base_form = await query_llm(
         instructions, input, model=Config.LLM["models"]["base_form"]
     )
     logger.info("Received base form: '%s'", base_form)
     return base_form
 
 
-def translate(
+async def translate(
     text: str, src_language: str, dst_language: str = "English"
 ) -> str:
     """
@@ -206,6 +208,6 @@ Translate the following text from {src_language} to {dst_language}.
 Ensure the translation captures the original meaning as accurately as possible.
 """
 
-    translation = query_llm(instructions, text)
+    translation = await query_llm(instructions, text)
     logger.info("Received translation: '%s'", translation)
     return translation
