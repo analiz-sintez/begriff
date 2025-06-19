@@ -6,6 +6,9 @@ flask_migrate
 flasgger
 pytest
 pytest-mock
+pytest-asyncio
+mypy
+sqlalchemy-stubs
 python-dotenv
 python-telegram-bot
 watchdog
@@ -16,3 +19,5 @@ BeautifulSoup4
 pandas
 vertexai
 pillow
+pymorphy3
+transliterate

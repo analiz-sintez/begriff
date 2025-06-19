@@ -170,7 +170,7 @@ def get_view(view_id: int) -> Optional[View]:
 def get_views(
     user_id: int,
     language_id: int,
-    answers: List[Optional[Answer]] = None,
+    answers: Optional[List[Answer]] = None,
 ) -> List[View]:
     """
     Retrieve views for a specific user and language. Allows optional filtering by answers.

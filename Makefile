@@ -34,6 +34,10 @@ test:
 test-verbose:
 	. $(VENV_PATH)/bin/activate && pytest -s --log-cli-level=INFO
 
+# Run static type analyzer
+types:
+	. $(VENV_PATH)/bin/activate && mypy app
+
 # Initialize the database
 db-init:
 	. $(VENV_PATH)/bin/activate && flask db init

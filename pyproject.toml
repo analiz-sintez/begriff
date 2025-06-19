@@ -26,13 +26,22 @@ dependencies = [
     "pandas (>=2.2.3,<3.0.0)",
     "fsrs-rs-python @ git+https://github.com/open-spaced-repetition/fsrs-rs-python.git",
     "vertexai (>=1.71.1,<2.0.0)",
-    "pillow (>=11.2.1,<12.0.0)"
+    "pillow (>=11.2.1,<12.0.0)",
+    "pymorphy3 (>=2.0.4,<3.0.0)",
+    "transliterate (>=1.10.2,<2.0.0)",
+    "pytest-asyncio (>=1.0.0,<2.0.0)",
+    "mypy (>=1.16.1,<2.0.0)"
 ]
 
 [tool.poetry]
 name = "begriff"
 package-mode = false
 
+[tool.poetry.dependencies]
+python = ">=3.13,<4.0"
+
+[tool.mypy]
+plugins=sqlmypy
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
