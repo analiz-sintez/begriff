@@ -1,2 +1,2 @@
-from .models import db, User, OptionsMixin
+from .models import db, Model, User, OptionsMixin
 from .service import get_user

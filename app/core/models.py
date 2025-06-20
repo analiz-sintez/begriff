@@ -1,13 +1,25 @@
 import logging
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Integer, String
+from sqlalchemy.orm import mapped_column, DeclarativeBase
 from sqlalchemy.types import JSON
 from sqlalchemy.ext.mutable import MutableDict
 from flask_sqlalchemy import SQLAlchemy
 
+
+class BaseModel(DeclarativeBase):
+    """
+    This one is required to calm down pyright.
+    see: https://github.com/pallets-eco/flask-sqlalchemy/issues/1327
+    """
+
+    pass
+
+
 # It's thread-safe while it's from flask_sqlalchemy.
 # If replacing flask with fastapi etc, refactor this
 # to make thread-safe.
-db = SQLAlchemy()
+db = SQLAlchemy(model_class=BaseModel)
+Model: BaseModel = db.Model  # pyright: ignore
 
 # Set up logging
 
@@ -15,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class OptionsMixin:
-    options = Column(MutableDict.as_mutable(JSON))
+    options = mapped_column(MutableDict.as_mutable(JSON))
 
     def set_option(self, name, value):
         if self.options is None:
@@ -53,11 +65,11 @@ class OptionsMixin:
         return d
 
 
-class User(db.Model, OptionsMixin):
+class User(Model, OptionsMixin):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True)
-    login = Column(String, unique=True)
+    id = mapped_column(Integer, primary_key=True)
+    login = mapped_column(String, unique=True)
 
     def to_dict(self):
         return {"id": self.id, "login": self.login}
