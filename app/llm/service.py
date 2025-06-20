@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from asyncio import to_thread
 from openai import OpenAI
 from ..config import Config
@@ -12,9 +13,13 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
-async def query_llm(instructions: str, input: str, model: str = None):
-    if not model:
+async def query_llm(
+    instructions: str, input: str, model: Optional[str] = None
+) -> str:
+    if model is None:
         model = Config.LLM["models"]["default"]
+
+    assert model is not None
 
     response = await to_thread(
         client.chat.completions.create,
@@ -31,10 +36,10 @@ async def query_llm(instructions: str, input: str, model: str = None):
 async def get_explanation(
     input: str,
     src_language: str,
-    dst_language: str = None,
-    notes: list = None,
-    context: str = None,
-):
+    dst_language: Optional[str] = None,
+    notes: Optional[list] = None,
+    context: Optional[str] = None,
+) -> str:
     """
     Request an explanation for a word in a specified language.
 

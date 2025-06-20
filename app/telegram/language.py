@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 async def change_language(
     update: Update,
     context: CallbackContext,
-    language_name: str = None,
-    native_language_name: str = None,
+    language_name: Optional[str] = None,
+    native_language_name: Optional[str] = None,
 ) -> None:
     user = get_user(update.effective_user.username)
 

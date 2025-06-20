@@ -13,9 +13,3 @@ srs_bp = Blueprint("srs_bp", __name__)
 def get_root():
     logger.info("GET request to root endpoint.")
     return jsonify({"message": "Hello World"}), 200
-
-
-@srs_bp.route("/views", methods=["GET"])
-def get_views():
-    logger.info("GET request to /views endpoint without params.")
-    return jsonify([view.to_dict() for view in get_views()])
