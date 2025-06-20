@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 from telegram import (
     Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
+    InlineKeyboardButton as Button,
+    InlineKeyboardMarkup as Keyboard,
 )
 from telegram.ext import CallbackContext
 
@@ -29,7 +29,15 @@ from ..config import Config
 from .note import format_explanation
 from .utils import send_image_message
 from .router import router
-from ..ui import Signal, bus
+from ..ui import Signal, bus, encode, decode, make_regexp
+
+
+# States: ASK -> ANSWER -> RECORD
+# - ASK: show the front side of the card, wait when user requests
+#   the back side;
+# - ANSWER: show front and back sides, wait for grade (Answer object);
+# - GRADE: got the answer, record it, update card memorization params
+#   and reschedule it.
 
 
 @dataclass
@@ -53,8 +61,14 @@ class CardAnswerShown(Signal):
 
 
 @dataclass
+class CardGradeRequested(Signal):
+    view_id: int
+    answer: Answer
+
+
+@dataclass
 class CardGraded(Signal):
-    card_id: int
+    view_id: int
     answer: Answer
 
 
@@ -98,13 +112,6 @@ async def _get_image_for_show(card, previous_card):
     # Note has image: use it.
     if image_path and os.path.exists(image_path):
         return image_path
-    # # Note doesn't have image but has leech cards: generate an image.
-    # if card.is_leech():
-    #     try:
-    #         return _generate_image_for_note(note)
-    #     except:
-    #         logger.warning("Couldn't generate image for note: %s", note)
-    #         return None
     # Note shouldn't have image but previous one has: set default one.
     if not previous_card or previous_card.note.get_option("image/path"):
         return await get_default_image()
@@ -116,10 +123,11 @@ async def start_study_session(
 ) -> None:
     user = get_user(update.effective_user.username)
     logger.info("User %s requested to study.", user.login)
-    bus.emit(StudySessionRequested(user.id))
-    await study_next_card(update, context)
+    bus.emit(StudySessionRequested(user.id), update=update, context=context)
 
 
+@bus.on(StudySessionRequested)
+@bus.on(CardGraded)
 async def study_next_card(update: Update, context: CallbackContext) -> None:
     """
     Fetch a study card for the user and display it with a button to show
@@ -168,25 +176,25 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
     card = cards[0]
     image_path = await _get_image_for_show(card, _get_previous_card(update))
 
-    keyboard = [
-        [InlineKeyboardButton("ANSWER", callback_data=f"answer:{card.id}")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = Keyboard(
+        [
+            [
+                # Button("ANSWER", callback=CardAnswerRequested(card.id))
+                Button(
+                    "ANSWER",
+                    callback_data=encode(CardAnswerRequested(card.id)),
+                )
+            ]
+        ]
+    )
     context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.login, card.front)
     front = format_explanation(card.front)
-
-    await send_image_message(update, context, front, image_path, reply_markup)
-
-    # States: ASK -> ANSWER -> RECORD
-    # - ASK: show the front side of the card, wait when user requests
-    #   the back side;
-    # - ANSWER: show front and back sides, wait for grade (Answer object);
-    # - GRADE: got the answer, record it, update card memorization params
-    #   and reschedule it.
+    bus.emit(CardQuestionShown(card.id))
+    await send_image_message(update, context, front, image_path, keyboard)
 
 
-@router.callback_query(r"^answer:(?P<card_id>\d+)$")
+@bus.on(CardAnswerRequested)
 async def handle_study_answer(
     update: Update, context: CallbackContext, card_id: int
 ) -> None:
@@ -202,7 +210,7 @@ async def handle_study_answer(
         return
     front = format_explanation(card.front)
     back = format_explanation(card.back)
-    bus.emit(CardAnswerRequested(card.id))
+    bus.emit(CardAnswerShown(card.id))
     logger.info(
         "Showing answer for card %s to user %s: %s",
         card.id,
@@ -212,29 +220,28 @@ async def handle_study_answer(
     # ... record the moment user started answering
     view_id = record_view_start(card.id)
     # ... prepare the keyboard with memorization quality buttons
-    keyboard = [
+    keyboard = Keyboard(
         [
-            InlineKeyboardButton(
-                answer.name,
-                callback_data=f"grade:{view_id}:{answer.value}",
-            )
-            for answer in Answer
+            [
+                Button(
+                    answer.name,
+                    callback_data=encode(CardGradeRequested(view_id, answer)),
+                )
+                for answer in Answer
+            ]
         ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    )
     await send_image_message(
-        update, context, f"{front}\n\n{back}", None, reply_markup
+        update, context, f"{front}\n\n{back}", None, keyboard
     )
 
 
-@router.callback_query(
-    r"^grade:(?P<view_id>\d+):(?P<answer_str>again|hard|good|easy)"
-)
+@bus.on(CardGradeRequested)
 async def handle_study_grade(
     update: Update,
     context: CallbackContext,
     view_id: int,
-    answer_str: str,
+    answer: Answer,
 ) -> None:
     """
     Handle grade buttons press (AGAIN ... EASY) from user to and record
@@ -243,9 +250,8 @@ async def handle_study_grade(
     user = get_user(update.effective_user.username)
     if not (view := get_view(view_id)):
         return
-    logger.info("User %s pressed a button: %s", user.login, answer_str)
+    logger.info("User %s pressed a button: %s", user.login, answer)
     # ANSWER -> GRADE
-    answer = Answer(answer_str)
     logger.info(
         "User %s graded answer %s for view %s",
         user.login,
@@ -253,14 +259,15 @@ async def handle_study_grade(
         view.id,
     )
     record_answer(view.id, answer)
-    bus.emit(CardGraded(view.card.id, answer))
-    await study_next_card(update, context)
+    bus.emit(CardGraded(view.id, answer), update=update, context=context)
 
 
 @bus.on(CardGraded)
-async def maybe_generate_image(card_id: int, answer: Answer):
-    if not (card := get_card(card_id)):
+async def maybe_generate_image(view_id: int, answer: Answer):
+    if not (view := get_view(view_id)):
         return
+
+    card = view.card
 
     # Generate images only for leech cards
     if not card.is_leech():

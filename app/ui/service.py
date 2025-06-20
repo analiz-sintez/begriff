@@ -1,7 +1,10 @@
+import re
 import asyncio
 import logging
-from dataclasses import dataclass, asdict
-from typing import Callable, Type, List, get_type_hints
+from inspect import signature
+from dataclasses import dataclass, asdict, astuple, fields
+from enum import Enum
+from typing import Callable, Type, List, get_type_hints, Optional
 from inspect import signature
 
 
@@ -86,36 +89,140 @@ class Bus:
         except Exception as e:
             logging.error(f"Exception in background task: {e}", exc_info=True)
 
-    def emit(self, signal: Signal) -> List[asyncio.Task]:
+    def _dispatch_signal_to_slots(self, signal, **kwargs):
+        signal_type = type(signal)
+        signal_dict = asdict(signal)
+
+        tasks = []
+        if signal_type in self._slots:
+            for slot in self._slots[signal_type]:
+                slot_signature = signature(slot)
+                relevant_args = {}
+
+                for param in slot_signature.parameters.values():
+                    if param.name in signal_dict:
+                        relevant_args[param.name] = signal_dict[param.name]
+                    elif param.name in kwargs:
+                        relevant_args[param.name] = kwargs[param.name]
+
+                tasks.append(asyncio.create_task(slot(**relevant_args)))
+
+        return tasks
+
+    def emit(self, signal: Signal, **kwargs) -> List[asyncio.Task]:
         """
         Fire-and-forget: Schedules slots and returns immediately.
         Exceptions in slots will be logged, not raised.
         """
         logger.info(f"Emitting signal without waiting: {signal}")
-        signal_type = type(signal)
-        if signal_type in self._slots:
-            tasks = [
-                asyncio.create_task(slot(**asdict(signal)))
-                for slot in self._slots[signal_type]
-            ]
-        else:
-            tasks = []
+        tasks = self._dispatch_signal_to_slots(signal, **kwargs)
         for task in tasks:
             task.add_done_callback(self._handle_task_result)
         return tasks
 
-    async def emit_and_wait(self, signal: Signal) -> None:
+    async def emit_and_wait(self, signal: Signal, **kwargs) -> List:
         """
         Schedules slots and waits for them all to complete.
         Raises the first exception encountered in a slot.
         """
         logger.info(f"Emitting signal with waiting: {signal}")
-        signal_type = type(signal)
-        if signal_type in self._slots:
-            tasks = [
-                asyncio.create_task(slot(**asdict(signal)))
-                for slot in self._slots[signal_type]
-            ]
-            if tasks:
-                # gather will propagate exceptions.
-                await asyncio.gather(*tasks)
+        tasks = self._dispatch_signal_to_slots(signal, **kwargs)
+        return await asyncio.gather(*tasks)
+
+
+def encode(signal: Signal) -> str:
+    """
+    Make a string encoding a signal and all its parameters,
+    for insertion into callback field.
+    """
+    values = []
+
+    for field, value in zip(fields(signal), astuple(signal)):
+        attr_type = field.type
+        if isinstance(value, Enum):
+            values.append(value.name)
+        elif isinstance(value, bool):
+            values.append(str(value).lower())
+        else:
+            values.append(str(value))
+
+    return f"{type(signal).__name__}:{':'.join(values)}"
+
+
+def make_regexp(signal_type: Type[Signal]) -> str:
+    """
+    Make a regexp to parse signal attributes from its string encoding.
+
+    E.g.:
+    "CardAnswerShown:1"
+    becomes "^CardAnswerShown:(?P<card_id>\d+)$"
+    "CardAnswerGraded:1:good"
+    becomes "^CardAnswerGraded:(?P<card_id>\d+):(?P<answer>again|hard|good|easy)$"
+
+    Attribute types are taken from signal class definition.
+    Supported are: all scalars, enums.
+    """
+    # Start the regular expression pattern with the signal name
+    pattern = f"^{signal_type.__name__}"
+
+    # Iterate through the fields to match each attribute
+    for field in fields(signal_type):
+        attr = field.name
+        attr_type = field.type
+        if issubclass(attr_type, Enum):
+            # If the attribute is an Enum, match its possible values
+            enum_values = "|".join([e.name for e in attr_type])
+            pattern += f":(?P<{attr}>{enum_values})"
+        elif attr_type is int:
+            # Match digits for integers
+            pattern += f":(?P<{attr}>\\d+)"
+        elif attr_type is float:
+            # Match floating point numbers
+            pattern += f":(?P<{attr}>\\d+(\\.\\d+)?)"
+        elif attr_type is str:
+            # Match any non-whitespace characters for strings
+            pattern += f":(?P<{attr}>\\S+)"
+        elif attr_type is bool:
+            # Match 'true' or 'false' for boolean
+            pattern += f":(?P<{attr}>true|false)"
+        else:
+            raise TypeError(f"Unsupported attribute type: {attr_type}")
+
+    pattern += "$"
+    return pattern
+
+
+def decode(signal_type: Type[Signal], string: str) -> Optional[Signal]:
+    """
+    Parse a string according to signal type and return
+    a signal of this type, or None if the format is not matching.
+    """
+    # Get the regular expression pattern for the signal type
+    pattern = make_regexp(signal_type)
+    match = re.match(pattern, string)
+
+    if not match:
+        logger.warning(
+            f"decode: {signal_type.__name__} didn't match against {string}"
+        )
+        return None
+
+    # Extract matched attributes
+    matched_params = match.groupdict()
+    # Convert matched attributes to the correct type and create signal instance
+    signal_params = {}
+    for field in fields(signal_type):
+        value = matched_params.get(field.name)
+        if value is not None:
+            if issubclass(field.type, Enum):
+                signal_params[field.name] = field.type[value]
+            elif field.type is int:
+                signal_params[field.name] = int(value)
+            elif field.type is float:
+                signal_params[field.name] = float(value)
+            elif field.type is bool:
+                signal_params[field.name] = value.lower() == "true"
+            else:
+                signal_params[field.name] = value
+
+    return signal_type(**signal_params)
