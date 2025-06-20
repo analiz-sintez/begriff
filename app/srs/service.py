@@ -319,11 +319,11 @@ class Maturity(Enum):
 
 def get_notes(
     user_id: int,
-    language_id: int = None,
-    text: str = None,
-    explanation: str = None,
-    maturity: List[Maturity] = None,
-    order_by: str = None,
+    language_id: Optional[int] = None,
+    text: Optional[str] = None,
+    explanation: Optional[str] = None,
+    maturity: Optional[List[Maturity]] = None,
+    order_by: Optional[str] = None,
 ) -> List[Note]:
     """
     Retrieve notes for a specific user and language. Allows optional filtering by text, explanation, and maturity, with optional sorting.

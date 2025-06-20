@@ -1,46 +1,46 @@
-from time import timezone
+from typing import Optional, Annotated
+from datetime import datetime
 from sqlalchemy import (
-    Column,
-    Float,
     Integer,
     String,
     ForeignKey,
-    DateTime,
     Interval,
 )
 from sqlalchemy_utc import UtcDateTime
-from sqlalchemy.orm import relationship, backref
-from datetime import datetime, timezone
+from sqlalchemy.orm import relationship, mapped_column, Mapped, DeclarativeBase
 from enum import Enum
 from ..config import Config
-from ..core import db, User, OptionsMixin
+from ..core import db, Model, User, OptionsMixin
 
 
-class Language(db.Model):
+dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
+
+
+class Language(Model):
     __tablename__ = "languages"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {"id": self.id, "name": self.name}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Language(id={self.id}, name={self.name})>"
 
 
-class Note(db.Model, OptionsMixin):
+class Note(Model, OptionsMixin):
     __tablename__ = "notes"
-    id = Column(Integer, primary_key=True)
-    field1 = Column(String)
-    field2 = Column(String)
-    user_id = Column(Integer, ForeignKey(User.id))
-    language_id = Column(Integer, ForeignKey(Language.id))
+    id = mapped_column(Integer, primary_key=True)
+    field1: Mapped[str]
+    field2: Mapped[str]
+    user_id = mapped_column(Integer, ForeignKey(User.id))
+    language_id = mapped_column(Integer, ForeignKey(Language.id))
 
     cards = relationship("Card", backref="note", cascade="all, delete-orphan")
     user = relationship("User", backref="notes")
     language = relationship("Language", backref="notes")
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "field1": self.field1,
@@ -49,31 +49,31 @@ class Note(db.Model, OptionsMixin):
             "language_id": self.language_id,
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Note(id={self.id}, field1={self.field1}, field2={self.field2}, user_id={self.user_id}, language_id={self.language_id})>"
 
 
-class Card(db.Model):
+class Card(Model):
     __tablename__ = "cards"
-    id = Column(Integer, primary_key=True)
-    note_id = Column(Integer, ForeignKey(Note.id))
-    front = Column(String, nullable=False)
-    back = Column(String, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
+    front: Mapped[str]
+    back: Mapped[str]
 
     # Memory state:
     # those two we don't know before the first review
-    stability = Column(Float, nullable=True)
-    difficulty = Column(Float, nullable=True)
+    stability: Mapped[Optional[float]]
+    difficulty: Mapped[Optional[float]]
 
     # required to calculate interval from the last review
     # when updating memory state.
-    ts_last_review = Column(UtcDateTime, nullable=True)
+    ts_last_review: Mapped[Optional[dttm_utc]]
     # is used to fetch cards for today's review
-    ts_scheduled = Column(UtcDateTime, nullable=False)
+    ts_scheduled: Mapped[dttm_utc]
 
     views = relationship("View", backref="card", cascade="all, delete-orphan")
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "note_id": self.note_id,
@@ -84,7 +84,7 @@ class Card(db.Model):
             "ts_scheduled": self.ts_scheduled,
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<Card(id={self.id}, "
             f"note_id={self.note_id}, "
@@ -94,7 +94,7 @@ class Card(db.Model):
             f"ts_scheduled={self.ts_scheduled})>"
         )
 
-    def is_leech(self):
+    def is_leech(self) -> bool:
         return (
             self.difficulty is not None
             and self.difficulty >= Config.FSRS["card_is_leech"]["difficulty"]
@@ -114,16 +114,16 @@ class Answer(Enum):
     EASY = "easy"
 
 
-class View(db.Model):
+class View(Model):
     __tablename__ = "views"
-    id = Column(Integer, primary_key=True)
-    ts_review_started = Column(UtcDateTime)
-    ts_review_finished = Column(UtcDateTime, nullable=True)
-    card_id = Column(Integer, ForeignKey(Card.id))
-    review_duration = Column(Interval)
-    answer = Column(String)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts_review_started: Mapped[dttm_utc]
+    ts_review_finished: Mapped[Optional[dttm_utc]]
+    card_id: Mapped[int] = mapped_column(Integer, ForeignKey(Card.id))
+    review_duration = mapped_column(Interval)
+    answer: Mapped[Optional[str]]
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "ts_review_started": self.ts_review_started,
@@ -133,7 +133,7 @@ class View(db.Model):
             "answer": self.answer,
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<View(id={self.id}, "
             f"ts_review_started={self.ts_review_started}, "

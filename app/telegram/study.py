@@ -257,7 +257,7 @@ async def handle_study_grade(
 
 
 @bus.on(CardGraded)
-async def maybe_generate_image(card_id, answer):
+async def maybe_generate_image(card_id: int, answer: Answer):
     card = get_card(card_id)
 
     # Generate images only for leech cards
