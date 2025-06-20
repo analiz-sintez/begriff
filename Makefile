@@ -36,7 +36,7 @@ test-verbose:
 
 # Run static type analyzer
 types:
-	. $(VENV_PATH)/bin/activate && mypy app
+	. $(VENV_PATH)/bin/activate && pyright app
 
 # Initialize the database
 db-init:

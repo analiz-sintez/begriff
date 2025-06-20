@@ -30,9 +30,6 @@ dependencies = [
     "pymorphy3 (>=2.0.4,<3.0.0)",
     "transliterate (>=1.10.2,<2.0.0)",
     "pytest-asyncio (>=1.0.0,<2.0.0)",
-    "mypy (>=1.16.1,<2.0.0)",
-    "sqlalchemy-stubs (>=0.4,<0.5)",
-    "types-sqlalchemy (>=1.4.53.38,<2.0.0.0)"
 ]
 
 [tool.poetry]
