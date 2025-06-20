@@ -1,13 +1,12 @@
-import re
 import logging
 
-from telegram import Update, BotCommand
-from telegram.constants import ParseMode
+from telegram import Update
 from telegram.ext import (
     Application,
     CallbackContext,
 )
 
+# Those are required since routes are declared there.
 from . import recap, note, study, note_list, language
 from .router import router
 
@@ -15,7 +14,7 @@ from .router import router
 logger = logging.getLogger(__name__)
 
 
-@router.command("start", "Start using the bot")
+@router.command("start", description="Start using the bot")
 async def start(update: Update, context: CallbackContext) -> None:
     """Send a welcome message to the user when they start the bot.
 

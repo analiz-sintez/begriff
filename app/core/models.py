@@ -1,4 +1,6 @@
 import logging
+from typing import Union, Dict, List, TypeAlias
+
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import mapped_column, DeclarativeBase
 from sqlalchemy.types import JSON
@@ -26,10 +28,15 @@ Model: BaseModel = db.Model  # pyright: ignore
 logger = logging.getLogger(__name__)
 
 
+JsonValue: TypeAlias = Union[
+    Dict[str, "JsonValue"], List["JsonValue"], str, int, float, bool, None
+]
+
+
 class OptionsMixin:
     options = mapped_column(MutableDict.as_mutable(JSON))
 
-    def set_option(self, name, value):
+    def set_option(self, name: str, value) -> None:
         if self.options is None:
             self.options = {}
         keys = name.split("/")
@@ -42,7 +49,7 @@ class OptionsMixin:
         logger.info("Setting option for: %s = %s", name, value)
         db.session.commit()
 
-    def get_option(self, name, default_value=None):
+    def get_option(self, name: str, default_value=None) -> JsonValue:
         if not self.options:
             logger.info(
                 "No options set. Returning default value for %s: %s",

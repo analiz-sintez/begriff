@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Callable, Optional, get_type_hints
+from typing import Callable, Optional, get_type_hints, Union
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -82,7 +82,7 @@ class Router:
         application.post_init = set_commands
         logger.info("Commands set with descriptions: %s", commands)
 
-    def _wrap_command_fn(self, fn, arg_names):
+    def _wrap_command_fn(self, fn: Callable, arg_names: list[str]) -> Callable:
         type_hints = get_type_hints(fn)
 
         def wrapped(update, context):
@@ -101,7 +101,12 @@ class Router:
 
         return wrapped
 
-    def command(self, command: str, args: list = [], description: str = None):
+    def command(
+        self,
+        command: str,
+        args: list[str] = [],
+        description: Optional[str] = None,
+    ) -> Callable:
         """
         A decorator for Telegram commands.
 
@@ -124,7 +129,7 @@ class Router:
 
         return decorator
 
-    def callback_query(self, pattern):
+    def callback_query(self, pattern: str) -> Callable:
         """
         Adds CallbackQueryHandler to given regexp pattern.
         If it contains named groups, the wrapper function fetches them
@@ -141,7 +146,7 @@ class Router:
 
         return decorator
 
-    def message(self, pattern):
+    def message(self, pattern: Union[str, Callable]) -> Callable:
         """
         Adds MessageHandler with filters.TEXT & ~filters.COMMAND,
         for messages matching the given pattern (can be regexp, possibly
@@ -167,7 +172,7 @@ class Router:
 
         return decorator
 
-    def _wrap_fn_with_args(self, fn):
+    def _wrap_fn_with_args(self, fn: Callable) -> Callable:
         """
         A helper function to wrap the handler function
         and extract named groups for its arguments, coercing types.

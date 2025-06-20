@@ -18,13 +18,13 @@ class Bus:
         self._slots = dict()
 
     @classmethod
-    def signals(cls):
+    def signals(cls, signal_type: Type[Signal] = Signal):
         """Recursively find all descendant classes."""
         descendants = set()
-        subclasses = Signal.__subclasses__()
+        subclasses = signal_type.__subclasses__()
         for sub in subclasses:
             descendants.add(sub)
-            descendants.update(get_all_descendants(sub))
+            descendants.update(cls.signals(sub))
         return descendants
 
     def register(self, signal_type: Type[Signal]):
@@ -98,9 +98,11 @@ class Bus:
                 asyncio.create_task(slot(**asdict(signal)))
                 for slot in self._slots[signal_type]
             ]
-            for task in tasks:
-                task.add_done_callback(self._handle_task_result)
-            return tasks
+        else:
+            tasks = []
+        for task in tasks:
+            task.add_done_callback(self._handle_task_result)
+        return tasks
 
     async def emit_and_wait(self, signal: Signal) -> None:
         """

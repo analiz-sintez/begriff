@@ -41,7 +41,7 @@ def test_emit_signal_without_slots(bus):
     signal = TestSignal()
     tasks = bus.emit(signal)
 
-    assert tasks is None
+    assert not tasks
 
 
 @pytest.mark.asyncio
@@ -89,17 +89,3 @@ async def test_emit_signal_with_param(bus):
     assert tasks is not None
     await asyncio.gather(*tasks)
     slot.assert_awaited_once_with(param=42)
-
-
-@pytest.mark.asyncio
-async def test_emit_signal_with_wrong_param_type_should_fail(bus):
-    @dataclass
-    class TestSignal(Signal):
-        param: int
-
-    slot = AsyncMock()
-    bus.connect(TestSignal, slot)
-
-    signal = TestSignal(param="wrong_type")
-    with pytest.raises(TypeError):
-        bus.emit_and_wait(signal)

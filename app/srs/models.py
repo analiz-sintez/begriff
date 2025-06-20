@@ -7,10 +7,10 @@ from sqlalchemy import (
     Interval,
 )
 from sqlalchemy_utc import UtcDateTime
-from sqlalchemy.orm import relationship, mapped_column, Mapped, DeclarativeBase
+from sqlalchemy.orm import relationship, mapped_column, Mapped
 from enum import Enum
 from ..config import Config
-from ..core import db, Model, User, OptionsMixin
+from ..core import Model, User, OptionsMixin
 
 
 dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]

@@ -2,7 +2,6 @@ import os
 import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
-import asyncio
 
 from telegram import (
     Update,
@@ -199,7 +198,8 @@ async def handle_study_answer(
 
     # ASK -> ANSWER:
     # Show the answer (showing back side of the card)
-    card = get_card(card_id)
+    if not (card := get_card(card_id)):
+        return
     front = format_explanation(card.front)
     back = format_explanation(card.back)
     bus.emit(CardAnswerRequested(card.id))
@@ -241,7 +241,8 @@ async def handle_study_grade(
     the answer.
     """
     user = get_user(update.effective_user.username)
-    view = get_view(view_id)
+    if not (view := get_view(view_id)):
+        return
     logger.info("User %s pressed a button: %s", user.login, answer_str)
     # ANSWER -> GRADE
     answer = Answer(answer_str)
@@ -258,7 +259,8 @@ async def handle_study_grade(
 
 @bus.on(CardGraded)
 async def maybe_generate_image(card_id: int, answer: Answer):
-    card = get_card(card_id)
+    if not (card := get_card(card_id)):
+        return
 
     # Generate images only for leech cards
     if not card.is_leech():

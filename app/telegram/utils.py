@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
@@ -29,7 +30,7 @@ async def send_image_message(
     update: Update,
     context: CallbackContext,
     caption: str,
-    image: str = None,
+    image: Optional[str] = None,
     markup=None,
 ):
     """Send or update photo message."""
