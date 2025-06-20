@@ -9,6 +9,7 @@ pytest-mock
 pytest-asyncio
 mypy
 sqlalchemy-stubs
+types-sqlalchemy
 python-dotenv
 python-telegram-bot
 watchdog
