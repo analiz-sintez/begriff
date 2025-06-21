@@ -1,17 +1,26 @@
 import random
 import logging
-import fsrs_rs_python as fsrs
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import aliased
-from ..core import db
-from .models import Note, Card, View, Language, Answer
-from ..config import Config
-from sqlalchemy import and_
 from enum import Enum
+from dataclasses import dataclass
 from typing import List, Optional, Union
+from datetime import datetime, timedelta, timezone
 
-# Set up logging
+import fsrs_rs_python as fsrs
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import and_
+from sqlalchemy.orm import aliased
+
+from ..config import Config
+from ..core import db
+from ..ui import Signal, bus
+from .models import Note, Card, View, Language, Answer
+
+
+# TODO: Move this one into `srs.service`?
+@dataclass
+class CardAdded(Signal):
+    card_id: int
+
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +133,8 @@ def create_word_note(
         logger.info("Cards created: %s, %s", front_card, back_card)
 
         db.session.commit()
+        bus.emit(CardAdded(front_card.id))
+        bus.emit(CardAdded(back_card.id))
         logger.info(
             "Transaction committed successfully for word note creation."
         )
