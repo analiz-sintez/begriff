@@ -1,3 +1,4 @@
+from ..config import Config
 from .service import (
     Signal,
     Bus,
@@ -6,7 +7,7 @@ from .service import (
     make_regexp,
 )
 from .saving_backends import dump_signal_to_log, dump_signal_to_db
-from ..config import Config
+
 
 if Config.SIGNALS["logging_backend"] == "db":
     bus = Bus(saving_backend=dump_signal_to_db)

@@ -31,6 +31,9 @@ def encode_field(value):
 
 
 def dump_signal_to_log(signal: Signal, slots: list[Callable]) -> None:
+    """
+    Write emitted signal into application log.
+    """
     signal_dump = {
         "signal_type": type(signal).__name__,
         "signal_fields": {
@@ -52,6 +55,9 @@ class EmittedSignal(Model):
 
 
 def dump_signal_to_db(signal: Signal, slots: list[Callable]) -> None:
+    """
+    Write emitted signal into the database for further analysis.
+    """
     emitted_signal = EmittedSignal(
         ts=datetime.now(timezone.utc),
         signal_type=type(signal).__name__,

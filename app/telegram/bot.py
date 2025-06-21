@@ -48,22 +48,8 @@ def create_bot(token: str) -> Application:
     application = Application.builder().token(token).build()
     router.attach(application)
 
-    # for each signal, register a handler:
-    # if signal pattern matches:
-    # ... parse callback data and decode the signal (update.callback_query.data)
-    # ... emit it
-    # ... where to put context?
-    # - should I make a patched bus?
-    # - I can store stuff in a signal?
-    # - What if router decorates handlers, adding them context and update,
-    #   and then gives them to bus? nope,
-    # Bus calls and signal processing should be context-dependent!
-    # Or... now we have two signalling mechanisms: intra-app and
-    # app-vs-user (via tg).
-    # - in both, we should get update and context if needed
-    #   (or just view_id card_id etc if that's enough)
-    # - in extra-app signalling, we should rely on telegram app
-    # - in intra-app, we can do everything without tg app
+    # For each signal type, register a handler:
+    # if signal pattern matches, emit it, triggering all slots to run.
     def make_handler(signal_type):
         signal_name = signal_type.__name__
 
