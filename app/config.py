@@ -18,6 +18,13 @@ class Config:
         "admin_logins": ["krvkir"],
     }
 
+    SIGNALS = {
+        # Where to store the log of signals emitted:.
+        # log — just dump them to the app log (see `./logs`)
+        # db — save them to the app database into `emitted_events` table
+        "logging_backend": "db",
+    }
+
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL"
@@ -28,8 +35,6 @@ class Config:
 
     LLM = {
         # # Ollama config
-        # # this one doesn't work because `responses` endpoint is not supported,
-        # # only `chat` is.
         # "host": "http://localhost:11434/v1",
         # "api_key": "ollama",
         # "models": {

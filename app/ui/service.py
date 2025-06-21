@@ -16,8 +16,20 @@ class Signal:
 
 
 class Bus:
-    def __init__(self):
+    def __init__(
+        self,
+        saving_backend: Optional[
+            Callable[[Signal, list[Callable]], None]
+        ] = None,
+    ):
         self._slots = dict()
+        self._save_signal = saving_backend
+
+    def save_signal(self, signal):
+        if not self._save_signal:
+            return
+        slots = self._slots.get(type(signal), [])
+        self._save_signal(signal, slots)
 
     @classmethod
     def signals(cls, signal_type: Type[Signal] = Signal):
@@ -113,7 +125,8 @@ class Bus:
         Fire-and-forget: Schedules slots and returns immediately.
         Exceptions in slots will be logged, not raised.
         """
-        logger.info(f"Emitting signal without waiting: {signal}")
+        self.save_signal(signal)
+        logger.info(f"SIGNAL (fire-and-forget): {signal}")
         tasks = self._dispatch_signal_to_slots(signal, **kwargs)
         for task in tasks:
             task.add_done_callback(self._handle_task_result)
@@ -124,7 +137,8 @@ class Bus:
         Schedules slots and waits for them all to complete.
         Raises the first exception encountered in a slot.
         """
-        logger.info(f"Emitting signal with waiting: {signal}")
+        self.save_signal(signal)
+        logger.info(f"SIGNAL (with waiting): {signal}")
         tasks = self._dispatch_signal_to_slots(signal, **kwargs)
         return await asyncio.gather(*tasks)
 
@@ -137,7 +151,6 @@ def encode(signal: Signal) -> str:
     values = []
 
     for field, value in zip(fields(signal), astuple(signal)):
-        attr_type = field.type
         if isinstance(value, Enum):
             values.append(value.name)
         elif isinstance(value, bool):
