@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from datetime import datetime, timedelta, timezone
 import asyncio
 
-from app.telegram.note import __parse_note_line
+from app.telegram.note import _parse_line
 from app.telegram.note_list import format_note
 from app.telegram.study import handle_study_answer, handle_study_grade
 from app.config import Config as DefaultConfig
@@ -49,7 +49,7 @@ def test_parse_note_line():
     ]
 
     for input_text, expected in cases:
-        assert __parse_note_line(input_text) == expected
+        assert _parse_line(input_text) == expected
 
 
 def test_format_note(app):

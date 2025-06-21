@@ -3,15 +3,16 @@ import time
 import random
 import logging
 from typing import Optional, Tuple
+from dataclasses import dataclass
 
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import User, get_user
+from ..core import User
+from ..llm import get_explanation, get_base_form
+from ..ui import Signal, bus
 from ..srs import (
-    Note,
     Language,
     Maturity,
     get_language,
@@ -19,11 +20,36 @@ from ..srs import (
     get_notes,
     update_note,
 )
-from ..llm import (
-    get_explanation,
-    get_base_form,
-)
 from .router import router
+from .utils import authorize, send_message
+
+
+@dataclass
+class WordExplanationRequested(Signal):
+    user_id: int
+    text: str
+
+
+@dataclass
+class PhraseExplanationRequested(Signal):
+    user_id: int
+    text: str
+
+
+@dataclass
+class TextExplanationRequested(Signal):
+    user_id: int
+    text: str
+
+
+@dataclass
+class ExplanationNoteAdded(Signal):
+    note_id: int
+
+
+@dataclass
+class ExplanationNoteUpdated(Signal):
+    note_id: int
 
 
 logger = logging.getLogger(__name__)
@@ -88,73 +114,7 @@ def get_notes_to_inject(user: User, language: Language) -> list:
     return random_notes
 
 
-async def add_note(
-    user: User,
-    language: Language,
-    text: str,
-    explanation: Optional[str] = None,
-    context: Optional[str] = None,
-) -> Tuple[Note, bool]:
-    """Add a note for a user and language. If the note already exists, it will update the explanation if provided.
-
-    Args:
-        user: The user object.
-        language: The language object.
-        text: The text of the note.
-        explanation: An optional explanation for the note.
-
-    Returns:
-        A tuple containing the note and a boolean indicating if it is a new note.
-    """
-    existing_notes = get_notes(
-        user_id=user.id, language_id=language.id, text=text
-    )
-
-    if existing_notes:
-        note = existing_notes[0]
-        if explanation:
-            note.field2 = explanation
-            update_note(note)
-            logger.info(
-                "Updated explanation for text '%s': '%s'",
-                text,
-                explanation,
-            )
-        else:
-            logger.info(
-                "Fetched existing explanation for text '%s': '%s'",
-                text,
-                note.field2,
-            )
-        return note, False
-    else:
-        if not explanation:
-            # TODO: move it to `get_explanation`, it belongs to its
-            # area of responsiblity
-            if "explanation" in Config.LLM["inject_notes"]:
-                notes_to_inject = get_notes_to_inject(user, language)
-            else:
-                notes_to_inject = None
-            explanation = await get_explanation(
-                text,
-                language.name,
-                notes=notes_to_inject,
-                context=context,
-            )
-            logger.info(
-                "Fetched explanation for text '%s': '%s'", text, explanation
-            )
-        note = create_word_note(text, explanation, language.id, user.id)
-        logger.info(
-            "User %s added a new note with text '%s': '%s'",
-            user.login,
-            text,
-            explanation,
-        )
-        return note, True
-
-
-def __parse_note_line(line: str) -> Tuple[Optional[str], Optional[str]]:
+def _parse_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     """Parse a line of text into a word and its explanation, if present.
 
     Args:
@@ -179,76 +139,160 @@ def __parse_note_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     return text, explanation
 
 
-def __is_note_format(text: str) -> bool:
+def _is_note_format(text: str) -> bool:
     """
     Check if every line in the input text is in the format suitable for notes.
     """
     lines = text.strip().split("\n")
     result = all(
-        re.match(r"^.{1,32}(?:: .*)?$", line.strip()) for line in lines
+        re.match(r"^.{1,200}(?:: .*)?$", line.strip()) for line in lines
     )
     logging.info(f"Message {text} contains notes = {result}")
     return result
 
 
-@router.message(__is_note_format)
-async def add_notes(update: Update, context: CallbackContext) -> None:
+@router.message(_is_note_format)
+@authorize()
+async def add_notes(
+    update: Update, context: CallbackContext, user: User
+) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 
     Args:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    user_name = update.effective_user.username
-    user = get_user(user_name)
-    language = get_language(user.get_option("studied_language", "English"))
-
     message_text = update.message.text.split("\n")
-
-    if len(message_text) > 200:
-        await update.message.reply_text(
-            "You can add up to 20 words at a time."
+    if len(message_text) > 100:
+        return await send_message(
+            update, context, "You can add up to 100 words at a time."
         )
-        return
 
-    added_notes = []
-
-    # Check if the message is a reply to another message
-    context_message = None
-    if update.message.reply_to_message:
-        context_message = update.message.reply_to_message.text
-
-    for index, line in enumerate(message_text):
-        text, explanation = __parse_note_line(line)
+    for _, line in enumerate(message_text):
+        text, explanation = _parse_line(line)
         if not text:
-            await update.message.reply_text(
-                f"Couldn't parse the text: {line.strip()}"
+            await send_message(
+                update, context, f"Couldn't parse the text: {line.strip()}"
             )
             continue
 
-        if Config.LLM["convert_to_base_form"]:
-            text_base_form = await get_base_form(text, language.name)
-            logger.info("Converted %s to base form: %s", text, text_base_form)
-            text = text_base_form
-
-        # Pass the context to get_explanation if available
-        note, is_new = await add_note(
-            user, language, text, explanation, context=context_message
-        )
-
-        icon = "🟢" if is_new else "🟡"  # new note: green ball
-        explanation = format_explanation(note.field2)
-        added_notes.append(f"{icon} *{text}* — {explanation}")
-
-        # Send each note right after creating it.
-        if (index + 1) % 1 == 0:
-            await update.message.reply_text(
-                "\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
+        if len(text) <= 12:
+            bus.emit(
+                WordExplanationRequested(user.id, text),
+                update=update,
+                context=context,
+                explanation=explanation,
             )
-            added_notes = []
+        elif len(text) <= 80:
+            bus.emit(
+                PhraseExplanationRequested(user.id, text),
+                update=update,
+                context=context,
+                explanation=explanation,
+            )
+        else:
+            bus.emit(
+                TextExplanationRequested(user.id, text),
+                update=update,
+                context=context,
+                explanation=explanation,
+            )
 
-    # Send remaining notes if any
-    if added_notes:
-        await update.message.reply_text(
-            "\n".join(added_notes), parse_mode=ParseMode.MARKDOWN
+
+@bus.on(WordExplanationRequested)
+@bus.on(PhraseExplanationRequested)
+@authorize()
+async def add_note(
+    update: Update,
+    context: CallbackContext,
+    user: User,
+    text: str,
+    explanation: Optional[str] = None,
+) -> None:
+    """
+    Add a note for a user and language. If the note already exists,
+    it will update the explanation if provided.
+    """
+
+    language = get_language(
+        user.get_option(
+            "studied_language", Config.LANGUAGE["defaults"]["study"]
         )
+    )
+
+    # Convert to base form.
+    # TODO: Instead of magic constant, use info about which signal
+    # triggered this slot. This requires to pass some context
+    # from `bus.emit()` to slots.
+    if Config.LLM["convert_to_base_form"] and len(text) <= 12:
+        text_base_form = await get_base_form(text, language.name)
+        logger.info("Converted %s to base form: %s", text, text_base_form)
+        text = text_base_form
+
+    # Check if a note already exists.
+    existing_notes = get_notes(
+        user_id=user.id, language_id=language.id, text=text
+    )
+    if existing_notes:
+        note = existing_notes[0]
+        if explanation:
+            note.field2 = explanation
+            update_note(note)
+            bus.emit(ExplanationNoteUpdated(note.id))
+            logger.info(
+                "Updated explanation for text '%s': '%s'",
+                text,
+                explanation,
+            )
+        else:
+            logger.info(
+                "Fetched existing explanation for text '%s': '%s'",
+                text,
+                note.field2,
+            )
+    else:
+        if not explanation:
+            # Get random notes to inject into an explanation.
+            # TODO: move it to `get_explanation`, it belongs to its
+            # area of responsiblity
+            notes_to_inject = None
+            if "explanation" in Config.LLM["inject_notes"]:
+                notes_to_inject = get_notes_to_inject(user, language)
+            # Check if the message is a reply to another message.
+            context_message = None
+            if update.message.reply_to_message:
+                context_message = update.message.reply_to_message.text
+            # Ask LLM to explain the word.
+            explanation = await get_explanation(
+                text,
+                language.name,
+                notes=notes_to_inject,
+                context=context_message,
+            )
+            logger.info(
+                "Fetched explanation for text '%s': '%s'", text, explanation
+            )
+        note = create_word_note(text, explanation, language.id, user.id)
+        bus.emit(ExplanationNoteAdded(note.id))
+        logger.info(
+            "User %s added a new note with text '%s': '%s'",
+            user.login,
+            text,
+            explanation,
+        )
+
+    icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
+    explanation = format_explanation(note.field2)
+    await send_message(update, context, f"{icon} *{text}* — {explanation}")
+
+
+@bus.on(TextExplanationRequested)
+@authorize()
+async def add_text(
+    update: Update,
+    context: CallbackContext,
+    user: User,
+    text: str,
+    explanation: Optional[str] = None,
+):
+    await send_message(update, context, "This is not yet implemented, sorry!")
