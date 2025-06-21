@@ -81,7 +81,10 @@ async def test_emit_signal_with_param(bus):
     class TestSignal(Signal):
         param: int
 
-    slot = AsyncMock()
+    async def slot(param: int):
+        await async_mock(param)
+
+    async_mock = AsyncMock()
     bus.connect(TestSignal, slot)
 
     signal = TestSignal(param=42)
@@ -89,7 +92,7 @@ async def test_emit_signal_with_param(bus):
 
     assert tasks is not None
     await asyncio.gather(*tasks)
-    slot.assert_awaited_once_with(param=42)
+    async_mock.assert_awaited_once_with(42)
 
 
 def test_bus_encoding(bus):

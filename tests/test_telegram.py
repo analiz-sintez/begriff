@@ -12,6 +12,7 @@ from app.core import db, User, get_user
 from app.srs import (
     Note,
     Card,
+    Answer,
     create_word_note,
     get_language,
     record_view_start,
@@ -133,8 +134,11 @@ def test_study_session(app):
 
         # 1. Emulate requesting card answer.
         mock_query.data = f"answer:{first_card.id}"
+        # ... due to authorize magic, we must use only keyword arguments here
         asyncio.run(
-            handle_study_answer(mock_update, mock_context, first_card.id)
+            handle_study_answer(
+                update=mock_update, context=mock_context, card_id=first_card.id
+            )
         )
         # ... verify if the answer method on query was called
         mock_update.message.edit_caption.assert_called_once()
@@ -142,7 +146,12 @@ def test_study_session(app):
         # 2. Emulate sending card grade.
         mock_query.data = f"grade:{view_id}:good"
         asyncio.run(
-            handle_study_grade(mock_update, mock_context, view_id, "good")
+            handle_study_grade(
+                update=mock_update,
+                context=mock_context,
+                view_id=view_id,
+                answer=Answer.GOOD,
+            )
         )
 
         # Fetch the updated first card

@@ -97,7 +97,7 @@ class Router:
                 f"Calling function {fn.__name__} "
                 f"with coerced args: {args_dict}"
             )
-            return fn(update, context, **args_dict)
+            return fn(update=update, context=context, **args_dict)
 
         return wrapped
 
@@ -206,7 +206,7 @@ class Router:
                 logger.info(
                     f"Function {fn.__name__} called with args: {coerced_kwargs}"
                 )
-                return fn(update, context, **coerced_kwargs)
+                return fn(update=update, context=context, **coerced_kwargs)
             else:
                 logger.info(f"Function {fn.__name__} called with no args.")
                 return fn(update, context)

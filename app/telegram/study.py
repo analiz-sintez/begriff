@@ -10,7 +10,7 @@ from telegram import (
 )
 from telegram.ext import CallbackContext
 
-from ..core import get_user
+from ..core import get_user, User
 from ..srs import (
     get_language,
     get_cards,
@@ -27,9 +27,9 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation
-from .utils import send_image_message
+from .utils import send_image_message, authorize
 from .router import router
-from ..ui import Signal, bus, encode, decode, make_regexp
+from ..ui import Signal, bus, encode
 
 
 # States: ASK -> ANSWER -> RECORD
@@ -118,17 +118,20 @@ async def _get_image_for_show(card, previous_card):
 
 
 @router.command("study", description="Start a study session")
+@authorize
 async def start_study_session(
-    update: Update, context: CallbackContext
+    update: Update, context: CallbackContext, user: User
 ) -> None:
-    user = get_user(update.effective_user.username)
     logger.info("User %s requested to study.", user.login)
     bus.emit(StudySessionRequested(user.id), update=update, context=context)
 
 
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
-async def study_next_card(update: Update, context: CallbackContext) -> None:
+@authorize
+async def study_next_card(
+    update: Update, context: CallbackContext, user: User
+) -> None:
     """
     Fetch a study card for the user and display it with a button to show
     the answer.
@@ -137,7 +140,6 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    user = get_user(update.effective_user.username)
     language = get_language(user.get_option("studied_language", "English"))
 
     now = datetime.now(timezone.utc)
@@ -195,13 +197,13 @@ async def study_next_card(update: Update, context: CallbackContext) -> None:
 
 
 @bus.on(CardAnswerRequested)
+@authorize
 async def handle_study_answer(
-    update: Update, context: CallbackContext, card_id: int
+    update: Update, context: CallbackContext, user: User, card_id: int
 ) -> None:
     """
     Handle ANSWER button press and show grade buttons.
     """
-    user = get_user(update.effective_user.username)
     logger.info("User %s pressed a button: ANSWER", user.login)
 
     # ASK -> ANSWER:
@@ -237,9 +239,11 @@ async def handle_study_answer(
 
 
 @bus.on(CardGradeRequested)
+@authorize
 async def handle_study_grade(
     update: Update,
     context: CallbackContext,
+    user: User,
     view_id: int,
     answer: Answer,
 ) -> None:
@@ -247,7 +251,6 @@ async def handle_study_grade(
     Handle grade buttons press (AGAIN ... EASY) from user to and record
     the answer.
     """
-    user = get_user(update.effective_user.username)
     if not (view := get_view(view_id)):
         return
     logger.info("User %s pressed a button: %s", user.login, answer)

@@ -7,7 +7,6 @@ from enum import Enum
 from typing import Callable, Type, List, get_type_hints, Optional
 from inspect import signature
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +69,7 @@ class Bus:
 
         for param in slot_sig.parameters.values():
             if param.name in signal_hints:
-                slot_param_type = slot_sig.parameters[param.name].annotation
+                slot_param_type = param.annotation
                 signal_param_type = signal_hints[param.name]
                 if slot_param_type != signal_param_type:
                     raise TypeError(

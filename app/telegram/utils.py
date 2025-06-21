@@ -1,14 +1,69 @@
-from typing import Optional
+from typing import Optional, Callable
 import logging
+from inspect import signature, Signature, Parameter
+
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 from telegram import (
     Update,
     InputMediaPhoto,
 )
+
+
+from typing import Callable, TypeVar, ParamSpec, Concatenate
+from functools import wraps
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
 from ..config import Config
+from ..core import get_user, User
+
 
 logger = logging.getLogger(__name__)
+
+
+def authorize(
+    fn: Callable[Concatenate[User, P], R],
+) -> Callable[Concatenate[Update, P], R]:
+    """
+    Get a user from telegram update object.
+    The inner function should have `user: User` as the first argument,
+    but it will not be propagated to the wrapped function (e.g. after
+    this decorator, the outer fn will not have `user` arg. In other words,
+    `authorize` injects this argument.)
+    """
+    sig = signature(fn)
+
+    # We require update object, take user info from it,
+    # and injecting it into the decorated function, so that
+    # it doesn't need to bother.
+    async def wrapped(update: Update, **kwargs):
+        if not (user := get_user(update.effective_user.username)):
+            raise Exception("Unauthorized")
+        kwargs["update"] = update
+        kwargs["user"] = user
+        logger.info(kwargs.keys())
+        new_kwargs = {
+            p.name: kwargs[p.name]
+            for p in sig.parameters.values()
+            if p.name in kwargs
+        }
+        return await fn(**new_kwargs)
+
+    # Assemble a new signature (bus counts on this info to decide
+    # which params to inject)
+    params = [p for p in sig.parameters.values()]
+    if "update" not in {p.name for p in params}:
+        params.append(
+            Parameter(
+                "update", Parameter.POSITIONAL_OR_KEYWORD, annotation=Update
+            )
+        )
+    new_sig = Signature(params)
+    wrapped.__signature__ = new_sig
+    return wrapped
 
 
 async def send_message(
