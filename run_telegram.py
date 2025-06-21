@@ -23,7 +23,7 @@ def main():
     # ... install handlers and set common settings
     log_format = "%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s"
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format=log_format,
         handlers=[console_handler, file_handler],
     )
