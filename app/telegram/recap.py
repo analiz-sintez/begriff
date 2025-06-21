@@ -22,7 +22,11 @@ async def recap_url(
 ) -> None:
     user_name = update.effective_user.username
     user = get_user(user_name)
-    language = get_language(user.get_option("studied_language", "English"))
+    language = get_language(
+        user.get_option(
+            "studied_language", Config.LANGUAGE["defaults"]["study"]
+        )
+    )
 
     notes_to_inject = None
     if "recap" in Config.LLM["inject_notes"]:

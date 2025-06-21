@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 
+from ..config import Config
 from ..core import get_user
 from ..srs import (
     get_language,
@@ -59,7 +60,11 @@ async def list_cards(update: Update, context: CallbackContext) -> None:
         context: The callback context as part of the Telegram framework.
     """
     user = get_user(update.effective_user.username)
-    language = get_language(user.get_option("studied_language", "English"))
+    language = get_language(
+        user.get_option(
+            "studied_language", Config.LANGUAGE["defaults"]["study"]
+        )
+    )
     logger.info(
         "User %s requested to list cards for language %s.",
         user.login,

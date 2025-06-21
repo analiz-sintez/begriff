@@ -7,6 +7,7 @@ from telegram import (
 )
 from telegram.ext import CallbackContext
 
+from ..config import Config
 from ..core import get_user
 from ..srs import get_language, get_notes
 from .utils import send_message
@@ -65,7 +66,11 @@ async def change_language(
 
         response_message = (
             "You study %s now."
-            % get_language(user.get_option("studied_language", "English")).name
+            % get_language(
+                user.get_option(
+                    "studied_language", Config.LANGUAGE["defaults"]["study"]
+                )
+            ).name
         )
 
         if language_buttons:

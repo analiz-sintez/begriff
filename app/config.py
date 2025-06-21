@@ -25,6 +25,8 @@ class Config:
         "logging_backend": "db",
     }
 
+    LANGUAGE = {"defaults": {"study": "English", "native": "Russian"}}
+
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL"
