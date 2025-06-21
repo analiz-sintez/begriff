@@ -8,6 +8,7 @@ from typing import (
 )
 import logging
 from inspect import signature, Signature, Parameter
+from functools import wraps
 
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
@@ -49,6 +50,7 @@ def authorize(admin=False) -> UserInjector:
         # and inject it into the decorated function, so that
         # it doesn't need to bother.
         # TODO config-based authentication.
+        @wraps(fn)
         async def wrapped(update: Update, **kwargs):
             if not (user := get_user(update.effective_user.username)):
                 raise Exception("Unauthorized.")
