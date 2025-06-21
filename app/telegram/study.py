@@ -77,6 +77,11 @@ class StudySessionFinished(Signal):
     user_id: int
 
 
+@dataclass
+class ImageGenerated(Signal):
+    view_id: int
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -293,5 +298,6 @@ async def maybe_generate_image(view_id: int, answer: Answer):
     try:
         image_path = await generate_image(explanation)
         note.set_option("image/path", image_path)
+        bus.emit(ImageGenerated(view_id))
     except:
         logger.warning("Couldn't generate image for note: %s", note)
