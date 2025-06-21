@@ -51,7 +51,7 @@ def authorize(admin=False) -> UserInjector:
         # it doesn't need to bother.
         # TODO config-based authentication.
         @wraps(fn)
-        async def wrapped(update: Update, **kwargs):
+        async def wrapped(update: Update, context: CallbackContext, **kwargs):
             if not (user := get_user(update.effective_user.username)):
                 raise Exception("Unauthorized.")
             # Authorize the user.
@@ -66,6 +66,7 @@ def authorize(admin=False) -> UserInjector:
                     raise Exception("Only admins allowed.")
             # Inject a user into function.
             kwargs["update"] = update
+            kwargs["context"] = context
             kwargs["user"] = user
             logger.info(kwargs.keys())
             new_kwargs = {
