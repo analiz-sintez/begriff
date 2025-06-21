@@ -118,7 +118,7 @@ async def _get_image_for_show(card, previous_card):
 
 
 @router.command("study", description="Start a study session")
-@authorize
+@authorize()
 async def start_study_session(
     update: Update, context: CallbackContext, user: User
 ) -> None:
@@ -128,7 +128,7 @@ async def start_study_session(
 
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
-@authorize
+@authorize()
 async def study_next_card(
     update: Update, context: CallbackContext, user: User
 ) -> None:
@@ -197,7 +197,7 @@ async def study_next_card(
 
 
 @bus.on(CardAnswerRequested)
-@authorize
+@authorize()
 async def handle_study_answer(
     update: Update, context: CallbackContext, user: User, card_id: int
 ) -> None:
@@ -239,7 +239,7 @@ async def handle_study_answer(
 
 
 @bus.on(CardGradeRequested)
-@authorize
+@authorize()
 async def handle_study_grade(
     update: Update,
     context: CallbackContext,

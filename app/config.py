@@ -7,13 +7,16 @@ basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class Config:
-    # List of allowed Telegram users
-    ALLOWED_USERS = [
-        # Add Telegram logins here
-        "user1",
-        "user2",
-        "user3",
-    ]
+    AUTHENTICATION = {
+        # If `allowed_logins` is not empty, use it as a whitelist:
+        # allow only users from it.
+        "allowed_logins": [],
+        # If `blocked_users` is not empty, use it as a blacklist:
+        # forbid users from it.
+        "blocked_logins": [],
+        # Admins can see overall statistics and control access.
+        "admin_logins": ["krvkir"],
+    }
 
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.getenv(
