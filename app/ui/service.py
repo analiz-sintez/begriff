@@ -1,7 +1,7 @@
 import re
 import asyncio
 import logging
-from inspect import signature
+from inspect import signature, getmodule
 from dataclasses import dataclass, asdict, astuple, fields
 from enum import Enum
 from typing import (
@@ -142,7 +142,8 @@ class Bus:
         Exceptions in slots will be logged, not raised.
         """
         self.save_signal(signal)
-        logger.info(f"SIGNAL (fire-and-forget): {signal}")
+        module_name = getmodule(signal).__name__
+        logger.info(f"SIGNAL (fire-and-forget): {module_name}.{signal}")
         tasks = self._dispatch_signal_to_slots(signal, **kwargs)
         for task in tasks:
             task.add_done_callback(self._handle_task_result)
@@ -154,7 +155,8 @@ class Bus:
         Raises the first exception encountered in a slot.
         """
         self.save_signal(signal)
-        logger.info(f"SIGNAL (with waiting): {signal}")
+        module_name = getmodule(signal).__name__
+        logger.info(f"SIGNAL (with waiting): {module_name}.{signal}")
         tasks = self._dispatch_signal_to_slots(signal, **kwargs)
         return await asyncio.gather(*tasks)
 

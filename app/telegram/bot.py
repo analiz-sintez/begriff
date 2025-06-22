@@ -1,3 +1,4 @@
+from inspect import getmodule
 import logging
 from dataclasses import asdict
 
@@ -67,7 +68,14 @@ def create_bot(token: str) -> Application:
         handler = CallbackQueryHandler(decode_and_emit, pattern=pattern)
         return handler
 
+    logging.info("Bus: registering signal handlers.")
     for signal_type in bus.signals():
+        module_name = getmodule(signal_type).__name__
+        signal_name = signal_type.__name__
+        logging.info(
+            f"Bus: registering a handler for {module_name}.{signal_name}."
+        )
         application.add_handler(make_handler(signal_type))
+    logging.info("Bus: all signals registered.")
 
     return application
