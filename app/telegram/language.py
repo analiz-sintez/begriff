@@ -10,7 +10,7 @@ from telegram.ext import CallbackContext
 
 from ..config import Config
 from ..core import get_user, User
-from ..srs import get_language, get_notes
+from ..srs import get_language, get_notes, Language
 from ..ui import Signal, bus, encode
 from .utils import send_message, authorize
 from .router import router
@@ -27,36 +27,39 @@ class LanguageChangeRequested(Signal):
 @dataclass
 class LanguageSelected(Signal):
     user_id: int
-    language_id: int
+    language_id: int  # Studied language ID
 
 
 @dataclass
 class LanguageChanged(Signal):
     user_id: int
-    language_id: int
+    language_id: int  # Studied language ID
 
 
 @dataclass
 class NativeLanguageAsked(Signal):
     user_id: int
+    studied_language_id: int
 
 
 @dataclass
 class NativeLanguageSelected(Signal):
     user_id: int
-    language_id: int
+    studied_language_id: int
+    native_language_id: int
 
 
 @dataclass
 class NativeLanguageChanged(Signal):
     user_id: int
-    language_id: int
+    studied_language_id: int
+    native_language_id: int
 
 
 @router.command(
     "language",
     args=["language_name", "native_language_name"],
-    description="Change studied language",
+    description="Change studied language or set its native language",
 )
 async def change_language(
     update: Update,
@@ -67,65 +70,113 @@ async def change_language(
     user = get_user(update.effective_user.username)
 
     if language_name:
-        # Setting a language.
-        language = get_language(language_name)
-        user.set_option("studied_language", language.id)
-        response_message = f"Language changed to {language_name}."
+        # Setting a studied language.
+        studied_language = get_language(language_name)
+        if not studied_language:
+            await send_message(
+                update,
+                context,
+                f"Language '{language_name}' not found or could not be created.",
+            )
+            return
+
+        user.set_option("studied_language", studied_language.id)
+        response_message = (
+            f"Studied language changed to {studied_language.name}."
+        )
+        bus.emit(
+            LanguageChanged(user.id, studied_language.id),
+            update=update,
+            context=context,
+        )
 
         if native_language_name:
-            if native_language_name == language.name:
-                user.set_option(
-                    f"languages/{language.id}/native_language",
-                    language.id,
+            # Also setting native language for this studied language.
+            native_language = get_language(native_language_name)
+            if not native_language:
+                await send_message(
+                    update,
+                    context,
+                    f"Native language '{native_language_name}' not found or could not be created.",
                 )
+                return
+
+            user.set_option(
+                f"languages/{studied_language.id}/native_language",
+                native_language.id,
+            )
+            response_message += (
+                f"\n\nNative language for studying {studied_language.name} "
+                f"set to {native_language.name}. "
+                f"Explanations will be in {native_language.name}. "
+            )
+            if native_language.id == studied_language.id:
+                response_message += f"This means explanations will be in {studied_language.name} itself."
             else:
-                # Setting native language for this language.
-                native_language = get_language(native_language_name)
-                user.set_option(
-                    f"languages/{language.id}/native_language",
-                    native_language.id,
-                )
                 response_message += (
-                    f"\n\nNative language for studying {language.name} "
-                    f"set to {native_language.name}. "
-                    f"All explanations will be in {native_language.name}. "
-                    f"To retain explanations in {language.name}, just pass it "
-                    f"as native language: /language {language.name} {language.name}."
+                    f"To retain explanations in {studied_language.name}, "
+                    f"set it as native: /language {studied_language.name} {studied_language.name}."
                 )
+            bus.emit(
+                NativeLanguageChanged(
+                    user.id, studied_language.id, native_language.id
+                )
+            )
+        else:
+            # If only studied language is set, and no native language is specified via command,
+            # we will ask for it interactively via the LanguageChanged signal handler.
+            pass
 
         await send_message(update, context, response_message)
 
     else:
         # Showing current language with language options to choose
         user_notes = get_notes(user_id=user.id)
-        available_languages = {note.language_id for note in user_notes}
+        # Get unique language IDs from user's notes
+        available_studied_lang_ids = {note.language_id for note in user_notes}
+        # Ensure the currently set studied language (even if no notes exist for it) is an option,
+        # and also the default study language from config.
+        current_studied_lang_id = user.get_option("studied_language")
+        if current_studied_lang_id:
+            available_studied_lang_ids.add(current_studied_lang_id)
 
-        response_message = (
-            "You study %s now."
-            % get_language(
-                user.get_option(
-                    "studied_language", Config.LANGUAGE["defaults"]["study"]
-                )
-            ).name
+        default_study_lang_name = Config.LANGUAGE["defaults"]["study"]
+        default_study_lang = get_language(default_study_lang_name)
+        if default_study_lang:
+            available_studied_lang_ids.add(default_study_lang.id)
+
+        current_studied_lang = get_language(
+            user.get_option(
+                "studied_language",
+                default_study_lang.id if default_study_lang else None,
+            )
         )
 
-        if available_languages:
+        response_message = (
+            f"You are currently studying {current_studied_lang.name}."
+            if current_studied_lang
+            else "No studied language set. Defaulting to English."
+        )
+
+        if available_studied_lang_ids:
             response_message += "\n\nChoose a language you want to study:"
-            keyboard = Keyboard(
-                [
-                    [
+            buttons = []
+            for lang_id in sorted(
+                list(available_studied_lang_ids)
+            ):  # Sort for consistent order
+                lang = get_language(lang_id)
+                if lang:
+                    buttons.append(
                         Button(
-                            get_language(lang_id).name,
+                            lang.name,
                             callback_data=encode(
-                                LanguageSelected(user.id, lang_id)
+                                LanguageSelected(user.id, lang.id)
                             ),
                         )
-                        for lang_id in available_languages
-                    ]
-                ]
-            )
+                    )
+            keyboard = Keyboard([buttons]) if buttons else None
         else:
-            response_message += "\n\nYou don't have any notes for other languages. Add notes to get language options."
+            response_message += "\n\nYou don't have any notes yet. Add notes to create languages, or use `/language <name>`."
             keyboard = None
 
         await send_message(update, context, response_message, keyboard)
@@ -133,10 +184,145 @@ async def change_language(
 
 @bus.on(LanguageSelected)
 @authorize()
-async def handle_language_change(
-    update: Update, context: CallbackContext, language_id: int, user: User
+async def handle_language_selected(
+    update: Update, context: CallbackContext, user: User, language_id: int
 ) -> None:
-    language = get_language(language_id)
-    user.set_option("studied_language", language.id)
-    response_message = f"Language changed to {language.name}."
+    # This language_id is the new studied language
+    studied_language = get_language(language_id)
+    if not studied_language:
+        await send_message(update, context, "Error selecting language.")
+        return
+
+    user.set_option("studied_language", studied_language.id)
+    response_message = f"Studied language changed to {studied_language.name}."
+    # We use await here to ensure the message about language change is sent before asking for native.
+    await send_message(update, context, response_message)
+    # Now emit LanguageChanged to trigger asking for native language
+    bus.emit(
+        LanguageChanged(user.id, studied_language.id),
+        update=update,
+        context=context,
+    )
+
+
+@bus.on(LanguageChanged)
+@authorize()
+async def ask_native_language(
+    update: Update, context: CallbackContext, user: User, language_id: int
+) -> None:
+    # language_id here is the ID of the newly set *studied* language
+    studied_language = get_language(language_id)
+    if not studied_language:
+        logger.error(
+            f"Cannot find studied language with ID {language_id} for user {user.id}"
+        )
+        await send_message(
+            update,
+            context,
+            "An error occurred while setting up native language options.",
+        )
+        return
+
+    user_notes = get_notes(user_id=user.id)
+    # Get unique language IDs from user's notes
+    native_options_ids = {note.language_id for note in user_notes}
+
+    # Add default native language from config
+    default_native_lang_name = Config.LANGUAGE["defaults"]["native"]
+    default_native_lang = get_language(default_native_lang_name)
+    if default_native_lang:
+        native_options_ids.add(default_native_lang.id)
+
+    # Also add the studied language itself as an option for native
+    native_options_ids.add(studied_language.id)
+
+    if not native_options_ids:
+        await send_message(
+            update,
+            context,
+            f"No languages available to set as native for {studied_language.name}. "
+            f"Explanations will be in {studied_language.name} by default.",
+        )
+        # Set studied language as its own native language by default if no other options.
+        user.set_option(
+            f"languages/{studied_language.id}/native_language",
+            studied_language.id,
+        )
+        bus.emit(
+            NativeLanguageChanged(
+                user.id, studied_language.id, studied_language.id
+            )
+        )
+        return
+
+    buttons = []
+    for lang_id_opt in sorted(
+        list(native_options_ids)
+    ):  # Sort for consistent order
+        lang_opt = get_language(lang_id_opt)
+        if lang_opt:
+            buttons.append(
+                Button(
+                    lang_opt.name,
+                    callback_data=encode(
+                        NativeLanguageSelected(
+                            user.id, studied_language.id, lang_opt.id
+                        )
+                    ),
+                )
+            )
+
+    keyboard = Keyboard([buttons]) if buttons else None
+
+    response_message = (
+        f"Please select the native language for your {studied_language.name} studies. "
+        "This will be the language of explanations."
+    )
+    bus.emit(
+        NativeLanguageAsked(user.id, studied_language_id=studied_language.id)
+    )
+    await send_message(update, context, response_message, keyboard)
+
+
+@bus.on(NativeLanguageSelected)
+@authorize()
+async def handle_native_language_selected(
+    update: Update,
+    context: CallbackContext,
+    user: User,
+    studied_language_id: int,
+    native_language_id: int,
+) -> None:
+    studied_language = get_language(studied_language_id)
+    native_language = get_language(native_language_id)
+
+    if not studied_language or not native_language:
+        logger.error(
+            f"Error fetching languages: Studied ID {studied_language_id}, Native ID {native_language_id}"
+        )
+        await send_message(
+            update,
+            context,
+            "An error occurred while setting the native language.",
+        )
+        return
+
+    user.set_option(
+        f"languages/{studied_language.id}/native_language",
+        native_language.id,
+    )
+
+    response_message = (
+        f"Native language for {studied_language.name} set to {native_language.name}. "
+        f"Explanations will now be in {native_language.name}."
+    )
+    if studied_language.id == native_language.id:
+        response_message = (
+            f"Native language for {studied_language.name} set to itself. "
+            f"Explanations will be in {studied_language.name}."
+        )
+
+    bus.emit(
+        NativeLanguageChanged(user.id, studied_language.id, native_language.id)
+    )
     await send_message(update, context, response_message)
