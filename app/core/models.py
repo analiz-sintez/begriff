@@ -3,6 +3,7 @@ from typing import Union, Dict, List, TypeAlias
 
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import mapped_column, DeclarativeBase
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.types import JSON
 from sqlalchemy.ext.mutable import MutableDict
 from flask_sqlalchemy import SQLAlchemy
@@ -47,6 +48,8 @@ class OptionsMixin:
             d = d[key]
         d[keys[-1]] = value
         logger.info("Setting option for: %s = %s", name, value)
+        flag_modified(self, "options")
+        db.session.add(self)
         db.session.commit()
 
     def get_option(self, name: str, default_value=None) -> JsonValue:
