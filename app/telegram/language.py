@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from dataclasses import dataclass
 from telegram import (
     Update,
     InlineKeyboardButton as Button,
@@ -8,14 +9,48 @@ from telegram import (
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import get_user
+from ..core import get_user, User
 from ..srs import get_language, get_notes
-from ..ui import Signal
-from .utils import send_message
+from ..ui import Signal, bus, encode
+from .utils import send_message, authorize
 from .router import router
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class LanguageChangeRequested(Signal):
+    user_id: int
+
+
+@dataclass
+class LanguageSelected(Signal):
+    user_id: int
+    language_id: int
+
+
+@dataclass
+class LanguageChanged(Signal):
+    user_id: int
+    language_id: int
+
+
+@dataclass
+class NativeLanguageAsked(Signal):
+    user_id: int
+
+
+@dataclass
+class NativeLanguageSelected(Signal):
+    user_id: int
+    language_id: int
+
+
+@dataclass
+class NativeLanguageChanged(Signal):
+    user_id: int
+    language_id: int
 
 
 @router.command(
@@ -81,7 +116,9 @@ async def change_language(
                     [
                         Button(
                             get_language(lang_id).name,
-                            callback_data=f"set_language:{lang_id}",
+                            callback_data=encode(
+                                LanguageSelected(user.id, lang_id)
+                            ),
                         )
                         for lang_id in available_languages
                     ]
@@ -94,14 +131,12 @@ async def change_language(
         await send_message(update, context, response_message, keyboard)
 
 
-@router.callback_query("^set_language:(?P<language_id>\d+)$")
+@bus.on(LanguageSelected)
+@authorize()
 async def handle_language_change(
-    update: Update, context: CallbackContext, language_id: int
+    update: Update, context: CallbackContext, language_id: int, user: User
 ) -> None:
-    query = update.callback_query
-    user = get_user(query.from_user.username)
     language = get_language(language_id)
-
     user.set_option("studied_language", language.id)
     response_message = f"Language changed to {language.name}."
     await send_message(update, context, response_message)
