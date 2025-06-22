@@ -54,7 +54,7 @@ class OptionsMixin:
 
     def get_option(self, name: str, default_value=None) -> JsonValue:
         if not self.options:
-            logger.info(
+            logger.debug(
                 "No options set. Returning default value for %s: %s",
                 name,
                 default_value,
@@ -64,14 +64,14 @@ class OptionsMixin:
         d = self.options
         for key in keys:
             if key not in d:
-                logger.info(
+                logger.debug(
                     "Option '%s' not found. Returning default value: %s",
                     name,
                     default_value,
                 )
                 return default_value
             d = d[key]
-        logger.info("Retrieved option: %s = %s", name, d)
+        logger.debug("Retrieved option: %s = %s", name, d)
         return d
 
 

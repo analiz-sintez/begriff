@@ -125,8 +125,9 @@ async def change_language(
                 )
             )
         else:
-            # If only studied language is set, and no native language is specified via command,
-            # we will ask for it interactively via the LanguageChanged signal handler.
+            # If only studied language is set, and no native language
+            # is specified via command,we will ask for it interactively
+            # via the LanguageChanged signal handler.
             pass
 
         await send_message(update, context, response_message)
@@ -147,11 +148,10 @@ async def change_language(
         if default_study_lang:
             available_studied_lang_ids.add(default_study_lang.id)
 
-        current_studied_lang = get_language(
-            user.get_option(
-                "studied_language",
-                default_study_lang.id if default_study_lang else None,
-            )
+        current_studied_lang = (
+            get_language(current_studied_lang_id)
+            if current_studied_lang_id
+            else default_study_lang
         )
 
         response_message = (
@@ -343,7 +343,11 @@ def _handle_translation_task_error(task: asyncio.Task) -> None:
 
 
 @bus.on(NativeLanguageChanged)
-async def generate_note_translations(user_id: int, studied_language_id: int):
+async def generate_note_translations(
+    user_id: int, studied_language_id: int, native_language_id: int
+):
+    if studied_language_id == native_language_id:
+        return
     # Prepare translations of explanations for all the cards
     # of the studied language. These will run concurrently in the background.
     logger.info(
@@ -354,7 +358,7 @@ async def generate_note_translations(user_id: int, studied_language_id: int):
         task.add_done_callback(_handle_translation_task_error)
         # Sleep to potentially rate-limit the initiation of API calls
         # or database operations within get_explanation_in_native_language.
-        await asyncio.sleep(0.1)
+        # await asyncio.sleep(0.1)
     logger.info(
         f"Finished creating background translation tasks for user {user_id}, language {studied_language_id}"
     )
