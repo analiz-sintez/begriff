@@ -4,10 +4,26 @@ import logging
 from inspect import signature
 from dataclasses import dataclass, asdict, astuple, fields
 from enum import Enum
-from typing import Callable, Type, List, get_type_hints, Optional
+from typing import (
+    Callable,
+    Type,
+    List,
+    get_type_hints,
+    Optional,
+    get_origin,
+    get_args,
+    Union,
+)
 from inspect import signature
 
 logger = logging.getLogger(__name__)
+
+
+def unoption(hint):
+    """Remove type hint modifiers as Unions and Optionals."""
+    if get_origin(hint) == Union and get_args(hint) == 2:
+        hint = get_args(hint)[-1]
+    return hint
 
 
 @dataclass

@@ -1,13 +1,6 @@
 import re
 import logging
-from typing import (
-    Callable,
-    Optional,
-    get_type_hints,
-    Union,
-    get_origin,
-    get_args,
-)
+from typing import Callable, Optional, get_type_hints, Union
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,6 +9,7 @@ from telegram.ext import (
     filters,
 )
 from telegram import BotCommand, Message
+from ..ui import unoption
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +94,7 @@ class Router:
                 if name not in type_hints:
                     continue
                 # ... transform scalar types from type hints
-                hint = type_hints[name]
-                if get_origin(hint) == Union and get_args(hint) == 2:
-                    hint = get_args(hint)[-1]
+                hint = unoption(type_hints[name])
                 if hint in [int, float, str]:
                     args_dict[name] = hint(arg)
                 else:
