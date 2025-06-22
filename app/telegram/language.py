@@ -2,14 +2,15 @@ import logging
 from typing import Optional
 from telegram import (
     Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
+    InlineKeyboardButton as Button,
+    InlineKeyboardMarkup as Keyboard,
 )
 from telegram.ext import CallbackContext
 
 from ..config import Config
 from ..core import get_user
 from ..srs import get_language, get_notes
+from ..ui import Signal
 from .utils import send_message
 from .router import router
 
@@ -36,19 +37,26 @@ async def change_language(
         user.set_option("studied_language", language.id)
         response_message = f"Language changed to {language_name}."
 
-        if native_language_name and not native_language_name == language_name:
-            # Setting native language for this language.
-            native_language = get_language(native_language_name)
-            user.set_option(
-                f"languages/{language.id}/native_language", native_language.id
-            )
-            response_message += (
-                f"\n\nNative language for studying {language_name} "
-                f"set to {native_language_name}. "
-                f"All explanations will be in {native_language_name}. "
-                f"To retain explanations in {language_name}, just pass it "
-                f"as native language: /language {language_name} {language_name}."
-            )
+        if native_language_name:
+            if native_language_name == language.name:
+                user.set_option(
+                    f"languages/{language.id}/native_language",
+                    language.id,
+                )
+            else:
+                # Setting native language for this language.
+                native_language = get_language(native_language_name)
+                user.set_option(
+                    f"languages/{language.id}/native_language",
+                    native_language.id,
+                )
+                response_message += (
+                    f"\n\nNative language for studying {language.name} "
+                    f"set to {native_language.name}. "
+                    f"All explanations will be in {native_language.name}. "
+                    f"To retain explanations in {language.name}, just pass it "
+                    f"as native language: /language {language.name} {language.name}."
+                )
 
         await send_message(update, context, response_message)
 
@@ -56,13 +64,6 @@ async def change_language(
         # Showing current language with language options to choose
         user_notes = get_notes(user_id=user.id)
         available_languages = {note.language_id for note in user_notes}
-        language_buttons = [
-            InlineKeyboardButton(
-                get_language(lang_id).name,
-                callback_data=f"set_language:{lang_id}",
-            )
-            for lang_id in available_languages
-        ]
 
         response_message = (
             "You study %s now."
@@ -73,9 +74,19 @@ async def change_language(
             ).name
         )
 
-        if language_buttons:
+        if available_languages:
             response_message += "\n\nChoose a language you want to study:"
-            keyboard = InlineKeyboardMarkup.from_column(language_buttons)
+            keyboard = Keyboard(
+                [
+                    [
+                        Button(
+                            get_language(lang_id).name,
+                            callback_data=f"set_language:{lang_id}",
+                        )
+                        for lang_id in available_languages
+                    ]
+                ]
+            )
         else:
             response_message += "\n\nYou don't have any notes for other languages. Add notes to get language options."
             keyboard = None

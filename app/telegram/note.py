@@ -10,7 +10,7 @@ from telegram.ext import CallbackContext
 
 from ..config import Config
 from ..core import User
-from ..llm import get_explanation, get_base_form
+from ..llm import get_explanation, get_base_form, find_mistakes
 from ..ui import Signal, bus
 from ..srs import (
     Language,
@@ -295,4 +295,18 @@ async def add_text(
     text: str,
     explanation: Optional[str] = None,
 ):
-    await send_message(update, context, "This is not yet implemented, sorry!")
+    language = get_language(
+        user.get_option(
+            "studied_language", Config.LANGUAGE["defaults"]["study"]
+        )
+    )
+    native_language = get_language(
+        user.get_option(
+            f"languages/{language.id}/native_language",
+            language.name,
+            # Config.LANGUAGE["defaults"]["native"],
+        )
+    )
+
+    reply = await find_mistakes(text, language.name, native_language.name)
+    await send_message(update, context, reply)
