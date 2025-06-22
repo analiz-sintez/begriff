@@ -61,14 +61,14 @@ class NativeLanguageChanged(Signal):
     args=["language_name", "native_language_name"],
     description="Change studied language or set its native language",
 )
+@authorize()
 async def change_language(
     update: Update,
     context: CallbackContext,
+    user: User,
     language_name: Optional[str] = None,
     native_language_name: Optional[str] = None,
 ) -> None:
-    user = get_user(update.effective_user.username)
-
     if language_name:
         # Setting a studied language.
         studied_language = get_language(language_name)
