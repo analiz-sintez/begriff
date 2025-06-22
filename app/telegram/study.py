@@ -61,7 +61,7 @@ class CardAnswerShown(Signal):
 
 
 @dataclass
-class CardGradeRequested(Signal):
+class CardGradeSelected(Signal):
     view_id: int
     answer: Answer
 
@@ -236,7 +236,7 @@ async def handle_study_answer(
             [
                 Button(
                     answer.name,
-                    callback_data=encode(CardGradeRequested(view_id, answer)),
+                    callback_data=encode(CardGradeSelected(view_id, answer)),
                 )
                 for answer in Answer
             ]
@@ -247,7 +247,7 @@ async def handle_study_answer(
     )
 
 
-@bus.on(CardGradeRequested)
+@bus.on(CardGradeSelected)
 @authorize()
 async def handle_study_grade(
     update: Update,
