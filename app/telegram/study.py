@@ -26,7 +26,7 @@ from ..srs import (
 from ..llm import translate
 from ..image import generate_image
 from ..config import Config
-from .note import format_explanation
+from .note import format_explanation, get_explanation_in_native_language
 from .utils import send_image_message, authorize
 from .router import router
 from ..ui import Signal, bus, encode
@@ -200,7 +200,12 @@ async def study_next_card(
     )
     context.user_data["current_card_id"] = card.id
     logger.info("Display card front for user %s: %s", user.login, card.front)
-    front = format_explanation(card.front)
+    front = card.front
+    # If the card is reversed (explanation -> word), translate the explanation.
+    note = card.note
+    if front == note.field2:
+        front = await get_explanation_in_native_language(note)
+    front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
     await send_image_message(update, context, front, image_path, keyboard)
 
@@ -219,8 +224,19 @@ async def handle_study_answer(
     # Show the answer (showing back side of the card)
     if not (card := get_card(card_id)):
         return
-    front = format_explanation(card.front)
-    back = format_explanation(card.back)
+    note = card.note
+    # ... translate the explanation
+    # ... if it is on the front
+    front = card.front
+    if front == note.field2:
+        front = await get_explanation_in_native_language(note)
+    front = format_explanation(front)
+    # ... if it is on the back
+    back = card.back
+    if back == note.field2:
+        back = await get_explanation_in_native_language(note)
+    back = format_explanation(back)
+
     bus.emit(CardAnswerShown(card.id))
     logger.info(
         "Showing answer for card %s to user %s: %s",

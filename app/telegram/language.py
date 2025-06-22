@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+import asyncio
 from dataclasses import dataclass
 from telegram import (
     Update,
@@ -14,6 +15,7 @@ from ..srs import get_language, get_notes, Language
 from ..ui import Signal, bus, encode
 from .utils import send_message, authorize
 from .router import router
+from .note import get_explanation_in_native_language
 
 
 logger = logging.getLogger(__name__)
@@ -326,3 +328,33 @@ async def handle_native_language_selected(
         NativeLanguageChanged(user.id, studied_language.id, native_language.id)
     )
     await send_message(update, context, response_message)
+
+
+def _handle_translation_task_error(task: asyncio.Task) -> None:
+    """Callback to log exceptions from background translation tasks."""
+    try:
+        task.result()  # This will re-raise the exception if one occurred
+    except asyncio.CancelledError:
+        logger.warning("Note translation task was cancelled.")
+    except Exception as e:
+        logger.error(
+            f"Error in background note translation task: {e}", exc_info=True
+        )
+
+
+@bus.on(NativeLanguageChanged)
+async def generate_note_translations(user_id: int, studied_language_id: int):
+    # Prepare translations of explanations for all the cards
+    # of the studied language. These will run concurrently in the background.
+    logger.info(
+        f"Starting background translation tasks for user {user_id}, language {studied_language_id}"
+    )
+    for note in get_notes(user_id=user_id, language_id=studied_language_id):
+        task = asyncio.create_task(get_explanation_in_native_language(note))
+        task.add_done_callback(_handle_translation_task_error)
+        # Sleep to potentially rate-limit the initiation of API calls
+        # or database operations within get_explanation_in_native_language.
+        await asyncio.sleep(0.1)
+    logger.info(
+        f"Finished creating background translation tasks for user {user_id}, language {studied_language_id}"
+    )

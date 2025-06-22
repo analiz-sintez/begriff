@@ -10,7 +10,7 @@ from telegram.ext import CallbackContext
 
 from ..config import Config
 from ..core import User
-from ..llm import get_explanation, get_base_form, find_mistakes
+from ..llm import get_explanation, get_base_form, find_mistakes, translate
 from ..ui import Signal, bus
 from ..srs import (
     Language,
@@ -19,6 +19,7 @@ from ..srs import (
     create_word_note,
     get_notes,
     update_note,
+    Note,
 )
 from .router import router
 from .utils import authorize, send_message
@@ -114,6 +115,80 @@ def get_notes_to_inject(user: User, language: Language) -> list:
     return random_notes
 
 
+async def get_explanation_in_native_language(note: Note) -> str:
+    """
+    Get the explanation of a note translated into the user's selected native language
+    for the note's studied language. Caches the translation in note options.
+
+    Args:
+        note: The Note object.
+
+    Returns:
+        The explanation string, translated if necessary.
+    """
+    user = note.user
+    studied_language = note.language
+
+    # Determine the native language ID for this studied language
+    native_language_id = user.get_option(
+        f"languages/{studied_language.id}/native_language"
+    )
+
+    # Fallback if native language ID is not set for some reason, though UI should prevent this.
+    if native_language_id is None:
+        logger.warning(
+            f"Native language not set for studied language {studied_language.name} (ID: {studied_language.id}) for user {user.login}. Defaulting to studied language."
+        )
+        native_language_id = studied_language.id
+
+    # If studied language is the native language, no translation needed.
+    if native_language_id == studied_language.id:
+        return note.field2
+
+    native_language = get_language(native_language_id)
+    if not native_language:
+        logger.error(
+            f"Could not find native language with ID {native_language_id} for user {user.login}. Returning original explanation."
+        )
+        return note.field2
+
+    # Check cache in note options
+    translation_option_key = f"translations/{native_language.id}"
+    cached_translation = note.get_option(translation_option_key)
+
+    if cached_translation is not None and isinstance(cached_translation, str):
+        logger.info(
+            f"Found cached translation for note {note.id} to native language {native_language.name}."
+        )
+        return cached_translation
+
+    # If no cached translation, translate and save
+    original_explanation = note.field2
+    if not original_explanation:  # Handle empty original explanation
+        return ""
+
+    logger.info(
+        f"Translating explanation for note {note.id} from {studied_language.name} to {native_language.name}."
+    )
+    try:
+        translated_explanation = await translate(
+            original_explanation,
+            src_language=studied_language.name,
+            dst_language=native_language.name,
+        )
+        # Save to note options
+        note.set_option(translation_option_key, translated_explanation)
+        logger.info(
+            f"Saved new translation for note {note.id} to native language {native_language.name}."
+        )
+        return translated_explanation
+    except Exception as e:
+        logger.error(
+            f"Error translating explanation for note {note.id}: {e}. Returning original."
+        )
+        return original_explanation
+
+
 def _parse_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     """Parse a line of text into a word and its explanation, if present.
 
@@ -183,7 +258,7 @@ async def add_notes(
                 context=context,
                 explanation=explanation,
             )
-        elif len(text) <= 80:
+        elif len(text) <= 30:
             bus.emit(
                 PhraseExplanationRequested(user.id, text),
                 update=update,
@@ -282,8 +357,12 @@ async def add_note(
         )
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
-    explanation = format_explanation(note.field2)
-    await send_message(update, context, f"{icon} *{text}* — {explanation}")
+    display_explanation = format_explanation(
+        await get_explanation_in_native_language(note)
+    )
+    await send_message(
+        update, context, f"{icon} *{text}* — {display_explanation}"
+    )
 
 
 @bus.on(TextExplanationRequested)
@@ -300,12 +379,12 @@ async def add_text(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
         )
     )
-    native_language = get_language(
-        user.get_option(
-            f"languages/{language.id}/native_language",
-            language.name,
-            # Config.LANGUAGE["defaults"]["native"],
-        )
+    native_language_id = user.get_option(
+        f"languages/{language.id}/native_language",
+        default_value=language.id,  # Fallback
+    )
+    native_language = (
+        get_language(native_language_id) if native_language_id else language
     )
 
     reply = await find_mistakes(text, language.name, native_language.name)
