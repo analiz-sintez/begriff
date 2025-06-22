@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
 
 
-async def query_llm(
+async def _query_llm(
     instructions: str, input: str, model: Optional[str] = None
 ) -> str:
     if model is None:
@@ -92,14 +92,14 @@ Reply: [General] Someone who solves problems, often in a quick or discreet manne
         f"Requesting explanation for {input} with instructions\n: {instructions}"
     )
 
-    explanation = await query_llm(
+    explanation = await _query_llm(
         instructions, input, model=Config.LLM["models"]["explanation"]
     )
     logger.info("Received explanation: '%s'", explanation)
     return explanation
 
 
-async def get_recap(url, language, notes: list = None):
+async def get_recap(url, language, notes: Optional[list] = None):
     """
     Fetch the content of a URL and request a summary recap in a specific language.
 
@@ -142,7 +142,7 @@ Instructions:
     logger.info("Requesting recap for text from URL: %s", url)
     logger.debug("Recap instructions:\n%s", instructions)
 
-    recap = await query_llm(
+    recap = await _query_llm(
         instructions, text_content, model=Config.LLM["models"]["recap"]
     )
     logger.info("Received recap: '%s'", recap)
@@ -179,7 +179,7 @@ Instructions:
         f"Requesting base form for {input} with instructions:\n{instructions}"
     )
 
-    base_form = await query_llm(
+    base_form = await _query_llm(
         instructions, input, model=Config.LLM["models"]["base_form"]
     )
     logger.info("Received base form: '%s'", base_form)
@@ -213,6 +213,65 @@ Translate the following text from {src_language} to {dst_language}.
 Ensure the translation captures the original meaning as accurately as possible.
 """
 
-    translation = await query_llm(instructions, text)
+    translation = await _query_llm(instructions, text)
     logger.info("Received translation: '%s'", translation)
     return translation
+
+
+async def find_mistakes(
+    input: str, src_language: str, dst_language: str
+) -> str:
+    """
+    Request LLM to find up to 3 main language mistakes in a text, explain them, and provide correct versions.
+
+    Args:
+        input (str): The text with potential mistakes.
+        src_language (str): The language of the input text.
+        dst_language (str): The language for the explanation of mistakes.
+
+    Returns:
+        str: A numbered list of mistakes with explanations and corrections.
+    """
+    logger.info(
+        "Requesting mistake analysis for input: '%s' (source lang: '%s', explanation lang: '%s')",
+        input,
+        src_language,
+        dst_language,
+    )
+
+    instructions = f"""
+You are a language tutor. A student has written the following text in {src_language}.
+Please identify up to 3 main grammatical or lexical mistakes in their text.
+For each mistake:
+1. Briefly explain the mistake in {dst_language}.
+2. Provide the corrected version of the problematic part of the sentence in {src_language}.
+
+Present your findings as a numbered list.
+If there are no mistakes, or if the text is too short to analyze, simply state that in {dst_language}.
+
+Example for a student writing in English (and explanations in English):
+Student's text: "I will can go to the cinema tomorrow."
+Your response:
+1. Incorrect modal verb usage: You cannot use "will" and "can" together.
+   Corrected: "I will be able to go to the cinema tomorrow." or "I can go to the cinema tomorrow."
+
+Student's text: "He go to school every day."
+Your response:
+1. Subject-verb agreement error: The verb "go" should be "goes" for the third-person singular pronoun "He".
+   Corrected: "He goes to school every day."
+"""
+
+    logger.debug(
+        f"Requesting mistake analysis for '{input}' with instructions:\n{instructions}"
+    )
+
+    # Consider adding a specific model for mistake detection in Config if needed
+    # e.g., model=Config.LLM["models"]["mistakes"]
+    mistake_analysis = await _query_llm(
+        instructions,
+        input,
+        model=Config.LLM["models"].get("mistakes")
+        or Config.LLM["models"]["default"],
+    )
+    logger.info("Received mistake analysis: '%s'", mistake_analysis)
+    return mistake_analysis
