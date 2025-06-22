@@ -1,6 +1,13 @@
 import re
 import logging
-from typing import Callable, Optional, get_type_hints, Union
+from typing import (
+    Callable,
+    Optional,
+    get_type_hints,
+    Union,
+    get_origin,
+    get_args,
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -90,8 +97,16 @@ class Router:
             args_dict = {name: None for name in arg_names}
 
             for arg, name in zip(args, arg_names[: len(args)]):
-                if name in type_hints:
-                    args_dict[name] = type_hints[name](arg)
+                if name not in type_hints:
+                    continue
+                # ... transform scalar types from type hints
+                hint = type_hints[name]
+                if get_origin(hint) == Union and get_args(hint) == 2:
+                    hint = get_args(hint)[-1]
+                if hint in [int, float, str]:
+                    args_dict[name] = hint(arg)
+                else:
+                    args_dict[name] = arg
 
             logger.debug(
                 f"Calling function {fn.__name__} "
