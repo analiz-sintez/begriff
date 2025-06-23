@@ -69,7 +69,6 @@ def authorize(admin=False) -> UserInjector:
             kwargs["update"] = update
             kwargs["context"] = context
             kwargs["user"] = user
-            logger.info(kwargs.keys())
             new_kwargs = {
                 p.name: kwargs[p.name]
                 for p in sig.parameters.values()

@@ -9,7 +9,7 @@ from telegram import (
     InlineKeyboardMarkup as Keyboard,
     Message,
 )
-from telegram.ext import CallbackContext
+from telegram.ext import CallbackContext, filters
 from telegram.constants import ParseMode
 
 from ..config import Config
@@ -21,6 +21,7 @@ from ..srs import (
     get_notes,
     Language,
     get_note,
+    update_note as srs_update_note,  # Renamed to avoid conflict
 )
 from ..ui import Signal, bus, encode
 from .router import router
@@ -46,7 +47,13 @@ class NoteSelected(Signal):
 
 
 @dataclass
-class NoteEditRequested(Signal):
+class NoteTitleEditRequested(Signal):
+    user_id: int
+    note_id: int
+
+
+@dataclass
+class NoteExplanationEditRequested(Signal):
     user_id: int
     note_id: int
 
@@ -374,16 +381,24 @@ async def handle_note_selected(
                 NoteDeletionRequested(user.id, selected_note.id)
             ),
         ),
-        Button(
-            "Edit",
-            callback_data=encode(NoteEditRequested(user.id, selected_note.id)),
-        ),
+        # Button(
+        #     "Edit Title",
+        #     callback_data=encode(
+        #         NoteTitleEditRequested(user.id, selected_note.id)
+        #     ),
+        # ),
+        # Button(
+        #     "Edit Explanation",
+        #     callback_data=encode(
+        #         NoteExplanationEditRequested(user.id, selected_note.id)
+        #     ),
+        # ),
     ]
     keyboard = Keyboard([keyboard_buttons])
 
     image_path = selected_note.get_option("image/path")
 
-    reply_to_message: Optional[Message] = None
+    reply_to_message: Message | None = None
     if update.callback_query and update.callback_query.message:
         reply_to_message = update.callback_query.message
         try:
@@ -419,6 +434,163 @@ async def handle_note_selected(
         )
 
 
+@bus.on(NoteTitleEditRequested)
+@authorize()
+async def handle_note_title_edit_requested(
+    update: Update, context: CallbackContext, user: User, note_id: int
+):
+    logger.info(
+        f"User {user.login} requested to edit title for note {note_id}"
+    )
+    note_to_edit = get_note(note_id)
+    if not note_to_edit or note_to_edit.user_id != user.id:
+        await send_message(
+            update, context, "Error: Note not found or not yours."
+        )
+        return
+
+    context.user_data["active_edit"] = {
+        "note_id": note_id,
+        "field_to_edit": "field1",
+        "original_message_id": (
+            update.callback_query.message.message_id
+            if update.callback_query
+            else None
+        ),
+    }
+    await send_message(
+        update, context, "Please send the new title for the note."
+    )
+    if update.callback_query:
+        await update.callback_query.answer()
+
+
+@bus.on(NoteExplanationEditRequested)
+@authorize()
+async def handle_note_explanation_edit_requested(
+    update: Update, context: CallbackContext, user: User, note_id: int
+):
+    logger.info(
+        f"User {user.login} requested to edit explanation for note {note_id}"
+    )
+    note_to_edit = get_note(note_id)
+    if not note_to_edit or note_to_edit.user_id != user.id:
+        await send_message(
+            update, context, "Error: Note not found or not yours."
+        )
+        return
+
+    context.user_data["active_edit"] = {
+        "note_id": note_id,
+        "field_to_edit": "field2",
+        "original_message_id": (
+            update.callback_query.message.message_id
+            if update.callback_query
+            else None
+        ),
+    }
+    await send_message(
+        update, context, "Please send the new explanation for the note."
+    )
+    if update.callback_query:
+        await update.callback_query.answer()
+
+
+# @router.message(".*")
+@authorize()
+async def handle_note_edit_input(
+    update: Update, context: CallbackContext, user: User
+):
+    if not context.user_data or "active_edit" not in context.user_data:
+        # This message is not part of an active edit session.
+        # It should be handled by other message handlers (e.g., adding new notes).
+        # The router will try other handlers if this one doesn't "consume" the update.
+        # For now, we simply return, assuming other handlers might pick it up.
+        # If no other handler picks it up, PTB might log an "unhandled update" warning.
+        # A more robust solution might involve ConversationHandler or checking if other handlers exist.
+        logger.debug(
+            "handle_note_edit_input: No active_edit in user_data, passing."
+        )
+        return True  # Indicate that this handler did not fully process the message if it's not an edit.
+
+    active_edit_info = context.user_data["active_edit"]
+    note_id = active_edit_info["note_id"]
+    field_to_edit = active_edit_info["field_to_edit"]
+
+    note_to_edit = get_note(note_id)
+
+    if not note_to_edit:
+        await send_message(
+            update, context, "Error: Note not found. Edit cancelled."
+        )
+        del context.user_data["active_edit"]
+        return
+
+    if note_to_edit.user_id != user.id:
+        await send_message(
+            update,
+            context,
+            "Error: You can only edit your own notes. Edit cancelled.",
+        )
+        del context.user_data["active_edit"]
+        return
+
+    new_value = update.message.text.strip()
+    if not new_value:
+        await send_message(
+            update,
+            context,
+            "The new value cannot be empty. Please try again or send /cancel to abort.",
+        )
+        # Do not clear active_edit, let user try again.
+        return
+
+    confirmation_message = ""
+    try:
+        if field_to_edit == "field1":
+            old_field1_value = note_to_edit.field1
+            note_to_edit.field1 = new_value
+            # Manually update associated cards' front/back if they used the old field1
+            for card in note_to_edit.cards:
+                if card.front == old_field1_value:
+                    card.front = new_value
+                if (
+                    card.back == old_field1_value
+                ):  # Handles cards where field1 was on the back
+                    card.back = new_value
+            db.session.add(note_to_edit)  # Mark note as dirty
+            db.session.commit()  # Commit note and card changes
+            confirmation_message = f"Note title updated to: '{new_value}'"
+            logger.info(
+                f"Note {note_id} field1 updated to '{new_value}' by user {user.login}."
+            )
+
+        elif field_to_edit == "field2":
+            note_to_edit.field2 = new_value
+            # srs_update_note handles card updates well for field2 changes and commits.
+            srs_update_note(note_to_edit)
+            confirmation_message = f"Note explanation updated."
+            logger.info(f"Note {note_id} field2 updated by user {user.login}.")
+
+        await send_message(update, context, confirmation_message)
+    except Exception as e:
+        db.session.rollback()
+        logger.error(
+            f"Error updating note {note_id} for user {user.login}: {e}",
+            exc_info=True,
+        )
+        await send_message(
+            update,
+            context,
+            "An error occurred while updating the note. Please try again.",
+        )
+    finally:
+        del context.user_data["active_edit"]
+        # To prevent other handlers from processing this message after it's been handled as an edit input:
+        # raise DispatcherHandlerStop(MessageHandler) # This would require importing DispatcherHandlerStop
+        # For simplicity with current router, we assume this is the end of handling for this message.
+
+
 @bus.on(NoteDeletionRequested)
 @authorize()
 async def handle_note_deletion_requested(
@@ -449,7 +621,9 @@ async def handle_note_deletion_requested(
             f"Note {note_id} ('{note_field1_for_message}') deleted successfully by user {user.login}."
         )
         message = f"Note '{note_field1_for_message}' has been deleted."
-        await send_message(update, context, message, markup=None)
+        await send_message(
+            update, context, message, markup=None
+        )  # Remove keyboard from previous message
 
     except Exception as e:
         db.session.rollback()
