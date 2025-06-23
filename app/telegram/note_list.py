@@ -10,17 +10,19 @@ from telegram import (
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import User
+from ..core import User, db
 from ..srs import (
     get_language,
     Note,
     Maturity,
     get_notes,
     Language,
+    get_note,
 )
 from ..ui import Signal, bus, encode
 from .router import router
-from .utils import send_message, authorize
+from .utils import send_message, authorize, send_image_message
+from .note import get_explanation_in_native_language
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,21 @@ class ListNotesByMaturityRequested(Signal):
 @dataclass
 class NoteSelected(Signal):
     user_id: int
-    language_id: int
+    language_id: int  # Language of the list view context
+    note_id: int
+
+
+@dataclass
+class NoteEditRequested(Signal):
+    user_id: int
+    language_id: int  # Note's actual language_id
+    note_id: int
+
+
+@dataclass
+class NoteDeletionRequested(Signal):
+    user_id: int
+    language_id: int  # Note's actual language_id
     note_id: int
 
 
@@ -98,10 +114,14 @@ async def display_notes_by_maturity(
     all_keyboard_rows = []
 
     # Note selection buttons
-    for note in notes_on_page:
+    for (
+        note_item
+    ) in notes_on_page:  # Renamed to avoid conflict with note module
         note_button = Button(
-            format_note_for_list(note),
-            callback_data=encode(NoteSelected(user.id, language.id, note.id)),
+            format_note_for_list(note_item),
+            callback_data=encode(
+                NoteSelected(user.id, language.id, note_item.id)
+            ),
         )
         all_keyboard_rows.append(
             [note_button]
@@ -282,16 +302,127 @@ async def handle_list_notes_by_maturity_request(
     )
 
 
-# Placeholder for NoteSelected handler - to be implemented based on requirements
-# @bus.on(NoteSelected)
-# @authorize()
-# async def handle_note_selected(
-#     update: Update,
-#     context: CallbackContext,
-#     user: User,
-#     language_id: int,
-#     note_id: int,
-# ):
-#     logger.info(f"User {user.login} selected note {note_id} for language {language_id}")
-#     # Logic to display note details or actions for the selected note
-#     await send_message(update, context, f"You selected note ID: {note_id}. Details would show here.")
+@bus.on(NoteSelected)
+@authorize()
+async def handle_note_selected(
+    update: Update,
+    context: CallbackContext,
+    user: User,
+    language_id: int,  # Language of the list view context
+    note_id: int,
+):
+    logger.info(
+        f"User {user.login} selected note {note_id} (list language_id: {language_id})"
+    )
+
+    selected_note = get_note(note_id)
+
+    if not selected_note:
+        await send_message(update, context, "Error: Note not found.")
+        return
+
+    if selected_note.user_id != user.id:
+        await send_message(
+            update,
+            context,
+            "Error: You can only view details of your own notes.",
+        )
+        return
+
+    explanation_to_display = await get_explanation_in_native_language(
+        selected_note
+    )
+
+    message_text = f"*{selected_note.field1}*\n\n{explanation_to_display}"
+
+    keyboard_buttons = [
+        Button(
+            "Delete",
+            callback_data=encode(
+                NoteDeletionRequested(
+                    user.id, selected_note.language_id, selected_note.id
+                )
+            ),
+        ),
+        Button(
+            "Edit",
+            callback_data=encode(
+                NoteEditRequested(
+                    user.id, selected_note.language_id, selected_note.id
+                )
+            ),
+        ),
+    ]
+    keyboard = Keyboard([keyboard_buttons])
+
+    image_path = selected_note.get_option("image/path")
+
+    if (
+        Config.IMAGE["enable"]
+        and image_path
+        and isinstance(image_path, str)
+        and os.path.exists(image_path)
+    ):
+        await send_image_message(
+            update, context, message_text, image_path, markup=keyboard
+        )
+    else:
+        await send_message(update, context, message_text, markup=keyboard)
+
+
+@bus.on(NoteDeletionRequested)
+@authorize()
+async def handle_note_deletion_requested(
+    update: Update,
+    context: CallbackContext,
+    user: User,
+    language_id: int,  # This is note.language_id
+    note_id: int,
+):
+    logger.info(
+        f"User {user.login} requested deletion of note {note_id} (language_id from signal: {language_id})"
+    )
+
+    note_to_delete = get_note(note_id)
+    if not note_to_delete:
+        # Edit message if callback, otherwise send new
+        message = "Error: Note not found or already deleted."
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text=message)
+        else:
+            await send_message(update, context, message)
+        return
+
+    if note_to_delete.user_id != user.id:
+        message = "Error: You can only delete your own notes."
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text=message)
+        else:
+            await send_message(update, context, message)
+        return
+
+    note_field1_for_message = note_to_delete.field1
+
+    try:
+        db.session.delete(note_to_delete)
+        db.session.commit()
+        logger.info(
+            f"Note {note_id} ('{note_field1_for_message}') deleted successfully by user {user.login}."
+        )
+        message = f"Note '{note_field1_for_message}' has been deleted."
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text=message)
+        else:
+            await send_message(update, context, message)
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(
+            f"Error deleting note {note_id} for user {user.login}: {e}",
+            exc_info=True,
+        )
+        message = "Error: Could not delete the note."
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text=message)
+        else:
+            await send_message(update, context, message)

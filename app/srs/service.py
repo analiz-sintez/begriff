@@ -309,6 +309,20 @@ def record_answer(view_id: int, answer: Answer) -> None:
     )
 
 
+def get_note(note_id: int) -> Optional[Note]:
+    """
+    Get a note by id.
+
+    Args:
+        note_id: The id of the note.
+
+    Returns:
+        Note: The note object, or None if not found.
+    """
+    logger.info("Getting note by id '%d'", note_id)
+    return Note.query.filter_by(id=note_id).first()
+
+
 def get_card(card_id: int) -> Optional[Card]:
     """
     Get a card by id.
