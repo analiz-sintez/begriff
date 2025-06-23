@@ -162,7 +162,7 @@ async def display_notes_by_maturity(
     if total_pages > 1:
         pagination_buttons_rows = []
         current_page_row = []
-        buttons_per_row = 5  # Max pagination buttons per row
+        buttons_per_row = 10  # Max pagination buttons per row
 
         # Simple Prev/Next buttons if too many pages, or full list if few
         if (
@@ -241,10 +241,7 @@ async def display_notes_by_maturity(
     await send_message(update, context, response_message, markup=keyboard)
 
 
-@router.command(
-    "list",
-    description="List your notes",
-)
+@router.command("list", description="List your notes")
 @authorize()
 async def list_cards_command(
     update: Update, context: CallbackContext, user: User
