@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 import logging
 import math
@@ -6,8 +7,10 @@ from telegram import (
     Update,
     InlineKeyboardButton as Button,
     InlineKeyboardMarkup as Keyboard,
+    Message,
 )
 from telegram.ext import CallbackContext
+from telegram.constants import ParseMode
 
 from ..config import Config
 from ..core import User, db
@@ -22,14 +25,14 @@ from ..srs import (
 from ..ui import Signal, bus, encode
 from .router import router
 from .utils import send_message, authorize, send_image_message
-from .note import get_explanation_in_native_language
+from .note import get_explanation_in_native_language, format_explanation
 
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ListNotesByMaturityRequested(Signal):
+class NotesListRequested(Signal):
     user_id: int
     language_id: int
     maturity_filter: Maturity
@@ -39,21 +42,18 @@ class ListNotesByMaturityRequested(Signal):
 @dataclass
 class NoteSelected(Signal):
     user_id: int
-    language_id: int  # Language of the list view context
     note_id: int
 
 
 @dataclass
 class NoteEditRequested(Signal):
     user_id: int
-    language_id: int  # Note's actual language_id
     note_id: int
 
 
 @dataclass
 class NoteDeletionRequested(Signal):
     user_id: int
-    language_id: int  # Note's actual language_id
     note_id: int
 
 
@@ -117,11 +117,19 @@ async def display_notes_by_maturity(
     for (
         note_item
     ) in notes_on_page:  # Renamed to avoid conflict with note module
+        button_text = format_note_for_list(note_item)
+        image_path = note_item.get_option("image/path")
+        if (
+            Config.IMAGE["enable"]
+            and image_path
+            and isinstance(image_path, str)
+            and os.path.exists(image_path)
+        ):
+            button_text = f"🖼️ {button_text}"
+
         note_button = Button(
-            format_note_for_list(note_item),
-            callback_data=encode(
-                NoteSelected(user.id, language.id, note_item.id)
-            ),
+            button_text,
+            callback_data=encode(NoteSelected(user.id, note_item.id)),
         )
         all_keyboard_rows.append(
             [note_button]
@@ -135,7 +143,7 @@ async def display_notes_by_maturity(
             f"{'🌳' if maturity_level == Maturity.MATURE else ''} "
             f"{maturity_level.value.capitalize()}",
             callback_data=encode(
-                ListNotesByMaturityRequested(
+                NotesListRequested(
                     user.id,
                     language.id,
                     maturity_level,
@@ -168,7 +176,7 @@ async def display_notes_by_maturity(
                     Button(
                         "⬅️ Prev",
                         callback_data=encode(
-                            ListNotesByMaturityRequested(
+                            NotesListRequested(
                                 user.id,
                                 language.id,
                                 maturity_to_display,
@@ -181,7 +189,7 @@ async def display_notes_by_maturity(
                 Button(
                     f"Page {page}/{total_pages}",
                     callback_data=encode(
-                        ListNotesByMaturityRequested(
+                        NotesListRequested(
                             user.id, language.id, maturity_to_display, page
                         )
                     ),
@@ -192,7 +200,7 @@ async def display_notes_by_maturity(
                     Button(
                         "Next ➡️",
                         callback_data=encode(
-                            ListNotesByMaturityRequested(
+                            NotesListRequested(
                                 user.id,
                                 language.id,
                                 maturity_to_display,
@@ -211,7 +219,7 @@ async def display_notes_by_maturity(
                     Button(
                         button_text,
                         callback_data=encode(
-                            ListNotesByMaturityRequested(
+                            NotesListRequested(
                                 user.id,
                                 language.id,
                                 maturity_to_display,
@@ -235,7 +243,7 @@ async def display_notes_by_maturity(
 
 @router.command(
     "list",
-    description="List your words, categorized by maturity (New, Young, Mature).",
+    description="List your notes",
 )
 @authorize()
 async def list_cards_command(
@@ -268,7 +276,7 @@ async def list_cards_command(
     )
 
 
-@bus.on(ListNotesByMaturityRequested)
+@bus.on(NotesListRequested)
 @authorize()
 async def handle_list_notes_by_maturity_request(
     update: Update,
@@ -308,55 +316,86 @@ async def handle_note_selected(
     update: Update,
     context: CallbackContext,
     user: User,
-    language_id: int,  # Language of the list view context
     note_id: int,
 ):
-    logger.info(
-        f"User {user.login} selected note {note_id} (list language_id: {language_id})"
-    )
+    logger.info(f"User {user.login} selected note {note_id}")
 
     selected_note = get_note(note_id)
 
     if not selected_note:
-        await send_message(update, context, "Error: Note not found.")
+        err_msg = "Error: Note not found."
+        await send_message(update, context, err_msg, new=True)
         return
 
     if selected_note.user_id != user.id:
-        await send_message(
-            update,
-            context,
-            "Error: You can only view details of your own notes.",
-        )
+        err_msg = "Error: You can only view details of your own notes."
+        await send_message(update, context, err_msg, new=True)
         return
 
-    explanation_to_display = await get_explanation_in_native_language(
+    # Prepare explanation details
+    original_explanation_raw = selected_note.field2
+    original_explanation_formatted = format_explanation(
+        original_explanation_raw
+    )
+    studied_language_name = selected_note.language.name
+
+    explanation_in_native_lang_raw = await get_explanation_in_native_language(
         selected_note
     )
+    explanation_in_native_lang_formatted = format_explanation(
+        explanation_in_native_lang_raw
+    )
 
-    message_text = f"*{selected_note.field1}*\n\n{explanation_to_display}"
+    message_text_parts = [f"*{selected_note.field1}*"]
+    message_text_parts.append(
+        f"\n\n_{studied_language_name}_:\n{original_explanation_formatted}"
+    )
+
+    if original_explanation_raw != explanation_in_native_lang_raw:
+        native_language_id = user.get_option(
+            f"languages/{selected_note.language_id}/native_language"
+        )
+        if (
+            native_language_id
+            and native_language_id != selected_note.language_id
+        ):
+            native_language_obj = get_language(native_language_id)
+            if native_language_obj:
+                message_text_parts.append(
+                    f"\n\n_{native_language_obj.name}_:\n{explanation_in_native_lang_formatted}"
+                )
+            else:
+                logger.warning(
+                    f"Could not find native language object for ID {native_language_id}"
+                )
+    message_text = "".join(message_text_parts)
 
     keyboard_buttons = [
         Button(
             "Delete",
             callback_data=encode(
-                NoteDeletionRequested(
-                    user.id, selected_note.language_id, selected_note.id
-                )
+                NoteDeletionRequested(user.id, selected_note.id)
             ),
         ),
         Button(
             "Edit",
-            callback_data=encode(
-                NoteEditRequested(
-                    user.id, selected_note.language_id, selected_note.id
-                )
-            ),
+            callback_data=encode(NoteEditRequested(user.id, selected_note.id)),
         ),
     ]
     keyboard = Keyboard([keyboard_buttons])
 
     image_path = selected_note.get_option("image/path")
 
+    reply_to_message: Optional[Message] = None
+    if update.callback_query and update.callback_query.message:
+        reply_to_message = update.callback_query.message
+        try:
+            # Acknowledge the button press to remove the loading spinner
+            await update.callback_query.answer()
+        except Exception as e:
+            logger.warning(f"Failed to answer callback query: {e}")
+
+    # Send a new message replying to the list message (if available)
     if (
         Config.IMAGE["enable"]
         and image_path
@@ -364,10 +403,23 @@ async def handle_note_selected(
         and os.path.exists(image_path)
     ):
         await send_image_message(
-            update, context, message_text, image_path, markup=keyboard
+            update,
+            context,
+            caption=message_text,
+            image=image_path,
+            markup=keyboard,
+            new=True,  # Always send a new message for note details
+            reply_to=reply_to_message,
         )
     else:
-        await send_message(update, context, message_text, markup=keyboard)
+        await send_message(
+            update,
+            context,
+            caption=message_text,
+            markup=keyboard,
+            new=True,  # Always send a new message for note details
+            reply_to=reply_to_message,
+        )
 
 
 @bus.on(NoteDeletionRequested)
@@ -376,29 +428,19 @@ async def handle_note_deletion_requested(
     update: Update,
     context: CallbackContext,
     user: User,
-    language_id: int,  # This is note.language_id
     note_id: int,
 ):
-    logger.info(
-        f"User {user.login} requested deletion of note {note_id} (language_id from signal: {language_id})"
-    )
+    logger.info(f"User {user.login} requested deletion of note {note_id}")
 
     note_to_delete = get_note(note_id)
     if not note_to_delete:
-        # Edit message if callback, otherwise send new
         message = "Error: Note not found or already deleted."
-        if update.callback_query:
-            await update.callback_query.edit_message_text(text=message)
-        else:
-            await send_message(update, context, message)
+        await send_message(update, context, message)
         return
 
     if note_to_delete.user_id != user.id:
         message = "Error: You can only delete your own notes."
-        if update.callback_query:
-            await update.callback_query.edit_message_text(text=message)
-        else:
-            await send_message(update, context, message)
+        await send_message(update, context, message)
         return
 
     note_field1_for_message = note_to_delete.field1
@@ -410,10 +452,7 @@ async def handle_note_deletion_requested(
             f"Note {note_id} ('{note_field1_for_message}') deleted successfully by user {user.login}."
         )
         message = f"Note '{note_field1_for_message}' has been deleted."
-        if update.callback_query:
-            await update.callback_query.edit_message_text(text=message)
-        else:
-            await send_message(update, context, message)
+        await send_message(update, context, message, markup=None)
 
     except Exception as e:
         db.session.rollback()
@@ -422,7 +461,4 @@ async def handle_note_deletion_requested(
             exc_info=True,
         )
         message = "Error: Could not delete the note."
-        if update.callback_query:
-            await update.callback_query.edit_message_text(text=message)
-        else:
-            await send_message(update, context, message)
+        await send_message(update, context, message)

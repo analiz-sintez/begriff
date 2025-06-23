@@ -15,6 +15,7 @@ from telegram.constants import ParseMode
 from telegram import (
     Update,
     InputMediaPhoto,
+    Message,
 )
 
 
@@ -94,19 +95,119 @@ def authorize(admin=False) -> UserInjector:
     return _authorize
 
 
+async def _send_message(
+    update: Update,
+    context: CallbackContext,
+    caption: str,
+    image: Optional[str] = None,
+    markup=None,
+    new: bool = False,
+    reply_to: Optional[Message] = None,
+):
+    """Internal helper to send or update a message, with or without an image."""
+    if image and not Config.IMAGE["enable"]:
+        logger.info(
+            "Images are disabled in config, sending message without image."
+        )
+        image = None  # Force no image if disabled
+
+    can_edit = update.callback_query is not None and not new
+
+    if can_edit:
+        # Editing an existing message
+        message = update.callback_query.message
+        if image:
+            try:
+                await message.edit_media(
+                    media=InputMediaPhoto(
+                        media=open(image, "rb"),
+                        caption=caption,
+                        parse_mode=ParseMode.MARKDOWN,
+                    ),
+                    reply_markup=markup,
+                )
+            except (
+                Exception
+            ) as e:  # If image is the same, telegram might raise an error.
+                # Try editing caption instead.
+                logger.warning(
+                    f"Failed to edit media (possibly same image): {e}. Trying to edit caption."
+                )
+                await message.edit_caption(
+                    caption=caption,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=markup,
+                )
+        else:
+            # If there was an image before, and now we send without,
+            # we must edit_message_text, not edit_caption.
+            # However, if there was no image, edit_caption would fail.
+            # The safest is to try edit_message_text, and if it fails (e.g. was photo),
+            # then try to edit_caption (to remove image, we'd need to send new message).
+            # For simplicity, if no image now, assume we're editing text part or sending text only.
+            # This might require deleting the old message and sending a new one if media type changes from photo to text.
+            # For now, let's assume we can edit the text or caption.
+            try:
+                await message.edit_text(  # Handles case where previous message was text
+                    text=caption,
+                    reply_markup=markup,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except (
+                Exception
+            ):  # Fallback to edit_caption if edit_text fails (e.g. previous was photo)
+                await message.edit_caption(
+                    caption=caption,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=markup,
+                )
+    else:
+        # Sending a new message
+        effective_reply_to_message_id = None
+        if reply_to and isinstance(reply_to, Message):
+            effective_reply_to_message_id = reply_to.message_id
+        elif (
+            update.message
+        ):  # Default reply if `update.message` exists and no explicit `reply_to`
+            effective_reply_to_message_id = update.message.message_id
+
+        if image:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=open(image, "rb"),
+                caption=caption,
+                reply_markup=markup,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_to_message_id=effective_reply_to_message_id,
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=caption,
+                reply_markup=markup,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_to_message_id=effective_reply_to_message_id,
+            )
+
+
 async def send_message(
     update: Update,
     context: CallbackContext,
     caption: str,
     markup=None,
+    new: bool = False,
+    reply_to: Optional[Message] = None,
 ):
     """Send or update message, without image."""
-    reply_fn = (
-        update.callback_query.edit_message_text
-        if update.callback_query is not None
-        else update.message.reply_text
+    await _send_message(
+        update,
+        context,
+        caption,
+        image=None,
+        markup=markup,
+        new=new,
+        reply_to=reply_to,
     )
-    await reply_fn(caption, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
 
 
 async def send_image_message(
@@ -115,39 +216,37 @@ async def send_image_message(
     caption: str,
     image: Optional[str] = None,
     markup=None,
+    new: bool = False,
+    reply_to: Optional[Message] = None,
 ):
     """Send or update photo message."""
-    if not Config.IMAGE["enable"]:
-        logger.info("Images in study mode are disabled, ignoring them.")
-        await send_message(update, context, caption, markup)
-    elif update.callback_query is not None:
-        # If the session continues, edit photo object.
-        message = (
-            update.callback_query.message
-            if update.message is None
-            else update.message
-        )
-        if image:
-            await message.edit_media(
-                media=InputMediaPhoto(
-                    media=open(image, "rb"),
-                    caption=caption,
-                    parse_mode=ParseMode.MARKDOWN,
-                ),
-                reply_markup=markup,
-            )
-        else:
-            await message.edit_caption(
-                caption=caption,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=markup,
-            )
-    else:
-        # If the session just starts, send photo object.
-        await context.bot.send_photo(
-            chat_id=update.effective_chat.id,
-            photo=open(image, "rb") if image else None,
-            caption=caption,
-            reply_markup=markup,
-            parse_mode=ParseMode.MARKDOWN,
-        )
+    await _send_message(
+        update,
+        context,
+        caption,
+        image=image,
+        markup=markup,
+        new=new,
+        reply_to=reply_to,
+    )
+
+
+class Context:
+    """
+    TODO:
+
+    Stores all contextual info, preferably in a messenger-independent
+    way. Should support Telegram, Whatsapp, Matrix, Slack, Mattermost,
+    maybe even IRC.
+    """
+
+    _tg = {"update": None, "context": None}
+
+    def button(self, text, callback):
+        pass
+
+    def keyboard(self, buttons):
+        pass
+
+    async def message(self, text, markup, image):
+        pass
