@@ -9,10 +9,10 @@ Since it knows your vocabulary, it adopts to your level and speaks understandabl
 ## What you can do with it
 
 <p float="left" align="middle">
-<img src="https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9" width="100" /> 
-<img src="https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e" width="100" /> 
-<img src="https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b" width="100" />  
-<img src="https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc" width="100" />
+<img src="https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9" width="24%" /> 
+<img src="https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e" width="24%" /> 
+<img src="https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b" width="24%" />  
+<img src="https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc" width="24%" />
 </p>
 
 - Get explanations for unfamiliar words you stumble on while reading.
