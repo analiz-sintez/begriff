@@ -19,10 +19,24 @@ from inspect import signature
 logger = logging.getLogger(__name__)
 
 
-def unoption(hint):
+def is_optional(hint: type) -> bool:
+    origin = get_origin(hint)
+    args = get_args(hint)
+    if (
+            origin == Union
+            and len(args) == 2
+            and any([typ == type(None) for typ in args])
+        ):
+        return True
+    else:
+        return False
+        
+
+def unoption(hint: type) -> type:
     """Remove type hint modifiers as Unions and Optionals."""
-    if get_origin(hint) == Union and get_args(hint) == 2:
-        hint = get_args(hint)[-1]
+    if is_optional(hint):
+        types = [typ for typ in get_args(hint) if typ != type(None)]
+        hint = types[0]
     return hint
 
 
@@ -97,10 +111,10 @@ class Bus:
 
         for param in slot_sig.parameters.values():
             if param.name in signal_hints:
-                slot_param_type = param.annotation
-                signal_param_type = signal_hints[param.name]
+                slot_param_type = unoption(param.annotation)
+                signal_param_type = unoption(signal_hints[param.name])
                 if slot_param_type != signal_param_type:
-                    raise TypeError(
+                    logger.warning(
                         f"Slot parameter '{param.name}' "
                         f"expects type {slot_param_type}, "
                         f"but found {signal_param_type} "
@@ -199,6 +213,8 @@ def make_regexp(signal_type: Type[Signal]) -> str:
     for field in fields(signal_type):
         attr = field.name
         attr_type = field.type
+        if is_optional(attr_type):
+            attr_type = unoption(attr_type)
         if issubclass(attr_type, Enum):
             # If the attribute is an Enum, match its possible values
             enum_values = "|".join([e.name for e in attr_type])

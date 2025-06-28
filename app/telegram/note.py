@@ -29,12 +29,14 @@ from .utils import authorize, send_message
 class WordExplanationRequested(Signal):
     user_id: int
     text: str
+    explanation: Optional[str] = None
 
 
 @dataclass
 class PhraseExplanationRequested(Signal):
     user_id: int
     text: str
+    explanation: Optional[str] = None
 
 
 @dataclass
@@ -220,7 +222,7 @@ def _is_note_format(text: str) -> bool:
     """
     lines = text.strip().split("\n")
     result = all(
-        re.match(r"^.{1,200}(?:: .*)?$", line.strip()) for line in lines
+        re.match(r"^[^/]{1,200}(?:: .*)?$", line.strip()) for line in lines
     )
     logging.info(f"Message {text} contains notes = {result}")
     return result
@@ -253,17 +255,15 @@ async def add_notes(
 
         if len(text) <= 12:
             bus.emit(
-                WordExplanationRequested(user.id, text),
+                WordExplanationRequested(user.id, text, explanation),
                 update=update,
                 context=context,
-                explanation=explanation,
             )
         elif len(text) <= 30:
             bus.emit(
-                PhraseExplanationRequested(user.id, text),
+                PhraseExplanationRequested(user.id, text, explanation),
                 update=update,
                 context=context,
-                explanation=explanation,
             )
         else:
             bus.emit(
