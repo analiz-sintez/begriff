@@ -6,16 +6,15 @@ A telegram bot helps you to study language, combining power of spaced repetition
 
 Since it knows your vocabulary, it adopts to your level and speaks understandable language, gradually rising the bar.
 
-## What it does
+## What you can do with it
 
-![Get explanations for unfamiliar words](https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9)
+![Get explanations for unfamiliar words](https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9) ![Study added words](https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e) ![Get recaps of interesting web pages using studied words](https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b)  ![Study any popular language, not only English](https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc)
 
-![Study added words](https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e)
-
-![Get recaps of interesting web pages using studied words](https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b) 
-
-![Study any popular language, not only English](https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc)
-
+- Get explanations for unfamiliar words you stumble on while reading.
+- Study those words, so that you don't forget them when you stumble upon them again. Repeat only words you have difficulcies with, don't waste time on known stuff.
+- If a word is tough to remember, get a helper picture.
+- Get help in reading web pages you're interested in: paste it an url and get a short recap using words you're currently studying.
+- Check a sentence for grammar and lexical correctness if you're in doubt.
 
 ## How to Try
 
@@ -28,6 +27,12 @@ Since it knows your vocabulary, it adopts to your level and speaks understandabl
 - Cooperative mode: share words, explanations, recaps etc with your tutor or buddy.
 - Word usage examples and other study materials.
 - Voice samples to practice listening.
+
+## How it works
+
+It uses an LLM to generate explanations and otherwise process text input, and an image generation neural network to produce pictures. If you host the bot by yourself, you can configure it to use any OpenAI-compatible cloud or local LLM.
+
+It schedules word repetitions via FSRS algorithm — the same as used in Anki flashcards software.
 
 ## Setup
 
