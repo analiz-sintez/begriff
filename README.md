@@ -1,13 +1,13 @@
 # Begriff: a Language Bot
 
-A Telegram bot that helps you study foreign languages by combining the power of spaced repetition for building a strong vocabulary and language models to generate personalized learning content for you.
+A Telegram bot that helps you study any foreign languages by combining the power of spaced repetition for building a strong vocabulary and language models to generate personalized learning content for you.
 
 It knows your vocabulary, adapts to your level, and uses understandable language, gradually raising the bar.
 
 <p float="left" align="middle">
 <img src="https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9" width="24%" /> 
 <img src="https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e" width="24%" /> 
-<img src="https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b" width="24%" />  
+<img src="https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b" width="24%" />
 <img src="https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc" width="24%" />
 </p>
 
@@ -18,6 +18,7 @@ It knows your vocabulary, adapts to your level, and uses understandable language
 - If a word is tough to remember, get a helpful picture.
 - Get help reading web pages you're interested in: paste a URL and receive a short recap using words you’re currently studying.
 - Check a sentence for grammar and lexical correctness if you're in doubt.
+- Do all this for any foreign language: German, Korean, Armenian—you name it.
 
 ## How to Try
 
@@ -35,7 +36,7 @@ It knows your vocabulary, adapts to your level, and uses understandable language
 
 It uses an LLM to generate explanations and process text input, and an image generation neural network to produce pictures. If you host the bot yourself, you can configure it to use any OpenAI-compatible cloud or local LLM.
 
-It schedules word repetitions via the FSRS algorithm — the same one used in Anki flashcards software.
+It schedules word repetitions via the FSRS algorithm — the same one used in Anki flashcards software, but preconfigured with reasonable defaults and with helper functions to prevent study volume overload.
 
 ## Setup
 
