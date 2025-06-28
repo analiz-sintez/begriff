@@ -6,18 +6,28 @@ A telegram bot helps you to study language, combining power of spaced repetition
 
 Since it knows your vocabulary, it adopts to your level and speaks understandable language, gradually rising the bar.
 
+## What it does
+
+![Get explanations for unfamiliar words](https://github.com/user-attachments/assets/71493bc6-ae08-44ab-a432-d3f541c2dee9)
+
+![Study added words](https://github.com/user-attachments/assets/f097fe7c-fc70-4cd3-9452-7a4213712c1e)
+
+![Get recaps of interesting web pages using studied words](https://github.com/user-attachments/assets/7ab36e70-a1d6-4406-8618-792c9c16396b) 
+
+![Study any popular language, not only English](https://github.com/user-attachments/assets/02b85988-377f-4ee0-9765-6eb108c78dfc)
+
+
 ## How to Try
 
 1. Find the bot on Telegram: [BegriffBot](https://t.me/BegriffBot).
 2. Say `/start`.
 3. It will tell you what to do.
 
-## Limitations and Plans
+## Features planned
 
-- only English (planning to support all major languages)
-- doesn't adopt to your level (will know your vocabulary and use it for explanations and chats)
-- doesn't chat (coming soon)
-- doesn't have voice (coming soon)
+- Cooperative mode: share words, explanations, recaps etc with your tutor or buddy.
+- Word usage examples and other study materials.
+- Voice samples to practice listening.
 
 ## Setup
 
