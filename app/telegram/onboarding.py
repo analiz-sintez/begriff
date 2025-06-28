@@ -84,6 +84,7 @@ class OnboardingFinished(Signal):
 
 
 @router.command("help", description="Describe commands")
+@router.command("start", description="Start using the bot")
 @authorize()
 async def help(update: Update, context: CallbackContext, user: User) -> None:
     logger.info("User %s required help page.", user.id)
@@ -93,14 +94,16 @@ Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
         
 Here are the commands you can use:
         
-Simply enter words separated by a newline to add them to your study list with automatic explanations.
-/list - See all the words you've added to your study list along with their details.
-/study - Start a study session with your queued words.
+📝 Simply enter words separated by a newline to add them to your study list with automatic explanations.
+🗣️ Write a sentence (30 chars or more) to check it for grammatical and lexical errors.
+🌐 Paste a URL or share it from any app to get a recap in a language you study, with currently studied words.
+📜 /list - See all the words you've added to your study list along with their details.
+📚 /study - Start a study session with your queued words.
+🌍 /language - Change your studied language.        
 """
     )
 
 
-@router.command("start", description="Start using the bot")
 @authorize()
 async def start(update: Update, context: CallbackContext, user: User) -> None:
     """Launch the onboarding process."""
@@ -122,6 +125,28 @@ async def select_native_language(update, context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
     bus.emit(OnboardingFinished(user.id), update=update, context=context)
+
+
+async def handle_native_language():
+    pass
+
+
+async def select_study_language():
+    pass
+
+
+async def handle_study_language():
+    pass
+
+
+async def do_test(user: User):
+    # Check if there's a word freq dict for the selected study language.
+    # Randomly pick N words from the easiest 500 words.
+    # Add them as word notes.
+    # Get their front->back cards.
+    # Show the cards to a user, each card only once.
+    # Get the views and results.
+    pass
 
 
 @bus.on(OnboardingFinished)
