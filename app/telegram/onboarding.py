@@ -6,7 +6,7 @@ from telegram.ext import CallbackContext
 
 from ..bus import Signal, bus, encode
 from ..core import User
-from .utils import authorize, send_message
+from .utils import authorize, TelegramContext as Context
 from .router import router
 
 
@@ -84,11 +84,11 @@ class OnboardingFinished(Signal):
 
 
 @router.command("help", description="Describe commands")
-@router.command("start", description="Start using the bot")
 @authorize()
 async def help(update: Update, context: CallbackContext, user: User) -> None:
     logger.info("User %s required help page.", user.id)
-    await update.message.reply_text(
+    ctx = Context(update, context)
+    await ctx.send_message(
         """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
         
@@ -104,12 +104,12 @@ Here are the commands you can use:
     )
 
 
+@router.command("start", description="Start using the bot")
 @authorize()
 async def start(update: Update, context: CallbackContext, user: User) -> None:
     """Launch the onboarding process."""
-    await send_message(
-        update,
-        context,
+    ctx = Context(update, context)
+    await ctx.send_message(
         """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
 
@@ -151,6 +151,7 @@ async def do_test(user: User):
 
 @bus.on(OnboardingFinished)
 @authorize()
-async def select_native_language(update, context, user: User):
+async def finish_onboarding(update, context, user: User):
     # Show a message with tips how to work with the bot.
-    await send_message(update, context, "Here we go")
+    ctx = Context(update, context)
+    await ctx.send_message("Here we go")

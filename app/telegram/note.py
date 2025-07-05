@@ -2,6 +2,7 @@ import re
 import time
 import random
 import logging
+
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
@@ -22,7 +23,7 @@ from ..srs import (
     Note,
 )
 from .router import router
-from .utils import authorize, send_message
+from .utils import authorize, TelegramContext as Context
 
 
 @dataclass
@@ -239,18 +240,15 @@ async def add_notes(
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
+    ctx = Context(update, context)
     message_text = update.message.text.split("\n")
     if len(message_text) > 100:
-        return await send_message(
-            update, context, "You can add up to 100 words at a time."
-        )
+        return await ctx.send_message("You can add up to 100 words at a time.")
 
     for _, line in enumerate(message_text):
         text, explanation = _parse_line(line)
         if not text:
-            await send_message(
-                update, context, f"Couldn't parse the text: {line.strip()}"
-            )
+            await ctx.send_message(f"Couldn't parse the text: {line.strip()}")
             continue
 
         if len(text) <= 12:
@@ -288,7 +286,7 @@ async def add_note(
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
-
+    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -360,9 +358,7 @@ async def add_note(
     display_explanation = format_explanation(
         await get_explanation_in_native_language(note)
     )
-    await send_message(
-        update, context, f"{icon} *{text}* — {display_explanation}"
-    )
+    await ctx.send_message(f"{icon} *{text}* — {display_explanation}")
 
 
 @bus.on(TextExplanationRequested)
@@ -374,6 +370,7 @@ async def add_text(
     text: str,
     explanation: Optional[str] = None,
 ):
+    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -388,4 +385,4 @@ async def add_text(
     )
 
     reply = await find_mistakes(text, language.name, native_language.name)
-    await send_message(update, context, reply)
+    await ctx.send_message(reply)

@@ -3,14 +3,8 @@ from dataclasses import dataclass
 import logging
 import math
 
-from telegram import (
-    Update,
-    InlineKeyboardButton as Button,
-    InlineKeyboardMarkup as Keyboard,
-    Message,
-)
-from telegram.ext import CallbackContext, filters
-from telegram.constants import ParseMode
+from telegram import Update, Message
+from telegram.ext import CallbackContext
 
 from ..config import Config
 from ..core import User, db
@@ -23,9 +17,9 @@ from ..srs import (
     get_note,
     update_note as srs_update_note,  # Renamed to avoid conflict
 )
-from ..bus import Signal, bus, encode
+from ..bus import Signal, bus
 from .router import router
-from .utils import send_message, authorize
+from .utils import authorize, TelegramContext as Context, Keyboard, Button
 from .note import get_explanation_in_native_language, format_explanation
 
 
@@ -70,8 +64,7 @@ def _format_note_for_list(note: Note) -> str:
 
 
 async def display_notes_by_maturity(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     language: Language,
     maturity_to_display: Maturity,
@@ -135,8 +128,8 @@ async def display_notes_by_maturity(
             button_text = f"🖼️ {button_text}"
 
         note_button = Button(
-            button_text,
-            callback_data=encode(NoteSelected(user.id, note_item.id)),
+            text=button_text,
+            callback=NoteSelected(user.id, note_item.id),
         )
         all_keyboard_rows.append(
             [note_button]
@@ -145,17 +138,15 @@ async def display_notes_by_maturity(
     # Maturity selection buttons
     maturity_buttons_row = [
         Button(
-            f"{'🆕' if maturity_level == Maturity.NEW else ''}"
+            text=f"{'🆕' if maturity_level == Maturity.NEW else ''}"
             f"{'🌱' if maturity_level == Maturity.YOUNG else ''}"
             f"{'🌳' if maturity_level == Maturity.MATURE else ''} "
             f"{maturity_level.value.capitalize()}",
-            callback_data=encode(
-                NotesListRequested(
-                    user.id,
-                    language.id,
-                    maturity_level,
-                    1,  # Reset to page 1 on maturity change
-                )
+            callback=NotesListRequested(
+                user.id,
+                language.id,
+                maturity_level,
+                1,  # Reset to page 1 on maturity change
             ),
         )
         for maturity_level in Maturity
@@ -179,38 +170,32 @@ async def display_notes_by_maturity(
             if page > 1:
                 pagination_row.append(
                     Button(
-                        "⬅️ Prev",
-                        callback_data=encode(
-                            NotesListRequested(
-                                user.id,
-                                language.id,
-                                maturity_to_display,
-                                prev_page,
-                            )
+                        text="⬅️ Prev",
+                        callback=NotesListRequested(
+                            user.id,
+                            language.id,
+                            maturity_to_display,
+                            prev_page,
                         ),
                     )
                 )
             pagination_row.append(
                 Button(
-                    f"Page {page}/{total_pages}",
-                    callback_data=encode(
-                        NotesListRequested(
-                            user.id, language.id, maturity_to_display, page
-                        )
+                    text=f"Page {page}/{total_pages}",
+                    callback=NotesListRequested(
+                        user.id, language.id, maturity_to_display, page
                     ),
                 )
             )  # Non-clickable current page
             if page < total_pages:
                 pagination_row.append(
                     Button(
-                        "Next ➡️",
-                        callback_data=encode(
-                            NotesListRequested(
-                                user.id,
-                                language.id,
-                                maturity_to_display,
-                                next_page,
-                            )
+                        text="Next ➡️",
+                        callback=NotesListRequested(
+                            user.id,
+                            language.id,
+                            maturity_to_display,
+                            next_page,
                         ),
                     )
                 )
@@ -222,14 +207,12 @@ async def display_notes_by_maturity(
                 button_text = f"[{p_num}]" if p_num == page else str(p_num)
                 current_page_row.append(
                     Button(
-                        button_text,
-                        callback_data=encode(
-                            NotesListRequested(
-                                user.id,
-                                language.id,
-                                maturity_to_display,
-                                p_num,
-                            )
+                        text=button_text,
+                        callback=NotesListRequested(
+                            user.id,
+                            language.id,
+                            maturity_to_display,
+                            p_num,
                         ),
                     )
                 )
@@ -243,7 +226,7 @@ async def display_notes_by_maturity(
 
     keyboard = Keyboard(all_keyboard_rows) if all_keyboard_rows else None
 
-    await send_message(update, context, response_message, markup=keyboard)
+    await ctx.send_message(response_message, markup=keyboard)
 
 
 @router.command("list", description="List your notes")
@@ -254,15 +237,14 @@ async def list_cards_command(
     """
     Initial handler for the /list command. Displays 'Young' notes by default, page 1.
     """
+    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
         )
     )
     if not language:
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "Error: Studied language not set or found. Please set a language using /language.",
         )
         return
@@ -274,7 +256,7 @@ async def list_cards_command(
     )
 
     await display_notes_by_maturity(
-        update, context, user, language, Maturity.YOUNG, page=1
+        ctx, user, language, Maturity.YOUNG, page=1
     )
 
 
@@ -291,12 +273,13 @@ async def handle_list_notes_by_maturity_request(
     """
     Handles button presses from the maturity or pagination keyboard to display notes.
     """
+    ctx = Context(update, context)
     language = get_language(language_id)
     if not language:
         logger.error(
             f"Language not found for id {language_id} for user {user.login} in ListNotesByMaturityRequested."
         )
-        await send_message(update, context, "Error: Language not found.")
+        await ctx.send_message("Error: Language not found.")
         return
 
     logger.info(
@@ -307,9 +290,7 @@ async def handle_list_notes_by_maturity_request(
         page,
     )
 
-    await display_notes_by_maturity(
-        update, context, user, language, maturity_filter, page
-    )
+    await display_notes_by_maturity(ctx, user, language, maturity_filter, page)
 
 
 @bus.on(NoteSelected)
@@ -321,17 +302,18 @@ async def handle_note_selected(
     note_id: int,
 ):
     logger.info(f"User {user.login} selected note {note_id}")
+    ctx = Context(update, context)
 
     selected_note = get_note(note_id)
 
     if not selected_note:
-        err_msg = "Error: Note not found."
-        await send_message(update, context, err_msg, new=True)
+        await ctx.send_message("Error: Note not found.", new=True)
         return
 
     if selected_note.user_id != user.id:
-        err_msg = "Error: You can only view details of your own notes."
-        await send_message(update, context, err_msg, new=True)
+        await ctx.send_message(
+            "Error: You can only view details of your own notes.", new=True
+        )
         return
 
     # Prepare explanation details
@@ -375,21 +357,15 @@ async def handle_note_selected(
     keyboard_buttons = [
         Button(
             "Delete",
-            callback_data=encode(
-                NoteDeletionRequested(user.id, selected_note.id)
-            ),
+            callback=NoteDeletionRequested(user.id, selected_note.id),
         ),
         # Button(
         #     "Edit Title",
-        #     callback_data=encode(
-        #         NoteTitleEditRequested(user.id, selected_note.id)
-        #     ),
+        #     callback=NoteTitleEditRequested(user.id, selected_note.id),
         # ),
         # Button(
         #     "Edit Explanation",
-        #     callback_data=encode(
-        #         NoteExplanationEditRequested(user.id, selected_note.id)
-        #     ),
+        #     callback=NoteExplanationEditRequested(user.id, selected_note.id),
         # ),
     ]
     keyboard = Keyboard([keyboard_buttons])
@@ -407,10 +383,8 @@ async def handle_note_selected(
     image_path = selected_note.get_option("image/path")
     if not (isinstance(image_path, str) and os.path.exists(image_path)):
         image_path = None
-    await send_message(
-        update,
-        context,
-        caption=message_text,
+    await ctx.send_message(
+        text=message_text,
         image=image_path,
         markup=keyboard,
         new=True,  # Always send a new message for note details
@@ -426,11 +400,10 @@ async def handle_note_title_edit_requested(
     logger.info(
         f"User {user.login} requested to edit title for note {note_id}"
     )
+    ctx = Context(update, context)
     note_to_edit = get_note(note_id)
     if not note_to_edit or note_to_edit.user_id != user.id:
-        await send_message(
-            update, context, "Error: Note not found or not yours."
-        )
+        await ctx.send_message("Error: Note not found or not yours.")
         return
 
     context.user_data["active_edit"] = {
@@ -442,9 +415,7 @@ async def handle_note_title_edit_requested(
             else None
         ),
     }
-    await send_message(
-        update, context, "Please send the new title for the note."
-    )
+    await ctx.send_message("Please send the new title for the note.")
     if update.callback_query:
         await update.callback_query.answer()
 
@@ -457,11 +428,10 @@ async def handle_note_explanation_edit_requested(
     logger.info(
         f"User {user.login} requested to edit explanation for note {note_id}"
     )
+    ctx = Context(update, context)
     note_to_edit = get_note(note_id)
     if not note_to_edit or note_to_edit.user_id != user.id:
-        await send_message(
-            update, context, "Error: Note not found or not yours."
-        )
+        await ctx.send_message("Error: Note not found or not yours.")
         return
 
     context.user_data["active_edit"] = {
@@ -473,9 +443,7 @@ async def handle_note_explanation_edit_requested(
             else None
         ),
     }
-    await send_message(
-        update, context, "Please send the new explanation for the note."
-    )
+    await ctx.send_message("Please send the new explanation for the note.")
     if update.callback_query:
         await update.callback_query.answer()
 
@@ -497,6 +465,7 @@ async def handle_note_edit_input(
         )
         return True  # Indicate that this handler did not fully process the message if it's not an edit.
 
+    ctx = Context(update, context)
     active_edit_info = context.user_data["active_edit"]
     note_id = active_edit_info["note_id"]
     field_to_edit = active_edit_info["field_to_edit"]
@@ -504,16 +473,12 @@ async def handle_note_edit_input(
     note_to_edit = get_note(note_id)
 
     if not note_to_edit:
-        await send_message(
-            update, context, "Error: Note not found. Edit cancelled."
-        )
+        await ctx.send_message("Error: Note not found. Edit cancelled.")
         del context.user_data["active_edit"]
         return
 
     if note_to_edit.user_id != user.id:
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "Error: You can only edit your own notes. Edit cancelled.",
         )
         del context.user_data["active_edit"]
@@ -521,9 +486,7 @@ async def handle_note_edit_input(
 
     new_value = update.message.text.strip()
     if not new_value:
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "The new value cannot be empty. Please try again or send /cancel to abort.",
         )
         # Do not clear active_edit, let user try again.
@@ -556,16 +519,14 @@ async def handle_note_edit_input(
             confirmation_message = f"Note explanation updated."
             logger.info(f"Note {note_id} field2 updated by user {user.login}.")
 
-        await send_message(update, context, confirmation_message)
+        await ctx.send_message(confirmation_message)
     except Exception as e:
         db.session.rollback()
         logger.error(
             f"Error updating note {note_id} for user {user.login}: {e}",
             exc_info=True,
         )
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "An error occurred while updating the note. Please try again.",
         )
     finally:
@@ -584,16 +545,17 @@ async def handle_note_deletion_requested(
     note_id: int,
 ):
     logger.info(f"User {user.login} requested deletion of note {note_id}")
+    ctx = Context(update, context)
 
     note_to_delete = get_note(note_id)
     if not note_to_delete:
         message = "Error: Note not found or already deleted."
-        await send_message(update, context, message)
+        await ctx.send_message(message)
         return
 
     if note_to_delete.user_id != user.id:
         message = "Error: You can only delete your own notes."
-        await send_message(update, context, message)
+        await ctx.send_message(message)
         return
 
     note_field1_for_message = note_to_delete.field1
@@ -605,8 +567,8 @@ async def handle_note_deletion_requested(
             f"Note {note_id} ('{note_field1_for_message}') deleted successfully by user {user.login}."
         )
         message = f"Note '{note_field1_for_message}' has been deleted."
-        await send_message(
-            update, context, message, markup=None
+        await ctx.send_message(
+            message, markup=None
         )  # Remove keyboard from previous message
 
     except Exception as e:
@@ -616,4 +578,4 @@ async def handle_note_deletion_requested(
             exc_info=True,
         )
         message = "Error: Could not delete the note."
-        await send_message(update, context, message)
+        await ctx.send_message(message)
