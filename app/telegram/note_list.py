@@ -64,7 +64,7 @@ class NoteDeletionRequested(Signal):
     note_id: int
 
 
-def format_note_for_list(note: Note) -> str:
+def _format_note_for_list(note: Note) -> str:
     """Format a note for display in the list (field1 only)."""
     return f"{note.field1}"
 
@@ -124,7 +124,7 @@ async def display_notes_by_maturity(
     for (
         note_item
     ) in notes_on_page:  # Renamed to avoid conflict with note module
-        button_text = format_note_for_list(note_item)
+        button_text = _format_note_for_list(note_item)
         image_path = note_item.get_option("image/path")
         if (
             Config.IMAGE["enable"]
@@ -169,12 +169,10 @@ async def display_notes_by_maturity(
     if total_pages > 1:
         pagination_buttons_rows = []
         current_page_row = []
-        buttons_per_row = 10  # Max pagination buttons per row
+        buttons_per_row = 8  # Max pagination buttons per row
 
         # Simple Prev/Next buttons if too many pages, or full list if few
-        if (
-            total_pages > buttons_per_row + 2
-        ):  # Heuristic for when to switch to Prev/Next
+        if total_pages > 2 * buttons_per_row:
             prev_page = max(1, page - 1)
             next_page = min(total_pages, page + 1)
             pagination_row = []
