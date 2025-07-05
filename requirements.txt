@@ -1,4 +1,4 @@
-Flask
+Flask[async]
 SQLAlchemy
 SQLAlchemy-Utc
 flask_sqlalchemy

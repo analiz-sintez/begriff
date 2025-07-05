@@ -71,7 +71,11 @@ class Config:
         "vertexai_project_id": "begriff",
     }
 
-    TELEGRAM = {"bot_token": os.getenv("TELEGRAM_BOT_TOKEN")}
+    TELEGRAM = {
+        "bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
+        "webhook_url": os.getenv("TELEGRAM_WEBHOOK_URL"),
+        "webhook_secret_token": os.getenv("TELEGRAM_WEBHOOK_SECRET_TOKEN"),
+    }
 
     FSRS = {
         "target_retention": 0.9,
