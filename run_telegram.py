@@ -7,7 +7,7 @@ from app.config import Config
 from datetime import datetime
 
 
-def main():
+def setup_logging():
     # Set up logging:
     # ... ensure the directory for logs exists
     log_dir = "./logs"
@@ -28,6 +28,9 @@ def main():
         handlers=[console_handler, file_handler],
     )
 
+
+def main():
+    setup_logging()
     logger = logging.getLogger(__name__)
 
     token = Config.TELEGRAM["bot_token"]
