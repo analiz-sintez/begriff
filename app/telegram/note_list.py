@@ -25,7 +25,7 @@ from ..srs import (
 )
 from ..bus import Signal, bus, encode
 from .router import router
-from .utils import send_message, authorize, send_image_message
+from .utils import send_message, authorize
 from .note import get_explanation_in_native_language, format_explanation
 
 
@@ -394,8 +394,6 @@ async def handle_note_selected(
     ]
     keyboard = Keyboard([keyboard_buttons])
 
-    image_path = selected_note.get_option("image/path")
-
     reply_to_message: Message | None = None
     if update.callback_query and update.callback_query.message:
         reply_to_message = update.callback_query.message
@@ -406,30 +404,18 @@ async def handle_note_selected(
             logger.warning(f"Failed to answer callback query: {e}")
 
     # Send a new message replying to the list message (if available)
-    if (
-        Config.IMAGE["enable"]
-        and image_path
-        and isinstance(image_path, str)
-        and os.path.exists(image_path)
-    ):
-        await send_image_message(
-            update,
-            context,
-            caption=message_text,
-            image=image_path,
-            markup=keyboard,
-            new=True,  # Always send a new message for note details
-            reply_to=reply_to_message,
-        )
-    else:
-        await send_message(
-            update,
-            context,
-            caption=message_text,
-            markup=keyboard,
-            new=True,  # Always send a new message for note details
-            reply_to=reply_to_message,
-        )
+    image_path = selected_note.get_option("image/path")
+    if not (isinstance(image_path, str) and os.path.exists(image_path)):
+        image_path = None
+    await send_message(
+        update,
+        context,
+        caption=message_text,
+        image=image_path,
+        markup=keyboard,
+        new=True,  # Always send a new message for note details
+        reply_to=reply_to_message,
+    )
 
 
 @bus.on(NoteTitleEditRequested)

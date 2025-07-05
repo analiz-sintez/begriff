@@ -6,7 +6,7 @@ from telegram.ext import CallbackContext
 
 from ..bus import Signal, bus, encode
 from ..core import User
-from .utils import authorize, send_message, send_image_message
+from .utils import authorize, send_message
 from .router import router
 
 

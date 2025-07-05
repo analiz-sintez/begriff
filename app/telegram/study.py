@@ -27,7 +27,7 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
-from .utils import send_image_message, authorize
+from .utils import send_message, authorize
 from .router import router
 from ..bus import Signal, bus, encode
 
@@ -179,8 +179,11 @@ async def study_next_card(
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
         bus.emit(StudySessionFinished(user.id))
-        await send_image_message(
-            update, context, "All done for today.", await get_finish_image()
+        await send_message(
+            update,
+            context,
+            "All done for today.",
+            image=await get_finish_image(),
         )
         return
 
@@ -207,7 +210,7 @@ async def study_next_card(
         front = await get_explanation_in_native_language(note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
-    await send_image_message(update, context, front, image_path, keyboard)
+    await send_message(update, context, front, keyboard, image_path)
 
 
 @bus.on(CardAnswerRequested)
@@ -258,9 +261,7 @@ async def handle_study_answer(
             ]
         ]
     )
-    await send_image_message(
-        update, context, f"{front}\n\n{back}", None, keyboard
-    )
+    await send_message(update, context, f"{front}\n\n{back}", keyboard)
 
 
 @bus.on(CardGradeSelected)

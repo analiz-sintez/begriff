@@ -194,31 +194,11 @@ async def send_message(
     context: CallbackContext,
     caption: str,
     markup=None,
-    new: bool = False,
-    reply_to: Optional[Message] = None,
-):
-    """Send or update message, without image."""
-    await _send_message(
-        update,
-        context,
-        caption,
-        image=None,
-        markup=markup,
-        new=new,
-        reply_to=reply_to,
-    )
-
-
-async def send_image_message(
-    update: Update,
-    context: CallbackContext,
-    caption: str,
     image: Optional[str] = None,
-    markup=None,
     new: bool = False,
     reply_to: Optional[Message] = None,
 ):
-    """Send or update photo message."""
+    """Send or update message."""
     await _send_message(
         update,
         context,
