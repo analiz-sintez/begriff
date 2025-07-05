@@ -2,7 +2,6 @@ import logging
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flasgger import Swagger
 
 from .core import db
 
@@ -32,10 +31,6 @@ def create_app(config=None):
 
     app.register_blueprint(srs_bp)
     logger.info("Blueprints registered.")
-
-    # Initialize Swagger
-    swagger = Swagger(app, template_file="./swagger/api_docs.yaml")
-    logger.info("Swagger documentation set up.")
 
     logger.info("Application setup complete.")
 
