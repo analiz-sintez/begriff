@@ -44,11 +44,26 @@ def main():
     # Add the run function from bot.py to the file where you set up the bot
     logger.info("Running bot setup.")
 
-    # For testing, you can use polling
-    logger.info("Starting polling.")
     app = create_app(Config)
-    with app.app_context():
-        bot.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    webhook_url = Config.TELEGRAM.get("webhook_url")
+    if webhook_url:
+        # For production, you should set up a webhook.
+        logger.info("Starting a webhook.")
+        secret_token = Config.TELEGRAM.get("webhook_secret_token")
+        with app.app_context():
+            bot.run_webhook(
+                listen="127.0.0.1",
+                port=8000,
+                url_path="telegram",
+                secret_token=secret_token,
+                webhook_url=webhook_url,
+            )
+    else:
+        # For testing, you can use polling
+        logger.info("Starting polling.")
+        with app.app_context():
+            bot.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":

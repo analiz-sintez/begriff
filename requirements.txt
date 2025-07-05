@@ -8,7 +8,7 @@ pytest
 pytest-mock
 pytest-asyncio
 python-dotenv
-python-telegram-bot
+python-telegram-bot[webhooks]
 watchdog
 openai
 fsrs-rs-python
