@@ -29,7 +29,7 @@ from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
 from .utils import send_image_message, authorize
 from .router import router
-from ..ui import Signal, bus, encode
+from ..bus import Signal, bus, encode
 
 
 # States: ASK -> ANSWER -> RECORD

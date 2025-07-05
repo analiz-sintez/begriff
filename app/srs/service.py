@@ -12,7 +12,7 @@ from sqlalchemy.orm import aliased
 
 from ..config import Config
 from ..core import db
-from ..ui import Signal, bus
+from ..bus import Signal, bus
 from .models import Note, Card, View, Language, Answer
 
 

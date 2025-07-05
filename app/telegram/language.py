@@ -12,7 +12,7 @@ from telegram.ext import CallbackContext
 from ..config import Config
 from ..core import get_user, User
 from ..srs import get_language, get_notes, Language
-from ..ui import Signal, bus, encode
+from ..bus import Signal, bus, encode
 from .utils import send_message, authorize
 from .router import router
 from .note import get_explanation_in_native_language

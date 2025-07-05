@@ -11,7 +11,7 @@ from telegram.ext import CallbackContext
 from ..config import Config
 from ..core import User
 from ..llm import get_explanation, get_base_form, find_mistakes, translate
-from ..ui import Signal, bus
+from ..bus import Signal, bus
 from ..srs import (
     Language,
     Maturity,

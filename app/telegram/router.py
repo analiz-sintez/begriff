@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 from telegram import BotCommand, Message
-from ..ui import unoption
+from ..bus import unoption
 
 logger = logging.getLogger(__name__)
 

@@ -23,7 +23,7 @@ from ..srs import (
     get_note,
     update_note as srs_update_note,  # Renamed to avoid conflict
 )
-from ..ui import Signal, bus, encode
+from ..bus import Signal, bus, encode
 from .router import router
 from .utils import send_message, authorize, send_image_message
 from .note import get_explanation_in_native_language, format_explanation

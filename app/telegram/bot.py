@@ -6,7 +6,7 @@ from telegram.ext import Application, CallbackQueryHandler
 # Those are required since routes are declared there.
 from . import recap, note, study, note_list, language, onboarding
 from .router import router
-from ..ui import bus, decode, make_regexp
+from ..bus import bus, decode, make_regexp
 
 
 logger = logging.getLogger(__name__)

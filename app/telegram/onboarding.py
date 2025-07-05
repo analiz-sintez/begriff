@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from telegram import Update
 from telegram.ext import CallbackContext
 
-from ..ui import Signal, bus, encode
+from ..bus import Signal, bus, encode
 from ..core import User
 from .utils import authorize, send_message, send_image_message
 from .router import router
