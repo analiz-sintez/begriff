@@ -4,8 +4,6 @@ import asyncio
 from dataclasses import dataclass
 from telegram import (
     Update,
-    InlineKeyboardButton as Button,
-    InlineKeyboardMarkup as Keyboard,
 )
 from telegram.ext import CallbackContext
 
@@ -13,7 +11,7 @@ from ..config import Config
 from ..core import get_user, User
 from ..srs import get_language, get_notes, Language
 from ..bus import Signal, bus, encode
-from .utils import send_message, authorize
+from .utils import authorize, TelegramContext as Context, Keyboard, Button
 from .router import router
 from .note import get_explanation_in_native_language
 
@@ -71,13 +69,12 @@ async def change_language(
     language_name: Optional[str] = None,
     native_language_name: Optional[str] = None,
 ) -> None:
+    ctx = Context(update, context)
     if language_name:
         # Setting a studied language.
         studied_language = get_language(language_name)
         if not studied_language:
-            await send_message(
-                update,
-                context,
+            await ctx.send_message(
                 f"Language '{language_name}' not found or could not be created.",
             )
             return
@@ -96,9 +93,7 @@ async def change_language(
             # Also setting native language for this studied language.
             native_language = get_language(native_language_name)
             if not native_language:
-                await send_message(
-                    update,
-                    context,
+                await ctx.send_message(
                     f"Native language '{native_language_name}' not found or could not be created.",
                 )
                 return
@@ -130,7 +125,7 @@ async def change_language(
             # via the LanguageChanged signal handler.
             pass
 
-        await send_message(update, context, response_message)
+        await ctx.send_message(response_message)
 
     else:
         # Showing current language with language options to choose
@@ -169,19 +164,14 @@ async def change_language(
                 lang = get_language(lang_id)
                 if lang:
                     buttons.append(
-                        Button(
-                            lang.name,
-                            callback_data=encode(
-                                LanguageSelected(user.id, lang.id)
-                            ),
-                        )
+                        Button(lang.name, LanguageSelected(user.id, lang.id))
                     )
             keyboard = Keyboard([buttons]) if buttons else None
         else:
             response_message += "\n\nYou don't have any notes yet. Add notes to create languages, or use `/language <name>`."
             keyboard = None
 
-        await send_message(update, context, response_message, keyboard)
+        await ctx.send_message(response_message, keyboard)
 
 
 @bus.on(LanguageSelected)
@@ -189,16 +179,18 @@ async def change_language(
 async def handle_language_selected(
     update: Update, context: CallbackContext, user: User, language_id: int
 ) -> None:
+    ctx = Context(update, context)
+
     # This language_id is the new studied language
     studied_language = get_language(language_id)
     if not studied_language:
-        await send_message(update, context, "Error selecting language.")
+        await ctx.send_message("Error selecting language.")
         return
 
     user.set_option("studied_language", studied_language.id)
     response_message = f"Studied language changed to {studied_language.name}."
     # We use await here to ensure the message about language change is sent before asking for native.
-    await send_message(update, context, response_message)
+    await ctx.send_message(response_message)
     # Now emit LanguageChanged to trigger asking for native language
     bus.emit(
         LanguageChanged(user.id, studied_language.id),
@@ -212,15 +204,14 @@ async def handle_language_selected(
 async def ask_native_language(
     update: Update, context: CallbackContext, user: User, language_id: int
 ) -> None:
+    ctx = Context(update, context)
     # language_id here is the ID of the newly set *studied* language
     studied_language = get_language(language_id)
     if not studied_language:
         logger.error(
             f"Cannot find studied language with ID {language_id} for user {user.id}"
         )
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "An error occurred while setting up native language options.",
         )
         return
@@ -239,9 +230,7 @@ async def ask_native_language(
     native_options_ids.add(studied_language.id)
 
     if not native_options_ids:
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             f"No languages available to set as native for {studied_language.name}. "
             f"Explanations will be in {studied_language.name} by default.",
         )
@@ -266,10 +255,8 @@ async def ask_native_language(
             buttons.append(
                 Button(
                     lang_opt.name,
-                    callback_data=encode(
-                        NativeLanguageSelected(
-                            user.id, studied_language.id, lang_opt.id
-                        )
+                    NativeLanguageSelected(
+                        user.id, studied_language.id, lang_opt.id
                     ),
                 )
             )
@@ -283,7 +270,7 @@ async def ask_native_language(
     bus.emit(
         NativeLanguageAsked(user.id, studied_language_id=studied_language.id)
     )
-    await send_message(update, context, response_message, keyboard)
+    await ctx.send_message(response_message, keyboard)
 
 
 @bus.on(NativeLanguageSelected)
@@ -295,6 +282,8 @@ async def handle_native_language_selected(
     studied_language_id: int,
     native_language_id: int,
 ) -> None:
+    ctx = Context(update, context)
+
     studied_language = get_language(studied_language_id)
     native_language = get_language(native_language_id)
 
@@ -302,9 +291,7 @@ async def handle_native_language_selected(
         logger.error(
             f"Error fetching languages: Studied ID {studied_language_id}, Native ID {native_language_id}"
         )
-        await send_message(
-            update,
-            context,
+        await ctx.send_message(
             "An error occurred while setting the native language.",
         )
         return
@@ -327,7 +314,7 @@ async def handle_native_language_selected(
     bus.emit(
         NativeLanguageChanged(user.id, studied_language.id, native_language.id)
     )
-    await send_message(update, context, response_message)
+    await ctx.send_message(response_message)
 
 
 def _handle_translation_task_error(task: asyncio.Task) -> None:

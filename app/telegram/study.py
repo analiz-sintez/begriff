@@ -3,14 +3,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
-from telegram import (
-    Update,
-    InlineKeyboardButton as Button,
-    InlineKeyboardMarkup as Keyboard,
-)
+from telegram import Update
 from telegram.ext import CallbackContext
 
-from ..core import get_user, User
+from ..core import User
 from ..srs import (
     get_language,
     get_cards,
@@ -27,7 +23,13 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
-from .utils import send_message, authorize
+from .utils import (
+    send_message,
+    authorize,
+    Button,
+    Keyboard,
+    TelegramContext as Context,
+)
 from .router import router
 from ..bus import Signal, bus, encode
 
@@ -86,11 +88,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_default_image():
-    image_path = await generate_image(
-        # "A cat teacher in round glasses teaches"
-        # " young cat students in a university hall."
-        "Stars in the deep night sky."
-    )
+    image_path = await generate_image("Stars in the deep night sky.")
     return image_path
 
 
@@ -102,16 +100,7 @@ async def get_finish_image():
     return image_path
 
 
-def _get_previous_card(update: Update):
-    if update.callback_query is None:
-        return None
-    query = update.callback_query
-    if query.data.startswith("grade:"):
-        view_id = int(query.data.split(":")[1])
-        return get_view(view_id).card
-
-
-async def _get_image_for_show(card, previous_card):
+async def _get_image_for_show(card, previous_card=None):
     note = card.note
     image_path = note.get_option("image/path")
     # Note has image: use it.
@@ -145,6 +134,7 @@ async def study_next_card(
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
+    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -179,29 +169,13 @@ async def study_next_card(
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
         bus.emit(StudySessionFinished(user.id))
-        await send_message(
-            update,
-            context,
-            "All done for today.",
-            image=await get_finish_image(),
-        )
-        return
+        image_path = await get_finish_image()
+        return await ctx.send_message("All done for today.", image=image_path)
 
     card = cards[0]
-    image_path = await _get_image_for_show(card, _get_previous_card(update))
+    image_path = await _get_image_for_show(card)
 
-    keyboard = Keyboard(
-        [
-            [
-                # Button("ANSWER", callback=CardAnswerRequested(card.id))
-                Button(
-                    "ANSWER",
-                    callback_data=encode(CardAnswerRequested(card.id)),
-                )
-            ]
-        ]
-    )
-    context.user_data["current_card_id"] = card.id
+    keyboard = Keyboard([[Button("ANSWER", CardAnswerRequested(card.id))]])
     logger.info("Display card front for user %s: %s", user.login, card.front)
     front = card.front
     # If the card is reversed (explanation -> word), translate the explanation.
@@ -210,7 +184,7 @@ async def study_next_card(
         front = await get_explanation_in_native_language(note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
-    await send_message(update, context, front, keyboard, image_path)
+    await ctx.send_message(front, keyboard, image_path)
 
 
 @bus.on(CardAnswerRequested)
@@ -250,18 +224,16 @@ async def handle_study_answer(
     # ... record the moment user started answering
     view_id = record_view_start(card.id)
     # ... prepare the keyboard with memorization quality buttons
+    ctx = Context(update, context)
     keyboard = Keyboard(
         [
             [
-                Button(
-                    answer.name,
-                    callback_data=encode(CardGradeSelected(view_id, answer)),
-                )
+                Button(answer.name, CardGradeSelected(view_id, answer))
                 for answer in Answer
             ]
         ]
     )
-    await send_message(update, context, f"{front}\n\n{back}", keyboard)
+    await ctx.send_message(f"{front}\n\n{back}", keyboard)
 
 
 @bus.on(CardGradeSelected)
@@ -292,7 +264,7 @@ async def handle_study_grade(
 
 
 @bus.on(CardGraded)
-async def maybe_generate_image(view_id: int, answer: Answer):
+async def maybe_generate_image(view_id: int):
     if not (view := get_view(view_id)):
         return
 
