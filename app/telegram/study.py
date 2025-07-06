@@ -24,7 +24,6 @@ from ..image import generate_image
 from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
 from .utils import (
-    send_message,
     authorize,
     Button,
     Keyboard,

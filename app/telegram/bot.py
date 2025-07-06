@@ -5,7 +5,8 @@ from telegram.ext import Application, CallbackQueryHandler
 
 # Those are required since routes are declared there.
 from . import recap, note, study, note_list, language, onboarding
-from .router import router
+from ..messenger import router
+from ..messenger.telegram import attach
 from ..bus import bus, decode, make_regexp
 
 
@@ -24,7 +25,7 @@ def create_bot(token: str) -> Application:
         A configured Application instance representing the bot.
     """
     application = Application.builder().token(token).build()
-    router.attach(application)
+    attach(router, application)
 
     # For each signal type, register a handler:
     # if signal pattern matches, emit it, triggering all slots to run.

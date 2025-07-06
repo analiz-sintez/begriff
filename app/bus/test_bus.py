@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from app.ui import Signal, Bus, encode, decode, make_regexp
+from app.bus import Signal, Bus, encode, decode, make_regexp
 from enum import Enum
 
 
