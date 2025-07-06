@@ -4,9 +4,10 @@ import asyncio
 from dataclasses import dataclass
 
 from core.auth import User
-from core.bus import Signal, bus
+from core.bus import Signal
 from core.messenger import router, Context, authorize, Keyboard, Button
 
+from .. import bus
 from ..config import Config
 from ..srs import get_language, get_notes
 from .note import get_explanation_in_native_language

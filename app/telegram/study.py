@@ -5,8 +5,9 @@ from dataclasses import dataclass
 
 from core.auth import User
 from core.messenger import authorize, Button, Keyboard, Context, router
-from core.bus import Signal, bus
+from core.bus import Signal
 
+from .. import bus
 from ..srs import (
     get_language,
     get_cards,

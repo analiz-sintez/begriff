@@ -11,7 +11,8 @@ from sqlalchemy import and_
 from sqlalchemy.orm import aliased
 
 from core import db
-from core.bus import Signal, bus
+from core.bus import Signal
+from .. import bus
 from ..config import Config
 from .models import Note, Card, View, Language, Answer
 

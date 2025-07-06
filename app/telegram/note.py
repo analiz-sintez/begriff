@@ -7,9 +7,10 @@ from typing import Optional, Tuple
 from dataclasses import dataclass
 
 from core.auth import User
-from core.bus import Signal, bus
+from core.bus import Signal
 from core.messenger import router, Context, authorize
 
+from .. import bus
 from ..config import Config
 from ..llm import get_explanation, get_base_form, find_mistakes, translate
 from ..srs import (

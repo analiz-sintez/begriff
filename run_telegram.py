@@ -6,10 +6,11 @@ from telegram import Update
 from telegram.ext import Application
 
 from core import create_app
-from core.bus import bus, Bus
+from core.bus import Bus
 from core.messenger import router, Router
 from core.messenger.telegram import attach_bus, attach_router
 
+from app import bus
 import app.telegram  # load business logic: routes and signals
 from app.config import Config
 

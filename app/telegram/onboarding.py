@@ -1,9 +1,11 @@
 import logging
 from dataclasses import dataclass
 
-from core.bus import Signal, bus, encode
+from core.bus import Signal
 from core.auth import User
 from core.messenger import router, Context, authorize
+
+from .. import bus
 
 
 logger = logging.getLogger(__name__)

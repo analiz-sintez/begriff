@@ -7,9 +7,10 @@ from telegram import Message
 
 from core.db import db
 from core.auth import User
-from core.bus import Signal, bus
+from core.bus import Signal
 from core.messenger import router, Context, authorize, Keyboard, Button
 
+from .. import bus
 from ..config import Config
 from ..srs import (
     get_language,
