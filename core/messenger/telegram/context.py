@@ -12,8 +12,9 @@ from telegram import (
 )
 
 from ...bus import encode
-from ...config import Config
 from .. import Context, Button, Keyboard
+
+from app.config import Config
 
 logger = logging.getLogger(__name__)
 

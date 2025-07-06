@@ -3,7 +3,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
-from ..auth import User
+from core.auth import User
+from core.messenger import authorize, Button, Keyboard, Context, router
+from core.bus import Signal, bus
+
 from ..srs import (
     get_language,
     get_cards,
@@ -11,7 +14,6 @@ from ..srs import (
     get_view,
     record_view_start,
     record_answer,
-    Note,
     Answer,
     Maturity,
     count_new_cards_studied,
@@ -20,8 +22,6 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
-from ..messenger import authorize, Button, Keyboard, Context, router
-from ..bus import Signal, bus
 
 
 # States: ASK -> ANSWER -> RECORD

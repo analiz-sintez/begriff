@@ -25,12 +25,6 @@ def create_app(config=None):
     migrate = Migrate(app, db)
     logger.info("Migrations set up.")
 
-    # Import and register blueprints here
-    from .routes import srs_bp
-
-    app.register_blueprint(srs_bp)
-    logger.info("Blueprints registered.")
-
     logger.info("Application setup complete.")
 
     return app

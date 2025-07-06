@@ -3,10 +3,11 @@ from unittest.mock import MagicMock
 from datetime import datetime, timedelta, timezone
 import asyncio
 
-from app.config import Config as DefaultConfig
-from app import create_app, db
-from app.auth import User, get_user
+from core import create_app, db
+from core.auth import User, get_user
+
 from app.srs import Note, Card
+from app.config import Config as DefaultConfig
 
 
 class Config(DefaultConfig):

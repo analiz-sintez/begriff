@@ -2,16 +2,13 @@ import logging
 from typing import Optional
 import asyncio
 from dataclasses import dataclass
-from telegram import (
-    Update,
-)
-from telegram.ext import CallbackContext
+
+from core.auth import User
+from core.bus import Signal, bus
+from core.messenger import router, Context, authorize, Keyboard, Button
 
 from ..config import Config
-from ..auth import User
-from ..srs import get_language, get_notes, Language
-from ..bus import Signal, bus, encode
-from ..messenger import router, Context, authorize, Keyboard, Button
+from ..srs import get_language, get_notes
 from .note import get_explanation_in_native_language
 
 

@@ -1,12 +1,9 @@
 import logging
 from dataclasses import dataclass
 
-from telegram import Update
-from telegram.ext import CallbackContext
-
-from ..bus import Signal, bus, encode
-from ..auth import User
-from ..messenger import router, Context, authorize
+from core.bus import Signal, bus, encode
+from core.auth import User
+from core.messenger import router, Context, authorize
 
 
 logger = logging.getLogger(__name__)

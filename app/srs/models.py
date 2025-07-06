@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional, Annotated
 from datetime import datetime
 from sqlalchemy import (
@@ -6,11 +7,12 @@ from sqlalchemy import (
     ForeignKey,
     Interval,
 )
+
 from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, mapped_column, Mapped
-from enum import Enum
+
+from core.auth import Model, User, OptionsMixin
 from ..config import Config
-from ..auth import Model, User, OptionsMixin
 
 
 dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]

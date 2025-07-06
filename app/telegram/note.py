@@ -6,13 +6,12 @@ import logging
 from typing import Optional, Tuple
 from dataclasses import dataclass
 
-from telegram import Update
-from telegram.ext import CallbackContext
+from core.auth import User
+from core.bus import Signal, bus
+from core.messenger import router, Context, authorize
 
 from ..config import Config
-from ..auth import User
 from ..llm import get_explanation, get_base_form, find_mistakes, translate
-from ..bus import Signal, bus
 from ..srs import (
     Language,
     Maturity,
@@ -22,7 +21,6 @@ from ..srs import (
     update_note,
     Note,
 )
-from ..messenger import router, Context, authorize
 
 
 @dataclass

@@ -5,12 +5,13 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import Application
 
+from core import create_app
+from core.bus import bus, Bus
+from core.messenger import router, Router
+from core.messenger.telegram import attach_bus, attach_router
+
 import app.telegram  # load business logic: routes and signals
-from app import create_app
 from app.config import Config
-from app.bus import bus, Bus
-from app.messenger import router, Router
-from app.messenger.telegram import attach_bus, attach_router
 
 
 def setup_logging():

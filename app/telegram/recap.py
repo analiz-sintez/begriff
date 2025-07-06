@@ -1,15 +1,13 @@
 import re
 import logging
 
-from telegram import Update
-from telegram.ext import CallbackContext
+from core.auth import User
+from core.messenger import router, Context, authorize
 
-from ..auth import User
 from ..srs import get_language
 from ..config import Config
 from ..llm import get_recap
 from .note import get_notes_to_inject
-from ..messenger import router, Context, authorize
 
 
 logger = logging.getLogger(__name__)

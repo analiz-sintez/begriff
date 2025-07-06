@@ -5,9 +5,12 @@ import math
 
 from telegram import Message
 
+from core.db import db
+from core.auth import User
+from core.bus import Signal, bus
+from core.messenger import router, Context, authorize, Keyboard, Button
+
 from ..config import Config
-from ..db import db
-from ..auth import User
 from ..srs import (
     get_language,
     Note,
@@ -15,10 +18,8 @@ from ..srs import (
     get_notes,
     Language,
     get_note,
-    update_note as srs_update_note,  # Renamed to avoid conflict
+    update_note as srs_update_note,
 )
-from ..bus import Signal, bus
-from ..messenger import router, Context, authorize, Keyboard, Button
 from .note import get_explanation_in_native_language, format_explanation
 
 

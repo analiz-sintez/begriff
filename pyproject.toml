@@ -1,15 +1,15 @@
 [project]
 name = "begriff"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [
-    {name = "Kirill Krasnoshchekov",email = "krvkir@gmail.com"}
+    {name = "Kirill Krasnoshchekov", email = "krvkir@gmail.com"}
 ]
 license = {text = "GPL3"}
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "flask (>=3.1.1,<4.0.0)",
+    "flask[async] (>=3.1.1,<4.0.0)",
     "sqlalchemy (>=2.0.41,<3.0.0)",
     "sqlalchemy-utc (>=0.14.0,<0.15.0)",
     "flask-sqlalchemy (>=3.1.1,<4.0.0)",
@@ -18,19 +18,22 @@ dependencies = [
     "pytest (>=8.3.5,<9.0.0)",
     "pytest-mock (>=3.14.1,<4.0.0)",
     "python-dotenv (>=1.1.0,<2.0.0)",
-    "python-telegram-bot (>=22.1,<23.0)",
+    "python-telegram-bot[webhooks] (>=22.2,<23.0)",
     "watchdog (>=6.0.0,<7.0.0)",
     "openai (>=1.82.1,<2.0.0)",
     "requests (>=2.32.3,<3.0.0)",
     "beautifulsoup4 (>=4.13.4,<5.0.0)",
     "pandas (>=2.2.3,<3.0.0)",
-    "fsrs-rs-python @ git+https://github.com/open-spaced-repetition/fsrs-rs-python.git",
+    "fsrs-rs-python",
     "vertexai (>=1.71.1,<2.0.0)",
     "pillow (>=11.2.1,<12.0.0)",
     "pymorphy3 (>=2.0.4,<3.0.0)",
     "transliterate (>=1.10.2,<2.0.0)",
     "pytest-asyncio (>=1.0.0,<2.0.0)",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
 
 [tool.poetry]
 name = "begriff"
@@ -43,5 +46,7 @@ python = ">=3.13,<4.0"
 plugins = "sqlmypy"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+#requires = ["poetry-core>=2.0.0,<3.0.0"]
+#build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

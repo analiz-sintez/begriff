@@ -1,8 +1,9 @@
 import pytest
-from app import create_app, db
-from app.auth import User
-from app.srs.models import Note, Card, View, Language
 from datetime import datetime, timedelta, timezone
+
+from core import create_app, db
+from core.auth import User
+from app.srs.models import Note, Card, View, Language
 
 
 class Config:

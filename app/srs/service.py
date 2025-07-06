@@ -10,9 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from sqlalchemy.orm import aliased
 
+from core import db
+from core.bus import Signal, bus
 from ..config import Config
-from ..db import db
-from ..bus import Signal, bus
 from .models import Note, Card, View, Language, Answer
 
 
