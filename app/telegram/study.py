@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
 from core.auth import User
-from core.messenger import authorize, Button, Keyboard, Context, router
+from core.messenger import Button, Keyboard, Context
 from core.bus import Signal
 
-from .. import bus
+from .. import bus, router
 from ..srs import (
     get_language,
     get_cards,
@@ -103,7 +103,7 @@ async def _get_image_for_show(card, previous_card=None):
 
 
 @router.command("study", description="Start a study session")
-@authorize()
+@router.authorize()
 async def start_study_session(ctx: Context, user: User) -> None:
     logger.info("User %s requested to study.", user.login)
     bus.emit(StudySessionRequested(user.id), ctx=ctx)
@@ -111,7 +111,7 @@ async def start_study_session(ctx: Context, user: User) -> None:
 
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
-@authorize()
+@router.authorize()
 async def study_next_card(ctx: Context, user: User) -> None:
     """
     Fetch a study card for the user and display it with a button to show
@@ -175,7 +175,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
 
 
 @bus.on(CardAnswerRequested)
-@authorize()
+@router.authorize()
 async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     """
     Handle ANSWER button press and show grade buttons.
@@ -222,7 +222,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
 
 
 @bus.on(CardGradeSelected)
-@authorize()
+@router.authorize()
 async def handle_study_grade(
     ctx: Context,
     user: User,

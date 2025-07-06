@@ -23,14 +23,14 @@ def is_optional(hint: type) -> bool:
     origin = get_origin(hint)
     args = get_args(hint)
     if (
-            origin == Union
-            and len(args) == 2
-            and any([typ == type(None) for typ in args])
-        ):
+        origin == Union
+        and len(args) == 2
+        and any([typ == type(None) for typ in args])
+    ):
         return True
     else:
         return False
-        
+
 
 def unoption(hint: type) -> type:
     """Remove type hint modifiers as Unions and Optionals."""
@@ -48,12 +48,14 @@ class Signal:
 class Bus:
     def __init__(
         self,
+        config: Optional[object] = None,
         saving_backend: Optional[
             Callable[[Signal, list[Callable]], None]
         ] = None,
     ):
         self._slots = dict()
         self._save_signal = saving_backend
+        self.config = config
 
     def save_signal(self, signal):
         if not self._save_signal:

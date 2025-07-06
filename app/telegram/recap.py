@@ -2,8 +2,9 @@ import re
 import logging
 
 from core.auth import User
-from core.messenger import router, Context, authorize
+from core.messenger import Context
 
+from .. import router
 from ..srs import get_language
 from ..config import Config
 from ..llm import get_recap
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.message(re.compile(r"(?P<url>https?://\S+)$", re.MULTILINE))
-@authorize()
+@router.authorize()
 async def recap_url(ctx: Context, user: User, url: str) -> None:
     language = get_language(
         user.get_option(

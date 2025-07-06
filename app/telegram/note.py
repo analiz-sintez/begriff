@@ -8,9 +8,9 @@ from dataclasses import dataclass
 
 from core.auth import User
 from core.bus import Signal
-from core.messenger import router, Context, authorize
+from core.messenger import Context
 
-from .. import bus
+from .. import bus, router
 from ..config import Config
 from ..llm import get_explanation, get_base_form, find_mistakes, translate
 from ..srs import (
@@ -228,7 +228,7 @@ def _is_note_format(text: str) -> bool:
 
 
 @router.message(_is_note_format)
-@authorize()
+@router.authorize()
 async def add_notes(ctx: Context, user: User) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 
@@ -260,7 +260,7 @@ async def add_notes(ctx: Context, user: User) -> None:
 
 @bus.on(WordExplanationRequested)
 @bus.on(PhraseExplanationRequested)
-@authorize()
+@router.authorize()
 async def add_note(
     ctx: Context,
     user: User,
@@ -346,7 +346,7 @@ async def add_note(
 
 
 @bus.on(TextExplanationRequested)
-@authorize()
+@router.authorize()
 async def add_text(
     ctx: Context,
     user: User,

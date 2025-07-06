@@ -70,7 +70,7 @@ def _coerce(arg: str, hint):
     return coerced
 
 
-def _wrap_fn_with_args(fn: Callable) -> Callable:
+def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
     """
     A helper function to wrap the handler function
     and extract named groups from regex matches for its arguments, coercing types.
@@ -90,7 +90,7 @@ def _wrap_fn_with_args(fn: Callable) -> Callable:
             elif isinstance(match, dict):
                 kwargs = match
 
-        ctx = TelegramContext(update, context)
+        ctx = TelegramContext(update, context, config=router.config)
         if kwargs:
             coerced_kwargs = {
                 k: (_coerce(v, type_hints[k]) if k in type_hints else v)
@@ -107,7 +107,9 @@ def _wrap_fn_with_args(fn: Callable) -> Callable:
     return wrapped
 
 
-def _wrap_command_fn(fn: Callable, arg_names: list[str]) -> Callable:
+def _wrap_command_fn(
+    fn: Callable, arg_names: list[str], router: Router
+) -> Callable:
     """
     A helper function to wrap a command handler, parsing and coercing
     positional arguments from the message.
@@ -126,23 +128,26 @@ def _wrap_command_fn(fn: Callable, arg_names: list[str]) -> Callable:
         logger.debug(
             f"Calling function {fn.__name__} with coerced args: {args_dict}"
         )
-        ctx = TelegramContext(update, context)
+        ctx = TelegramContext(update, context, config=router.config)
         return await fn(ctx, **args_dict)
 
     return wrapped
 
 
-def _create_command_handler(command: Command) -> PTBCommandHandler:
+def _create_command_handler(
+    command: Command, router: Router
+) -> PTBCommandHandler:
     """Creates a telegram.ext.CommandHandler from a Command dataclass."""
-    wrapped_fn = _wrap_command_fn(command.fn, command.args)
+    wrapped_fn = _wrap_command_fn(command.fn, command.args, router)
     return PTBCommandHandler(command.name, wrapped_fn)
 
 
 def _create_callback_query_handler(
     callback_handler: CallbackHandler,
+    router: Router,
 ) -> PTBCallbackQueryHandler:
     """Creates a telegram.ext.CallbackQueryHandler from a CallbackHandler dataclass."""
-    wrapped_handler = _wrap_fn_with_args(callback_handler.fn)
+    wrapped_handler = _wrap_fn_with_args(callback_handler.fn, router)
     return PTBCallbackQueryHandler(
         wrapped_handler, pattern=callback_handler.pattern
     )
@@ -150,6 +155,7 @@ def _create_callback_query_handler(
 
 def _create_message_handler(
     message_handler: MessageHandler,
+    router: Router,
 ) -> PTBMessageHandler:
     """Creates a telegram.ext.MessageHandler from a MessageHandler dataclass."""
     pattern = message_handler.pattern
@@ -160,7 +166,7 @@ def _create_message_handler(
     else:
         raise ValueError("Pattern must be a regexp or a callable.")
 
-    wrapped_handler = _wrap_fn_with_args(message_handler.fn)
+    wrapped_handler = _wrap_fn_with_args(message_handler.fn, router)
     combined_filters = filters.TEXT & ~filters.COMMAND & pattern_filter
     return PTBMessageHandler(combined_filters, wrapped_handler)
 
@@ -173,13 +179,13 @@ def attach_router(router: Router, application: Application):
 
     # Process and add command handlers
     for command in router.command_handlers:
-        handler = _create_command_handler(command)
+        handler = _create_command_handler(command, router)
         application.add_handler(handler)
         logger.info(f"Command handler added for '/{command.name}'")
 
     # Process and add callback query handlers
     for callback_handler in router.callback_query_handlers:
-        handler = _create_callback_query_handler(callback_handler)
+        handler = _create_callback_query_handler(callback_handler, router)
         application.add_handler(handler)
         logger.info(
             f"Callback query handler added for pattern: {callback_handler.pattern}"
@@ -187,7 +193,7 @@ def attach_router(router: Router, application: Application):
 
     # Process and add message handlers
     for message_handler in router.message_handlers:
-        handler = _create_message_handler(message_handler)
+        handler = _create_message_handler(message_handler, router)
         application.add_handler(handler)
         logger.info(
             f"Message handler added for pattern: {message_handler.pattern}"
@@ -223,7 +229,7 @@ def attach_bus(bus: Bus, application: Application):
             if not signal:
                 logger.info(f"Decoding {signal_name} failed.")
                 return
-            ctx = TelegramContext(update, context)
+            ctx = TelegramContext(update, context, config=bus.config)
             await bus.emit_and_wait(signal, ctx=ctx)
 
         pattern = make_regexp(signal_type)

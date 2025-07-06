@@ -1,3 +1,2 @@
-from .routing import Router, router
-from .utils import authorize
+from .routing import Router
 from .context import Context, Button, Keyboard

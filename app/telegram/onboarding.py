@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 from core.bus import Signal
 from core.auth import User
-from core.messenger import router, Context, authorize
+from core.messenger import Context
 
-from .. import bus
+from .. import bus, router
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class OnboardingFinished(Signal):
 
 
 @router.command("help", description="Describe commands")
-@authorize()
+@router.authorize()
 async def help(ctx: Context, user: User) -> None:
     logger.info("User %s required help page.", user.id)
     await ctx.send_message(
@@ -102,7 +102,7 @@ Here are the commands you can use:
 
 
 @router.command("start", description="Start using the bot")
-@authorize()
+@router.authorize()
 async def start(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
     await ctx.send_message(
@@ -116,7 +116,7 @@ In a few steps we'll set up things and start.
 
 
 @bus.on(OnboardingStarted)
-@authorize()
+@router.authorize()
 async def select_native_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
@@ -146,7 +146,7 @@ async def do_test(user: User):
 
 
 @bus.on(OnboardingFinished)
-@authorize()
+@router.authorize()
 async def finish_onboarding(ctx: Context, user: User):
     # Show a message with tips how to work with the bot.
     await ctx.send_message("Here we go")

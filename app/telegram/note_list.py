@@ -8,9 +8,9 @@ from telegram import Message
 from core.db import db
 from core.auth import User
 from core.bus import Signal
-from core.messenger import router, Context, authorize, Keyboard, Button
+from core.messenger import Context, Keyboard, Button
 
-from .. import bus
+from .. import bus, router
 from ..config import Config
 from ..srs import (
     get_language,
@@ -231,7 +231,7 @@ async def display_notes_by_maturity(
 
 
 @router.command("list", description="List your notes")
-@authorize()
+@router.authorize()
 async def list_cards_command(ctx: Context, user: User) -> None:
     """
     Initial handler for the /list command. Displays 'Young' notes by default, page 1.
@@ -259,7 +259,7 @@ async def list_cards_command(ctx: Context, user: User) -> None:
 
 
 @bus.on(NotesListRequested)
-@authorize()
+@router.authorize()
 async def handle_list_notes_by_maturity_request(
     ctx: Context,
     user: User,
@@ -290,7 +290,7 @@ async def handle_list_notes_by_maturity_request(
 
 
 @bus.on(NoteSelected)
-@authorize()
+@router.authorize()
 async def handle_note_selected(
     ctx: Context,
     user: User,
@@ -387,7 +387,7 @@ async def handle_note_selected(
 
 
 @bus.on(NoteTitleEditRequested)
-@authorize()
+@router.authorize()
 async def handle_note_title_edit_requested(
     ctx: Context, user: User, note_id: int
 ):
@@ -414,7 +414,7 @@ async def handle_note_title_edit_requested(
 
 
 @bus.on(NoteExplanationEditRequested)
-@authorize()
+@router.authorize()
 async def handle_note_explanation_edit_requested(
     ctx: Context, user: User, note_id: int
 ):
@@ -441,7 +441,7 @@ async def handle_note_explanation_edit_requested(
 
 
 # @router.message(".*")
-@authorize()
+@router.authorize()
 async def handle_note_edit_input(ctx: Context, user: User):
     if not ctx.context.user_data or "active_edit" not in ctx.context.user_data:
         # This message is not part of an active edit session.
@@ -526,7 +526,7 @@ async def handle_note_edit_input(ctx: Context, user: User):
 
 
 @bus.on(NoteDeletionRequested)
-@authorize()
+@router.authorize()
 async def handle_note_deletion_requested(
     ctx: Context,
     user: User,

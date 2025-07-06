@@ -5,11 +5,8 @@ from flask_migrate import Migrate
 from .db import db
 
 
-def create_app(config=None):
+def create_app(config: object):
     app = Flask(__name__)
-    if not config:
-        from .config import Config as config
-
     app.config.from_object(config)
 
     # Set up logging

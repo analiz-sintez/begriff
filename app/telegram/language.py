@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 from core.auth import User
 from core.bus import Signal
-from core.messenger import router, Context, authorize, Keyboard, Button
+from core.messenger import Context, Keyboard, Button
 
-from .. import bus
+from .. import bus, router
 from ..config import Config
 from ..srs import get_language, get_notes
 from .note import get_explanation_in_native_language
@@ -58,7 +58,7 @@ class NativeLanguageChanged(Signal):
     args=["language_name", "native_language_name"],
     description="Change studied language or set its native language",
 )
-@authorize()
+@router.authorize()
 async def change_language(
     ctx: Context,
     user: User,
@@ -166,7 +166,7 @@ async def change_language(
 
 
 @bus.on(LanguageSelected)
-@authorize()
+@router.authorize()
 async def handle_language_selected(
     ctx: Context, user: User, language_id: int
 ) -> None:
@@ -185,7 +185,7 @@ async def handle_language_selected(
 
 
 @bus.on(LanguageChanged)
-@authorize()
+@router.authorize()
 async def ask_native_language(
     ctx: Context, user: User, language_id: int
 ) -> None:
@@ -258,7 +258,7 @@ async def ask_native_language(
 
 
 @bus.on(NativeLanguageSelected)
-@authorize()
+@router.authorize()
 async def handle_native_language_selected(
     ctx: Context,
     user: User,
