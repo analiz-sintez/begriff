@@ -368,3 +368,41 @@ async def add_text(
 
     reply = await find_mistakes(text, language.name, native_language.name)
     await ctx.send_message(reply)
+
+
+# #################### Prototyping the interface ####################
+
+
+# # just a slot: already implemented
+# @bus.on(EmojiSent)
+# async def handle_reaction(emoji):
+#     if emoji is ':)':
+#         pass
+#     elif emoji is ':(':
+#         pass
+
+# # a slot with a condition on signal parameter: need to implement
+# @bus.on(EmojiSent, emoji=':)')
+# async def handle_positive_reaction(emoji):
+#     # record
+#     pass
+
+# @bus.on(EmojiSent, emoji=':(')
+# async def handle_negative_reaction(emoji):
+#     # record and regenerate
+#     pass
+
+# # a reaction handler dispatching reactions
+# @router.reaction()
+# async def dispatch_reactions(ctx):
+#     emoji = ctx.emoji
+#     bus.emit(EmojiSent(emoji), ctx=ctx)
+
+# # a command that dispatches the action
+# @router.command("del")
+# async def handle_del(ctx):
+#     reply_to = ctx.reply_to
+#     if reply_to is Note:
+#         bus.emit(NoteDeletionRequested(note_id=reply_to.id))
+#     elif reply_to is Recap:
+#         bus.emit(RecapDeletionRequested(note_id=reply_to.id))

@@ -16,12 +16,19 @@ from telegram.ext import (
     CallbackQueryHandler as PTBCallbackQueryHandler,
     CommandHandler as PTBCommandHandler,
     MessageHandler as PTBMessageHandler,
+    MessageReactionHandler as PTBReactionHandler,
     CallbackContext,
     filters,
 )
 
 from ...bus import Bus, Signal, unoption, decode, make_regexp
-from ..routing import CallbackHandler, Command, MessageHandler, Router
+from ..routing import (
+    CallbackHandler,
+    Command,
+    MessageHandler,
+    ReactionHandler,
+    Router,
+)
 from .context import TelegramContext
 
 logger = logging.getLogger(__name__)
@@ -78,31 +85,21 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
     type_hints = get_type_hints(fn)
 
     async def wrapped(update, context):
-        logger.debug(
-            f"Calling function {fn.__name__} "
-            f"with update: {update} and context: {context}"
-        )
-        kwargs = None
+        kwargs = {}
         if context.matches:
             match = context.matches[0]
             if isinstance(match, re.Match):
-                kwargs = match.groupdict()
+                kwargs.update(match.groupdict())
             elif isinstance(match, dict):
-                kwargs = match
+                kwargs.update(match)
 
+        for key, value in kwargs.items():
+            if key in type_hints:
+                kwargs[key] = _coerce(value, type_hints[key])
+
+        logger.info(f"Calling {fn.__name__} with args: {kwargs}")
         ctx = TelegramContext(update, context, config=router.config)
-        if kwargs:
-            coerced_kwargs = {
-                k: (_coerce(v, type_hints[k]) if k in type_hints else v)
-                for k, v in kwargs.items()
-            }
-            logger.info(
-                f"Function {fn.__name__} called with args: {coerced_kwargs}"
-            )
-            return await fn(ctx=ctx, **coerced_kwargs)
-        else:
-            logger.info(f"Function {fn.__name__} called with no args.")
-            return await fn(ctx=ctx)
+        return await fn(ctx=ctx, **kwargs)
 
     return wrapped
 
@@ -118,18 +115,15 @@ def _wrap_command_fn(
 
     async def wrapped(update, context):
         args = context.args if hasattr(context, "args") else []
-        args_dict = {name: None for name in arg_names}
+        kwargs = {name: None for name in arg_names}
 
-        for arg, name in zip(args, arg_names[: len(args)]):
-            if name not in type_hints:
-                continue
-            args_dict[name] = _coerce(arg, type_hints[name])
+        for value, key in zip(args, arg_names[: len(args)]):
+            if key in type_hints:
+                kwargs[key] = _coerce(value, type_hints[key])
 
-        logger.debug(
-            f"Calling function {fn.__name__} with coerced args: {args_dict}"
-        )
+        logger.debug(f"Calling {fn.__name__} with args: {kwargs}")
         ctx = TelegramContext(update, context, config=router.config)
-        return await fn(ctx, **args_dict)
+        return await fn(ctx, **kwargs)
 
     return wrapped
 
@@ -143,14 +137,44 @@ def _create_command_handler(
 
 
 def _create_callback_query_handler(
-    callback_handler: CallbackHandler,
+    handler: CallbackHandler,
     router: Router,
 ) -> PTBCallbackQueryHandler:
     """Creates a telegram.ext.CallbackQueryHandler from a CallbackHandler dataclass."""
-    wrapped_handler = _wrap_fn_with_args(callback_handler.fn, router)
-    return PTBCallbackQueryHandler(
-        wrapped_handler, pattern=callback_handler.pattern
-    )
+    wrapped_handler = _wrap_fn_with_args(handler.fn, router)
+    return PTBCallbackQueryHandler(wrapped_handler, pattern=handler.pattern)
+
+
+def _create_reaction_handlers(
+    handlers: list[ReactionHandler],
+    router: Router,
+) -> PTBReactionHandler:
+    """
+    Creates a telegram.ext.MessageReactionHandler for a bunch of
+    ReactionHandler dataclasses.
+    """
+    # build a dict of emojis to handlers
+    emoji_map = {}
+    for handler in handlers:
+        for emoji in handler.emojis:
+            if emoji not in emoji_map:
+                emoji_map[emoji] = []
+            emoji_map[emoji].append(
+                _wrap_fn_with_args(handler.fn, router=router)
+            )
+
+    async def dispatch(update, context):
+        reaction_obj = update.message_reaction
+        emoji = None
+        if hasattr(reaction_obj, "new_reaction"):
+            reactions = reaction_obj.new_reaction
+            if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
+                emoji = reactions[0].emoji
+        logger.info(f"Got emoji: {emoji}")
+        for fn in emoji_map.get(emoji, []):
+            await fn(update, context)
+
+    return PTBReactionHandler(dispatch)
 
 
 def _create_message_handler(
@@ -212,6 +236,14 @@ def attach_router(router: Router, application: Application):
     if bot_commands:
         application.post_init = set_commands
         logger.info("Bot command descriptions set: %s", bot_commands)
+
+    # Set up a reactions handler.
+    # This is a special case. PTB doesn't support dispatching on emoji types,
+    # so we register a single handler which does this dispatch.
+    if router.reaction_handlers:
+        application.add_handler(
+            _create_reaction_handlers(router.reaction_handlers, router)
+        )
 
 
 def attach_bus(bus: Bus, application: Application):

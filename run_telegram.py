@@ -85,6 +85,7 @@ def main():
                 url_path="telegram",
                 secret_token=secret_token,
                 webhook_url=webhook_url,
+                allowed_updates=Update.ALL_TYPES,
             )
     else:
         # For testing, you can use polling
