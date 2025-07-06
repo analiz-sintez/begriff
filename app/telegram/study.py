@@ -3,9 +3,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
-from telegram import Update
-from telegram.ext import CallbackContext
-
 from ..core import User
 from ..srs import (
     get_language,
@@ -23,14 +20,8 @@ from ..llm import translate
 from ..image import generate_image
 from ..config import Config
 from .note import format_explanation, get_explanation_in_native_language
-from .utils import (
-    authorize,
-    Button,
-    Keyboard,
-    TelegramContext as Context,
-)
-from .router import router
-from ..bus import Signal, bus, encode
+from ..messenger import authorize, Button, Keyboard, Context, router
+from ..bus import Signal, bus
 
 
 # States: ASK -> ANSWER -> RECORD

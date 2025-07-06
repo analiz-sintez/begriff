@@ -1,6 +1,8 @@
 import re
 import logging
+from inspect import getmodule
 from typing import (
+    Type,
     Callable,
     Optional,
     get_type_hints,
@@ -8,16 +10,17 @@ from typing import (
     get_type_hints,
 )
 
-from telegram import BotCommand, Message
+from telegram import BotCommand, Message, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler as PTBCallbackQueryHandler,
     CommandHandler as PTBCommandHandler,
     MessageHandler as PTBMessageHandler,
+    CallbackContext,
     filters,
 )
 
-from ...bus import unoption
+from ...bus import Bus, Signal, unoption, decode, make_regexp
 from ..routing import CallbackHandler, Command, MessageHandler, Router
 from .context import TelegramContext
 
@@ -162,7 +165,7 @@ def _create_message_handler(
     return PTBMessageHandler(combined_filters, wrapped_handler)
 
 
-def attach(router: Router, application: Application):
+def attach_router(router: Router, application: Application):
     """
     Attach the stored handlers from a generic Router to the Telegram application.
     """
@@ -203,3 +206,37 @@ def attach(router: Router, application: Application):
     if bot_commands:
         application.post_init = set_commands
         logger.info("Bot command descriptions set: %s", bot_commands)
+
+
+def attach_bus(bus: Bus, application: Application):
+    """
+    Attach the signals from a Bus to the Telegram application.
+    """
+
+    def make_handler(signal_type: Type[Signal]) -> PTBCallbackQueryHandler:
+        signal_name = signal_type.__name__
+
+        async def decode_and_emit(update: Update, context: CallbackContext):
+            data = update.callback_query.data
+            logger.info(f"Got callback: {data}, decoding as {signal_name}.")
+            signal = decode(signal_type, data)
+            if not signal:
+                logger.info(f"Decoding {signal_name} failed.")
+                return
+            ctx = TelegramContext(update, context)
+            await bus.emit_and_wait(signal, ctx=ctx)
+
+        pattern = make_regexp(signal_type)
+        logger.info(f"Registering handler: {pattern} -> {signal_name}")
+        handler = PTBCallbackQueryHandler(decode_and_emit, pattern=pattern)
+        return handler
+
+    logging.info("Bus: registering signal handlers.")
+    for signal_type in bus.signals():
+        module_name = getmodule(signal_type).__name__
+        signal_name = signal_type.__name__
+        logging.info(
+            f"Bus: registering a handler for {module_name}.{signal_name}."
+        )
+        application.add_handler(make_handler(signal_type))
+    logging.info("Bus: all signals registered.")
