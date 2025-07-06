@@ -4,7 +4,7 @@ import logging
 from telegram import Update
 from telegram.ext import CallbackContext
 
-from ..core import User
+from ..auth import User
 from ..srs import get_language
 from ..config import Config
 from ..llm import get_recap

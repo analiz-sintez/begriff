@@ -12,7 +12,7 @@ from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy_utc import UtcDateTime
 
 from .service import Signal
-from ..core import db, Model
+from ..db import db, Model
 
 
 dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]

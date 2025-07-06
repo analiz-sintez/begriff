@@ -10,7 +10,7 @@ from telegram import Update
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import User
+from ..auth import User
 from ..llm import get_explanation, get_base_form, find_mistakes, translate
 from ..bus import Signal, bus
 from ..srs import (

@@ -18,7 +18,7 @@ R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
 from ..config import Config
-from ..core import get_user, User
+from ..auth import get_user, User
 
 UserInjector: TypeAlias = Callable[
     [Callable[Concatenate[User, P], R]], Callable[Concatenate[Context, P], R]

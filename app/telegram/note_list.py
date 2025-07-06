@@ -6,7 +6,8 @@ import math
 from telegram import Message
 
 from ..config import Config
-from ..core import User, db
+from ..db import db
+from ..auth import User
 from ..srs import (
     get_language,
     Note,

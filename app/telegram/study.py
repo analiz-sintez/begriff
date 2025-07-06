@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 
-from ..core import User
+from ..auth import User
 from ..srs import (
     get_language,
     get_cards,

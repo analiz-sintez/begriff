@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import CallbackContext
 
 from ..bus import Signal, bus, encode
-from ..core import User
+from ..auth import User
 from ..messenger import router, Context, authorize
 
 

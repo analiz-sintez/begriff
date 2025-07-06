@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
-from .models import db, User
+
+from ..db import db
+from .models import User
 
 # Set up logging
 

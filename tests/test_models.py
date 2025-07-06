@@ -1,6 +1,6 @@
 import pytest
 from app import create_app, db
-from app.core.models import User
+from app.auth import User
 from app.srs.models import Note, Card, View, Language
 from datetime import datetime, timedelta, timezone
 

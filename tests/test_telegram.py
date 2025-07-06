@@ -6,8 +6,8 @@ import asyncio
 from app.telegram.note import _parse_line
 from app.telegram.study import handle_study_answer, handle_study_grade
 from app.config import Config as DefaultConfig
-from app import create_app
-from app.core import db, User, get_user
+from app import create_app, db
+from app.auth import User, get_user
 from app.srs import (
     Note,
     Card,

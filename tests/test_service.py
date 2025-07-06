@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from app import create_app, db
 from app.config import Config as DefaultConfig
-from app.core import (
+from app.auth import (
     User,
     get_user,
 )

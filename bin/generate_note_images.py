@@ -5,10 +5,10 @@ import sys
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 )
-from app import create_app
+from app import create_app, db
 from app.srs import get_notes, Maturity
 from app.image import generate_image
-from app.core import User, db
+from app.auth import User
 
 # Set up logging
 logger = logging.getLogger(__name__)

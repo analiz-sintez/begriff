@@ -1,7 +1,6 @@
 import logging
 from typing import Union, Dict, List, TypeAlias
 
-from sqlalchemy import Integer, String
 from sqlalchemy.orm import mapped_column, DeclarativeBase
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.types import JSON
@@ -23,8 +22,6 @@ class BaseModel(DeclarativeBase):
 # to make thread-safe.
 db = SQLAlchemy(model_class=BaseModel)
 Model: BaseModel = db.Model  # pyright: ignore
-
-# Set up logging
 
 logger = logging.getLogger(__name__)
 
@@ -73,16 +70,3 @@ class OptionsMixin:
             d = d[key]
         logger.debug("Retrieved option: %s = %s", name, d)
         return d
-
-
-class User(Model, OptionsMixin):
-    __tablename__ = "users"
-
-    id = mapped_column(Integer, primary_key=True)
-    login = mapped_column(String, unique=True)
-
-    def to_dict(self):
-        return {"id": self.id, "login": self.login}
-
-    def __repr__(self):
-        return f"<User(login='{self.login}')>"

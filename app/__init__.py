@@ -1,9 +1,8 @@
 import logging
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
-from .core import db
+from .db import db
 
 
 def create_app(config=None):

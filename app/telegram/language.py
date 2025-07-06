@@ -8,7 +8,7 @@ from telegram import (
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import User
+from ..auth import User
 from ..srs import get_language, get_notes, Language
 from ..bus import Signal, bus, encode
 from ..messenger import router, Context, authorize, Keyboard, Button

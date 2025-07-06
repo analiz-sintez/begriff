@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 
 from app.config import Config as DefaultConfig
-from app import create_app
-from app.core import db, User, get_user
+from app import create_app, db
+from app.auth import User, get_user
 from app.srs import Note, Card
 
 
