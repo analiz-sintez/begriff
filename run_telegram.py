@@ -1,10 +1,16 @@
 import os
 import logging
+from datetime import datetime
+
 from telegram import Update
-from app.telegram.bot import create_bot
+from telegram.ext import Application
+
+import app.telegram  # load business logic: routes and signals
 from app import create_app
 from app.config import Config
-from datetime import datetime
+from app.bus import bus, Bus
+from app.messenger import router, Router
+from app.messenger.telegram import attach_bus, attach_router
 
 
 def setup_logging():
@@ -29,6 +35,25 @@ def setup_logging():
     )
 
 
+def create_bot(token: str, router: Router, bus: Bus) -> Application:
+    """
+    Create and configure the Telegram bot application
+    with command and callback handlers.
+
+    Args:
+        token: The bot token for authentication.
+        router: The router holding routes and handlers.
+        bus: The bus holding signal handlers.
+
+    Returns:
+        A configured Application instance representing the bot.
+    """
+    application = Application.builder().token(token).build()
+    attach_router(router, application)
+    attach_bus(bus, application)
+    return application
+
+
 def main():
     setup_logging()
     logger = logging.getLogger(__name__)
@@ -38,7 +63,7 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN is not set in the env variables.")
         return
 
-    bot = create_bot(token)
+    bot = create_bot(token, router, bus)
     logger.info("Telegram bot initialized.")
 
     # Add the run function from bot.py to the file where you set up the bot
