@@ -17,6 +17,7 @@ from app.srs import (
     record_view_start,
     get_card,
 )
+from app.messenger.telegram import TelegramContext as Context
 
 
 class Config(DefaultConfig):
@@ -80,6 +81,7 @@ def test_study_session(app):
         view_id = record_view_start(first_card.id)
 
         # Mocking the update and context for handle_study_session
+        # TODO make this telegram-agnostic.
         mock_query = AsyncMock()
         mock_user = AsyncMock()
         mock_user.username = user.login
@@ -87,15 +89,12 @@ def test_study_session(app):
         mock_update.callback_query = mock_query
         mock_update.effective_user = mock_user
         mock_context = AsyncMock()
+        ctx = Context(mock_update, mock_context)
 
         # 1. Emulate requesting card answer.
         mock_query.data = f"answer:{first_card.id}"
         # ... due to authorize magic, we must use only keyword arguments here
-        asyncio.run(
-            handle_study_answer(
-                update=mock_update, context=mock_context, card_id=first_card.id
-            )
-        )
+        asyncio.run(handle_study_answer(ctx=ctx, card_id=first_card.id))
         # ... verify if the answer method on query was called
         # mock_update.message.edit_caption.assert_called_once()
 
@@ -103,8 +102,7 @@ def test_study_session(app):
         mock_query.data = f"grade:{view_id}:good"
         asyncio.run(
             handle_study_grade(
-                update=mock_update,
-                context=mock_context,
+                ctx=ctx,
                 view_id=view_id,
                 answer=Answer.GOOD,
             )

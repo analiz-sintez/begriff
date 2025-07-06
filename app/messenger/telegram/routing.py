@@ -19,6 +19,7 @@ from telegram.ext import (
 
 from ...bus import unoption
 from ..routing import CallbackHandler, Command, MessageHandler, Router
+from .context import TelegramContext
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ def _wrap_fn_with_args(fn: Callable) -> Callable:
             elif isinstance(match, dict):
                 kwargs = match
 
+        ctx = TelegramContext(update, context)
         if kwargs:
             coerced_kwargs = {
                 k: (_coerce(v, type_hints[k]) if k in type_hints else v)
@@ -94,10 +96,10 @@ def _wrap_fn_with_args(fn: Callable) -> Callable:
             logger.info(
                 f"Function {fn.__name__} called with args: {coerced_kwargs}"
             )
-            return await fn(update=update, context=context, **coerced_kwargs)
+            return await fn(ctx=ctx, **coerced_kwargs)
         else:
             logger.info(f"Function {fn.__name__} called with no args.")
-            return await fn(update, context)
+            return await fn(ctx=ctx)
 
     return wrapped
 
@@ -121,7 +123,8 @@ def _wrap_command_fn(fn: Callable, arg_names: list[str]) -> Callable:
         logger.debug(
             f"Calling function {fn.__name__} with coerced args: {args_dict}"
         )
-        return await fn(update=update, context=context, **args_dict)
+        ctx = TelegramContext(update, context)
+        return await fn(ctx, **args_dict)
 
     return wrapped
 

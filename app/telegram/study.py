@@ -112,19 +112,15 @@ async def _get_image_for_show(card, previous_card=None):
 
 @router.command("study", description="Start a study session")
 @authorize()
-async def start_study_session(
-    update: Update, context: CallbackContext, user: User
-) -> None:
+async def start_study_session(ctx: Context, user: User) -> None:
     logger.info("User %s requested to study.", user.login)
-    bus.emit(StudySessionRequested(user.id), update=update, context=context)
+    bus.emit(StudySessionRequested(user.id), ctx=ctx)
 
 
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @authorize()
-async def study_next_card(
-    update: Update, context: CallbackContext, user: User
-) -> None:
+async def study_next_card(ctx: Context, user: User) -> None:
     """
     Fetch a study card for the user and display it with a button to show
     the answer.
@@ -133,7 +129,7 @@ async def study_next_card(
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    ctx = Context(update, context)
+
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -188,9 +184,7 @@ async def study_next_card(
 
 @bus.on(CardAnswerRequested)
 @authorize()
-async def handle_study_answer(
-    update: Update, context: CallbackContext, user: User, card_id: int
-) -> None:
+async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     """
     Handle ANSWER button press and show grade buttons.
     """
@@ -223,7 +217,7 @@ async def handle_study_answer(
     # ... record the moment user started answering
     view_id = record_view_start(card.id)
     # ... prepare the keyboard with memorization quality buttons
-    ctx = Context(update, context)
+
     keyboard = Keyboard(
         [
             [
@@ -238,8 +232,7 @@ async def handle_study_answer(
 @bus.on(CardGradeSelected)
 @authorize()
 async def handle_study_grade(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     view_id: int,
     answer: Answer,
@@ -259,7 +252,7 @@ async def handle_study_grade(
         view.id,
     )
     record_answer(view.id, answer)
-    bus.emit(CardGraded(view.id, answer), update=update, context=context)
+    bus.emit(CardGraded(view.id, answer), ctx=ctx)
 
 
 @bus.on(CardGraded)

@@ -8,11 +8,10 @@ from telegram import (
 from telegram.ext import CallbackContext
 
 from ..config import Config
-from ..core import get_user, User
+from ..core import User
 from ..srs import get_language, get_notes, Language
 from ..bus import Signal, bus, encode
-from .utils import authorize, TelegramContext as Context, Keyboard, Button
-from .router import router
+from ..messenger import router, Context, authorize, Keyboard, Button
 from .note import get_explanation_in_native_language
 
 
@@ -63,13 +62,11 @@ class NativeLanguageChanged(Signal):
 )
 @authorize()
 async def change_language(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     language_name: Optional[str] = None,
     native_language_name: Optional[str] = None,
 ) -> None:
-    ctx = Context(update, context)
     if language_name:
         # Setting a studied language.
         studied_language = get_language(language_name)
@@ -83,11 +80,7 @@ async def change_language(
         response_message = (
             f"Studied language changed to {studied_language.name}."
         )
-        bus.emit(
-            LanguageChanged(user.id, studied_language.id),
-            update=update,
-            context=context,
-        )
+        bus.emit(LanguageChanged(user.id, studied_language.id), ctx=ctx)
 
         if native_language_name:
             # Also setting native language for this studied language.
@@ -177,10 +170,8 @@ async def change_language(
 @bus.on(LanguageSelected)
 @authorize()
 async def handle_language_selected(
-    update: Update, context: CallbackContext, user: User, language_id: int
+    ctx: Context, user: User, language_id: int
 ) -> None:
-    ctx = Context(update, context)
-
     # This language_id is the new studied language
     studied_language = get_language(language_id)
     if not studied_language:
@@ -192,19 +183,14 @@ async def handle_language_selected(
     # We use await here to ensure the message about language change is sent before asking for native.
     await ctx.send_message(response_message)
     # Now emit LanguageChanged to trigger asking for native language
-    bus.emit(
-        LanguageChanged(user.id, studied_language.id),
-        update=update,
-        context=context,
-    )
+    bus.emit(LanguageChanged(user.id, studied_language.id), ctx=ctx)
 
 
 @bus.on(LanguageChanged)
 @authorize()
 async def ask_native_language(
-    update: Update, context: CallbackContext, user: User, language_id: int
+    ctx: Context, user: User, language_id: int
 ) -> None:
-    ctx = Context(update, context)
     # language_id here is the ID of the newly set *studied* language
     studied_language = get_language(language_id)
     if not studied_language:
@@ -276,14 +262,11 @@ async def ask_native_language(
 @bus.on(NativeLanguageSelected)
 @authorize()
 async def handle_native_language_selected(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     studied_language_id: int,
     native_language_id: int,
 ) -> None:
-    ctx = Context(update, context)
-
     studied_language = get_language(studied_language_id)
     native_language = get_language(native_language_id)
 

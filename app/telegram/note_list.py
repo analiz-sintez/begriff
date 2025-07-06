@@ -3,8 +3,7 @@ from dataclasses import dataclass
 import logging
 import math
 
-from telegram import Update, Message
-from telegram.ext import CallbackContext
+from telegram import Message
 
 from ..config import Config
 from ..core import User, db
@@ -18,8 +17,7 @@ from ..srs import (
     update_note as srs_update_note,  # Renamed to avoid conflict
 )
 from ..bus import Signal, bus
-from .router import router
-from .utils import authorize, TelegramContext as Context, Keyboard, Button
+from ..messenger import router, Context, authorize, Keyboard, Button
 from .note import get_explanation_in_native_language, format_explanation
 
 
@@ -231,13 +229,10 @@ async def display_notes_by_maturity(
 
 @router.command("list", description="List your notes")
 @authorize()
-async def list_cards_command(
-    update: Update, context: CallbackContext, user: User
-) -> None:
+async def list_cards_command(ctx: Context, user: User) -> None:
     """
     Initial handler for the /list command. Displays 'Young' notes by default, page 1.
     """
-    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -263,8 +258,7 @@ async def list_cards_command(
 @bus.on(NotesListRequested)
 @authorize()
 async def handle_list_notes_by_maturity_request(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     language_id: int,
     maturity_filter: Maturity,
@@ -273,7 +267,6 @@ async def handle_list_notes_by_maturity_request(
     """
     Handles button presses from the maturity or pagination keyboard to display notes.
     """
-    ctx = Context(update, context)
     language = get_language(language_id)
     if not language:
         logger.error(
@@ -296,13 +289,11 @@ async def handle_list_notes_by_maturity_request(
 @bus.on(NoteSelected)
 @authorize()
 async def handle_note_selected(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     note_id: int,
 ):
     logger.info(f"User {user.login} selected note {note_id}")
-    ctx = Context(update, context)
 
     selected_note = get_note(note_id)
 
@@ -371,11 +362,11 @@ async def handle_note_selected(
     keyboard = Keyboard([keyboard_buttons])
 
     reply_to_message: Message | None = None
-    if update.callback_query and update.callback_query.message:
-        reply_to_message = update.callback_query.message
+    if ctx.update.callback_query and ctx.update.callback_query.message:
+        reply_to_message = ctx.update.callback_query.message
         try:
             # Acknowledge the button press to remove the loading spinner
-            await update.callback_query.answer()
+            await ctx.update.callback_query.answer()
         except Exception as e:
             logger.warning(f"Failed to answer callback query: {e}")
 
@@ -395,65 +386,61 @@ async def handle_note_selected(
 @bus.on(NoteTitleEditRequested)
 @authorize()
 async def handle_note_title_edit_requested(
-    update: Update, context: CallbackContext, user: User, note_id: int
+    ctx: Context, user: User, note_id: int
 ):
     logger.info(
         f"User {user.login} requested to edit title for note {note_id}"
     )
-    ctx = Context(update, context)
     note_to_edit = get_note(note_id)
     if not note_to_edit or note_to_edit.user_id != user.id:
         await ctx.send_message("Error: Note not found or not yours.")
         return
 
-    context.user_data["active_edit"] = {
+    ctx.context.user_data["active_edit"] = {
         "note_id": note_id,
         "field_to_edit": "field1",
         "original_message_id": (
-            update.callback_query.message.message_id
-            if update.callback_query
+            ctx.update.callback_query.message.message_id
+            if ctx.update.callback_query
             else None
         ),
     }
     await ctx.send_message("Please send the new title for the note.")
-    if update.callback_query:
-        await update.callback_query.answer()
+    if ctx.update.callback_query:
+        await ctx.update.callback_query.answer()
 
 
 @bus.on(NoteExplanationEditRequested)
 @authorize()
 async def handle_note_explanation_edit_requested(
-    update: Update, context: CallbackContext, user: User, note_id: int
+    ctx: Context, user: User, note_id: int
 ):
     logger.info(
         f"User {user.login} requested to edit explanation for note {note_id}"
     )
-    ctx = Context(update, context)
     note_to_edit = get_note(note_id)
     if not note_to_edit or note_to_edit.user_id != user.id:
         await ctx.send_message("Error: Note not found or not yours.")
         return
 
-    context.user_data["active_edit"] = {
+    ctx.context.user_data["active_edit"] = {
         "note_id": note_id,
         "field_to_edit": "field2",
         "original_message_id": (
-            update.callback_query.message.message_id
-            if update.callback_query
+            ctx.update.callback_query.message.message_id
+            if ctx.update.callback_query
             else None
         ),
     }
     await ctx.send_message("Please send the new explanation for the note.")
-    if update.callback_query:
-        await update.callback_query.answer()
+    if ctx.update.callback_query:
+        await ctx.update.callback_query.answer()
 
 
 # @router.message(".*")
 @authorize()
-async def handle_note_edit_input(
-    update: Update, context: CallbackContext, user: User
-):
-    if not context.user_data or "active_edit" not in context.user_data:
+async def handle_note_edit_input(ctx: Context, user: User):
+    if not ctx.context.user_data or "active_edit" not in ctx.context.user_data:
         # This message is not part of an active edit session.
         # It should be handled by other message handlers (e.g., adding new notes).
         # The router will try other handlers if this one doesn't "consume" the update.
@@ -465,8 +452,7 @@ async def handle_note_edit_input(
         )
         return True  # Indicate that this handler did not fully process the message if it's not an edit.
 
-    ctx = Context(update, context)
-    active_edit_info = context.user_data["active_edit"]
+    active_edit_info = ctx.context.user_data["active_edit"]
     note_id = active_edit_info["note_id"]
     field_to_edit = active_edit_info["field_to_edit"]
 
@@ -474,17 +460,17 @@ async def handle_note_edit_input(
 
     if not note_to_edit:
         await ctx.send_message("Error: Note not found. Edit cancelled.")
-        del context.user_data["active_edit"]
+        del ctx.context.user_data["active_edit"]
         return
 
     if note_to_edit.user_id != user.id:
         await ctx.send_message(
             "Error: You can only edit your own notes. Edit cancelled.",
         )
-        del context.user_data["active_edit"]
+        del ctx.context.user_data["active_edit"]
         return
 
-    new_value = update.message.text.strip()
+    new_value = ctx.update.message.text.strip()
     if not new_value:
         await ctx.send_message(
             "The new value cannot be empty. Please try again or send /cancel to abort.",
@@ -530,7 +516,7 @@ async def handle_note_edit_input(
             "An error occurred while updating the note. Please try again.",
         )
     finally:
-        del context.user_data["active_edit"]
+        del ctx.context.user_data["active_edit"]
         # To prevent other handlers from processing this message after it's been handled as an edit input:
         # raise DispatcherHandlerStop(MessageHandler) # This would require importing DispatcherHandlerStop
         # For simplicity with current router, we assume this is the end of handling for this message.
@@ -539,13 +525,11 @@ async def handle_note_edit_input(
 @bus.on(NoteDeletionRequested)
 @authorize()
 async def handle_note_deletion_requested(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     note_id: int,
 ):
     logger.info(f"User {user.login} requested deletion of note {note_id}")
-    ctx = Context(update, context)
 
     note_to_delete = get_note(note_id)
     if not note_to_delete:

@@ -26,7 +26,7 @@ class Context:
     def username(self) -> str:
         raise NotImplementedError()
 
-    async def message(
+    async def send_message(
         self,
         text: str,
         markup: Optional[object] = None,

@@ -6,7 +6,7 @@ from telegram.ext import Application, CallbackQueryHandler
 # Those are required since routes are declared there.
 from . import recap, note, study, note_list, language, onboarding
 from ..messenger import router
-from ..messenger.telegram import attach
+from ..messenger.telegram import attach, TelegramContext as Context
 from ..bus import bus, decode, make_regexp
 
 
@@ -39,7 +39,8 @@ def create_bot(token: str) -> Application:
             if not signal:
                 logger.info(f"Decoding {signal_name} failed.")
                 return
-            await bus.emit_and_wait(signal, update=update, context=context)
+            ctx = Context(update, context)
+            await bus.emit_and_wait(signal, ctx=ctx)
 
         pattern = make_regexp(signal_type)
         logger.info(f"Registering handler: {pattern} -> {signal_name}")

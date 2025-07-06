@@ -9,8 +9,7 @@ from ..srs import get_language
 from ..config import Config
 from ..llm import get_recap
 from .note import get_notes_to_inject
-from .router import router
-from .utils import TelegramContext as Context, authorize
+from ..messenger import router, Context, authorize
 
 
 logger = logging.getLogger(__name__)
@@ -18,10 +17,7 @@ logger = logging.getLogger(__name__)
 
 @router.message(re.compile(r"(?P<url>https?://\S+)$", re.MULTILINE))
 @authorize()
-async def recap_url(
-    update: Update, context: CallbackContext, user: User, url: str
-) -> None:
-    ctx = Context(update, context)
+async def recap_url(ctx: Context, user: User, url: str) -> None:
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -41,5 +37,5 @@ async def recap_url(
 
     await ctx.send_message(
         text=response,
-        reply_to=update.message,
+        reply_to=ctx.update.message,
     )

@@ -6,8 +6,7 @@ from telegram.ext import CallbackContext
 
 from ..bus import Signal, bus, encode
 from ..core import User
-from .utils import authorize, TelegramContext as Context
-from .router import router
+from ..messenger import router, Context, authorize
 
 
 logger = logging.getLogger(__name__)
@@ -85,9 +84,8 @@ class OnboardingFinished(Signal):
 
 @router.command("help", description="Describe commands")
 @authorize()
-async def help(update: Update, context: CallbackContext, user: User) -> None:
+async def help(ctx: Context, user: User) -> None:
     logger.info("User %s required help page.", user.id)
-    ctx = Context(update, context)
     await ctx.send_message(
         """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
@@ -106,9 +104,8 @@ Here are the commands you can use:
 
 @router.command("start", description="Start using the bot")
 @authorize()
-async def start(update: Update, context: CallbackContext, user: User) -> None:
+async def start(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
-    ctx = Context(update, context)
     await ctx.send_message(
         """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
@@ -116,15 +113,15 @@ Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
 In a few steps we'll set up things and start.      
 """,
     )
-    bus.emit(OnboardingStarted(user.id), update=update, context=context)
+    bus.emit(OnboardingStarted(user.id), ctx=ctx)
 
 
 @bus.on(OnboardingStarted)
 @authorize()
-async def select_native_language(update, context, user: User):
+async def select_native_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
-    bus.emit(OnboardingFinished(user.id), update=update, context=context)
+    bus.emit(OnboardingFinished(user.id), ctx=ctx)
 
 
 async def handle_native_language():
@@ -151,7 +148,6 @@ async def do_test(user: User):
 
 @bus.on(OnboardingFinished)
 @authorize()
-async def finish_onboarding(update, context, user: User):
+async def finish_onboarding(ctx: Context, user: User):
     # Show a message with tips how to work with the bot.
-    ctx = Context(update, context)
     await ctx.send_message("Here we go")

@@ -22,8 +22,7 @@ from ..srs import (
     update_note,
     Note,
 )
-from .router import router
-from .utils import authorize, TelegramContext as Context
+from ..messenger import router, Context, authorize
 
 
 @dataclass
@@ -231,17 +230,14 @@ def _is_note_format(text: str) -> bool:
 
 @router.message(_is_note_format)
 @authorize()
-async def add_notes(
-    update: Update, context: CallbackContext, user: User
-) -> None:
+async def add_notes(ctx: Context, user: User) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 
     Args:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    ctx = Context(update, context)
-    message_text = update.message.text.split("\n")
+    message_text = ctx.update.message.text.split("\n")
     if len(message_text) > 100:
         return await ctx.send_message("You can add up to 100 words at a time.")
 
@@ -253,31 +249,21 @@ async def add_notes(
 
         if len(text) <= 12:
             bus.emit(
-                WordExplanationRequested(user.id, text, explanation),
-                update=update,
-                context=context,
+                WordExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         elif len(text) <= 30:
             bus.emit(
-                PhraseExplanationRequested(user.id, text, explanation),
-                update=update,
-                context=context,
+                PhraseExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         else:
-            bus.emit(
-                TextExplanationRequested(user.id, text),
-                update=update,
-                context=context,
-                explanation=explanation,
-            )
+            bus.emit(TextExplanationRequested(user.id, text), ctx=ctx)
 
 
 @bus.on(WordExplanationRequested)
 @bus.on(PhraseExplanationRequested)
 @authorize()
 async def add_note(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     text: str,
     explanation: Optional[str] = None,
@@ -286,7 +272,6 @@ async def add_note(
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
-    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
@@ -333,8 +318,8 @@ async def add_note(
                 notes_to_inject = get_notes_to_inject(user, language)
             # Check if the message is a reply to another message.
             context_message = None
-            if update.message.reply_to_message:
-                context_message = update.message.reply_to_message.text
+            if ctx.update.message.reply_to_message:
+                context_message = ctx.update.message.reply_to_message.text
             # Ask LLM to explain the word.
             explanation = await get_explanation(
                 text,
@@ -364,13 +349,11 @@ async def add_note(
 @bus.on(TextExplanationRequested)
 @authorize()
 async def add_text(
-    update: Update,
-    context: CallbackContext,
+    ctx: Context,
     user: User,
     text: str,
     explanation: Optional[str] = None,
 ):
-    ctx = Context(update, context)
     language = get_language(
         user.get_option(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
