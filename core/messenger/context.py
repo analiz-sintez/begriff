@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Dict
 from dataclasses import dataclass
 from typing import (
     List,
@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Message:
-    pass
+    id: int
+    chat_id: int
 
 
 @dataclass
@@ -40,6 +41,14 @@ class Context:
         self.config = config
 
     def username(self) -> str:
+        raise NotImplementedError()
+
+    @property
+    def message_map(self) -> Dict[int, Dict]:
+        """
+        A store of per-message metadata. e.g. a note bound to the message
+        to perform context actions on it.
+        """
         raise NotImplementedError()
 
     async def send_message(

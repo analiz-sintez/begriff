@@ -84,8 +84,7 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
     """
     type_hints = get_type_hints(fn)
 
-    async def wrapped(update, context):
-        kwargs = {}
+    async def wrapped(update, context, **kwargs):
         if context.matches:
             match = context.matches[0]
             if isinstance(match, re.Match):
@@ -150,21 +149,24 @@ def _create_reaction_handlers(
     router: Router,
 ) -> PTBReactionHandler:
     """
-    Creates a telegram.ext.MessageReactionHandler for a bunch of
+    Creates a /single/ telegram.ext.MessageReactionHandler for a bunch of
     ReactionHandler dataclasses.
     """
-    # build a dict of emojis to handlers
+    # Build a mapping of emojis to handlers
     emoji_map = {}
     for handler in handlers:
+        fn = _wrap_fn_with_args(handler.fn, router=router)
         for emoji in handler.emojis:
             if emoji not in emoji_map:
                 emoji_map[emoji] = []
-            emoji_map[emoji].append(
-                _wrap_fn_with_args(handler.fn, router=router)
-            )
+            emoji_map[emoji].append(fn)
 
     async def dispatch(update, context):
         reaction_obj = update.message_reaction
+        chat = reaction_obj.chat
+        date = reaction_obj.date
+        message_id = reaction_obj.message_id
+        message = Message(message_id=message_id, chat=chat, date=date)
         emoji = None
         if hasattr(reaction_obj, "new_reaction"):
             reactions = reaction_obj.new_reaction
@@ -172,7 +174,8 @@ def _create_reaction_handlers(
                 emoji = reactions[0].emoji
         logger.info(f"Got emoji: {emoji}")
         for fn in emoji_map.get(emoji, []):
-            await fn(update, context)
+            # TODO this should not await, just shoot and forget
+            await fn(update, context, emoji=emoji, reply_to=message)
 
     return PTBReactionHandler(dispatch)
 
@@ -205,13 +208,13 @@ def attach_router(router: Router, application: Application):
     for command in router.command_handlers:
         handler = _create_command_handler(command, router)
         application.add_handler(handler)
-        logger.info(f"Command handler added for '/{command.name}'")
+        logger.debug(f"Command handler added for '/{command.name}'")
 
     # Process and add callback query handlers
     for callback_handler in router.callback_query_handlers:
         handler = _create_callback_query_handler(callback_handler, router)
         application.add_handler(handler)
-        logger.info(
+        logger.debug(
             f"Callback query handler added for pattern: {callback_handler.pattern}"
         )
 
@@ -219,7 +222,7 @@ def attach_router(router: Router, application: Application):
     for message_handler in router.message_handlers:
         handler = _create_message_handler(message_handler, router)
         application.add_handler(handler)
-        logger.info(
+        logger.debug(
             f"Message handler added for pattern: {message_handler.pattern}"
         )
 
@@ -235,7 +238,7 @@ def attach_router(router: Router, application: Application):
 
     if bot_commands:
         application.post_init = set_commands
-        logger.info("Bot command descriptions set: %s", bot_commands)
+        logger.debug("Bot command descriptions set: %s", bot_commands)
 
     # Set up a reactions handler.
     # This is a special case. PTB doesn't support dispatching on emoji types,
@@ -256,16 +259,16 @@ def attach_bus(bus: Bus, application: Application):
 
         async def decode_and_emit(update: Update, context: CallbackContext):
             data = update.callback_query.data
-            logger.info(f"Got callback: {data}, decoding as {signal_name}.")
+            logger.debug(f"Got callback: {data}, decoding as {signal_name}.")
             signal = decode(signal_type, data)
             if not signal:
-                logger.info(f"Decoding {signal_name} failed.")
+                logger.warning(f"Decoding {signal_name} failed.")
                 return
             ctx = TelegramContext(update, context, config=bus.config)
             await bus.emit_and_wait(signal, ctx=ctx)
 
         pattern = make_regexp(signal_type)
-        logger.info(f"Registering handler: {pattern} -> {signal_name}")
+        logger.debug(f"Registering handler: {pattern} -> {signal_name}")
         handler = PTBCallbackQueryHandler(decode_and_emit, pattern=pattern)
         return handler
 
@@ -273,7 +276,7 @@ def attach_bus(bus: Bus, application: Application):
     for signal_type in bus.signals():
         module_name = getmodule(signal_type).__name__
         signal_name = signal_type.__name__
-        logging.info(
+        logging.debug(
             f"Bus: registering a handler for {module_name}.{signal_name}."
         )
         application.add_handler(make_handler(signal_type))

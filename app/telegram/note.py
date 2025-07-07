@@ -19,6 +19,7 @@ from ..srs import (
     get_language,
     create_word_note,
     get_notes,
+    get_note,
     update_note,
     Note,
 )
@@ -342,7 +343,65 @@ async def add_note(
     display_explanation = format_explanation(
         await get_explanation_in_native_language(note)
     )
-    await ctx.send_message(f"{icon} *{text}* — {display_explanation}")
+    message = await ctx.send_message(
+        f"{icon} *{text}* — {display_explanation}"
+    )
+    # Save an association between the note and the message.
+    ctx.message_map[message.message_id] = {"note_id": note.id}
+
+
+@router.reaction(["👎"])  # finger down
+@router.authorize()
+async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
+    """
+    Handles a negative reaction on a note's explanation message.
+    It regenerates the explanation, updates the note, and sends a new message.
+    """
+    if not (message_ctx := ctx.message_map.get(reply_to.message_id)):
+        return
+    if not (note_id := message_ctx.get("note_id")):
+        return
+    if not (note := get_note(note_id)):
+        return
+    if note.user_id != user.id:
+        return
+
+    logger.info(
+        f"User {user.login} disliked the explanation for note {note.id}. Regenerating."
+    )
+
+    # Regenerate the explanation, similar to creating a new one
+    notes_to_inject = None
+    if "explanation" in Config.LLM["inject_notes"]:
+        notes_to_inject = get_notes_to_inject(user, note.language)
+
+    # We don't have the original message context (like a reply-to) on reaction, so pass None
+    new_explanation = await get_explanation(
+        note.field1, note.language.name, notes=notes_to_inject, context=None
+    )
+
+    # Update the note with the new explanation
+    note.field2 = new_explanation
+    update_note(note)
+    bus.emit(ExplanationNoteUpdated(note.id))
+    logger.info(
+        f"Updated explanation for note {note.id} for user {user.login} to: '{new_explanation}'"
+    )
+
+    # Send the new explanation to the user as a new message
+    icon = "🟡"  # Regenerated note: yellow ball
+    display_explanation = format_explanation(
+        await get_explanation_in_native_language(note)
+    )
+    new_message = await ctx.send_message(
+        f"{icon} *{note.field1}* — {display_explanation}",
+        new=True,  # Ensure it's a new message
+    )
+
+    # Update the message map to associate the new message with the note
+    # so the user can react to the new explanation as well.
+    if new_message:
+        ctx.message_map[new_message.message_id] = {"note_id": note.id}
 
 
 @bus.on(TextExplanationRequested)

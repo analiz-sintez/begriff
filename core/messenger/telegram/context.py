@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import logging
 
 from telegram.ext import CallbackContext
@@ -43,11 +43,17 @@ class TelegramContext(Context):
     def username(self) -> str:
         return self.update.effective_user.username
 
+    @property
+    def message_map(self) -> Dict[int, Dict]:
+        if "_message_map" not in self.context.chat_data:
+            self.context.chat_data["_message_map"]: Dict[int, Dict] = {}
+        return self.context.chat_data["_message_map"]
+
     async def _send_message(
         self,
         update: Update,
         context: CallbackContext,
-        caption: str,
+        text: str,
         markup=None,
         image: Optional[str] = None,
         new: bool = False,
@@ -70,7 +76,7 @@ class TelegramContext(Context):
                     await message.edit_media(
                         media=InputMediaPhoto(
                             media=open(image, "rb"),
-                            caption=caption,
+                            caption=text,
                             parse_mode=ParseMode.MARKDOWN,
                         ),
                         reply_markup=markup,
@@ -83,7 +89,7 @@ class TelegramContext(Context):
                         f"Failed to edit media (possibly same image): {e}. Trying to edit caption."
                     )
                     await message.edit_caption(
-                        caption=caption,
+                        caption=text,
                         parse_mode=ParseMode.MARKDOWN,
                         reply_markup=markup,
                     )
@@ -98,7 +104,7 @@ class TelegramContext(Context):
                 # For now, let's assume we can edit the text or caption.
                 try:
                     await message.edit_text(  # Handles case where previous message was text
-                        text=caption,
+                        text=text,
                         reply_markup=markup,
                         parse_mode=ParseMode.MARKDOWN,
                     )
@@ -106,7 +112,7 @@ class TelegramContext(Context):
                     Exception
                 ):  # Fallback to edit_caption if edit_text fails (e.g. previous was photo)
                     await message.edit_caption(
-                        caption=caption,
+                        caption=text,
                         parse_mode=ParseMode.MARKDOWN,
                         reply_markup=markup,
                     )
@@ -121,22 +127,23 @@ class TelegramContext(Context):
                 effective_reply_to_message_id = update.message.message_id
 
             if image:
-                await context.bot.send_photo(
+                message = await context.bot.send_photo(
                     chat_id=update.effective_chat.id,
                     photo=open(image, "rb"),
-                    caption=caption,
+                    caption=text,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_to_message_id=effective_reply_to_message_id,
                 )
             else:
-                await context.bot.send_message(
+                message = await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text=caption,
+                    text=text,
                     reply_markup=markup,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_to_message_id=effective_reply_to_message_id,
                 )
+        return message
 
     async def send_message(
         self,

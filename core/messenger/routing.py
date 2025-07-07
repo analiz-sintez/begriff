@@ -89,7 +89,7 @@ class Router:
             description = name
 
         def decorator(fn: Callable) -> Callable:
-            logger.info(f"Registering command: /{name}: {description}")
+            logger.debug(f"Registering command: /{name}: {description}")
             handler_def = Command(
                 fn=fn,
                 name=name,
@@ -107,7 +107,7 @@ class Router:
         """
 
         def decorator(fn: Callable) -> Callable:
-            logger.info(f"Registering callback query with pattern: {pattern}")
+            logger.debug(f"Registering callback query with pattern: {pattern}")
             handler_def = CallbackHandler(fn=fn, pattern=pattern)
             self.callback_query_handlers.append(handler_def)
             return fn
@@ -120,9 +120,7 @@ class Router:
         """
 
         def decorator(fn: Callable) -> Callable:
-            logger.info(
-                f"Registering reaction handler for emojis:" "".join(emojis)
-            )
+            logger.debug(f"Registering reaction handler for emojis: {emojis}")
             handler_def = ReactionHandler(fn=fn, emojis=emojis)
             self.reaction_handlers.append(handler_def)
             return fn
@@ -135,7 +133,7 @@ class Router:
         """
 
         def decorator(fn: Callable) -> Callable:
-            logger.info(f"Registering message with pattern: {pattern}")
+            logger.debug(f"Registering message with pattern: {pattern}")
             handler_def = MessageHandler(fn=fn, pattern=pattern)
             self.message_handlers.append(handler_def)
             return fn
