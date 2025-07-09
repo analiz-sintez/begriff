@@ -182,11 +182,16 @@ class Router:
 
         return decorator
 
-    def help(self, message: str):
+    def help(self, help_text: str):
         """
         Add a contextual help message for the haldner.
         Requires the handler to return the message.
         """
+
+        # TODO How this may work with an i11n module:
+        # - i11n module declares a half-baked string objects which should
+        #   be resolved with Context object at runtime;
+        # - if not resolved, they default to English text when used as strings.
 
         def decorator(fn: Callable) -> Callable:
             """
@@ -201,13 +206,21 @@ class Router:
                 return fn
 
             logger.debug(
-                f"Registering help message: '{message}' for the function {fn}."
+                f"Registering help message: '{help_text}' for the function {fn}."
             )
-            message_hash = hashlib.md5(message.encode()).hexdigest()
+            help_hash = hashlib.md5(help_text.encode()).hexdigest()
 
-            @self.command("help", conditions={"_help": message_hash})
+            @self.command("help", conditions={"_help": help_hash})
             async def helper_fn(ctx, reply_to: Optional[Message] = None):
-                return await ctx.send_message(message, reply_to=reply_to)
+                return await ctx.send_message(help_text, reply_to=reply_to)
+
+            # thinking face and exploding head emojis
+            # TODO move it somewhere to the config
+            @self.reaction(["🤯", "🤔"], conditions={"_help": help_hash})
+            async def reaction_helper_fn(
+                ctx, emoji: str, reply_to: Optional[Message] = None
+            ):
+                return await ctx.send_message(help_text, reply_to=reply_to)
 
             @wraps(fn)
             async def patched_fn(**kwargs):
@@ -217,9 +230,14 @@ class Router:
                         f"The handler {fn} doesn't return the message, so the helper wouldn't work. Add `return await ctx.send_message(...) to fix that.`"
                     )
                     return
+                # TODO fix this layer leakage: `message_id` property of the
+                # telegram.Message object should be replaced with Message.id
+                # property of internal message object.
+                # For this to work, `send_message` should return the internam
+                # messare representation.
                 if message.message_id not in ctx.message_context:
                     ctx.message_context[message.message_id] = {}
-                ctx.message_context[message.message_id]["_help"] = message_hash
+                ctx.message_context[message.message_id]["_help"] = help_hash
                 return message
 
             return patched_fn
