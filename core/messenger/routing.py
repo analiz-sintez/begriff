@@ -1,5 +1,6 @@
 import re
 import logging
+import hashlib
 from dataclasses import dataclass
 from functools import wraps
 from inspect import signature, Signature, Parameter
@@ -15,7 +16,7 @@ from typing import (
     Concatenate,
 )
 
-from .context import Context
+from .context import Context, Message
 from ..auth import get_user, User
 
 P = ParamSpec("P")
@@ -181,10 +182,49 @@ class Router:
 
         return decorator
 
-    def _check_conditions(self, conditions: Conditions, ctx: Context):
-        # TODO this should not rely on any messenger specifics,
-        # this it should be implemented here.
-        raise NotImplementedError()
+    def help(self, message: str):
+        """
+        Add a contextual help message for the haldner.
+        Requires the handler to return the message.
+        """
+
+        def decorator(fn: Callable) -> Callable:
+            """
+            Mark the message sent by the wrapped fn so that the help system
+            knows what to show.
+            """
+            sig = signature(fn)
+            if "ctx" not in sig.parameters:
+                logger.error(
+                    f"Can't declare a helper for function {fn}: it must have a `ctx: Context` argument."
+                )
+                return fn
+
+            logger.debug(
+                f"Registering help message: '{message}' for the function {fn}."
+            )
+            message_hash = hashlib.md5(message.encode()).hexdigest()
+
+            @self.command("help", conditions={"_help": message_hash})
+            async def helper_fn(ctx, reply_to: Optional[Message] = None):
+                return await ctx.send_message(message, reply_to=reply_to)
+
+            @wraps(fn)
+            async def patched_fn(**kwargs):
+                ctx = kwargs["ctx"]
+                if not (message := await fn(**kwargs)):
+                    logger.warning(
+                        f"The handler {fn} doesn't return the message, so the helper wouldn't work. Add `return await ctx.send_message(...) to fix that.`"
+                    )
+                    return
+                if message.message_id not in ctx.message_context:
+                    ctx.message_context[message.message_id] = {}
+                ctx.message_context[message.message_id]["_help"] = message_hash
+                return message
+
+            return patched_fn
+
+        return decorator
 
     def authorize(self, admin=False) -> UserInjector:
         def _authorize(

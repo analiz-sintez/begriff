@@ -113,6 +113,9 @@ async def start_study_session(ctx: Context, user: User) -> None:
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @router.authorize()
+@router.help(
+    "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer."
+)
 async def study_next_card(ctx: Context, user: User) -> None:
     """
     Fetch a study card for the user and display it with a button to show
@@ -172,15 +175,14 @@ async def study_next_card(ctx: Context, user: User) -> None:
         front = await get_explanation_in_native_language(note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
-    message = await ctx.send_message(front, keyboard, image_path)
-    ctx.message_context[message.message_id] = {
-        "card_id": card.id,
-        "state": "question",
-    }
+    return await ctx.send_message(front, keyboard, image_path)
 
 
 @bus.on(CardAnswerRequested)
 @router.authorize()
+@router.help(
+    "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later."
+)
 async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     """
     Handle ANSWER button press and show grade buttons.
@@ -223,27 +225,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
             ]
         ]
     )
-    message = await ctx.send_message(f"{front}\n\n{back}", keyboard)
-    ctx.message_context[message.message_id] = {
-        "card_id": card.id,
-        "state": "answer",
-    }
-
-
-@router.command("help", conditions={"note_id": Any, "state": "question"})
-async def help_question(ctx: Context, reply_to: object):
-    return await ctx.send_message(
-        "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer.",
-        reply_to=reply_to,
-    )
-
-
-@router.command("help", conditions={"note_id": Any, "state": "answer"})
-async def help_answer(ctx: Context, reply_to: object):
-    return await ctx.send_message(
-        "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later.",
-        reply_to=reply_to,
-    )
+    return await ctx.send_message(f"{front}\n\n{back}", keyboard)
 
 
 @bus.on(CardGradeSelected)
