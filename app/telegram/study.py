@@ -230,17 +230,19 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     }
 
 
-@router.command("help", message_context={"note_id": Any, "state": "question"})
-async def help_question(ctx: Context):
+@router.command("help", conditions={"note_id": Any, "state": "question"})
+async def help_question(ctx: Context, reply_to: object):
     return await ctx.send_message(
-        "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer."
+        "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer.",
+        reply_to=reply_to,
     )
 
 
-@router.command("help", message_context={"note_id": Any, "state": "answer"})
-async def help_answer(ctx: Context):
+@router.command("help", conditions={"note_id": Any, "state": "answer"})
+async def help_answer(ctx: Context, reply_to: object):
     return await ctx.send_message(
-        "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later."
+        "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later.",
+        reply_to=reply_to,
     )
 
 

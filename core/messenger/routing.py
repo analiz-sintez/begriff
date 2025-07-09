@@ -57,7 +57,7 @@ class Handler:
     """A generic handler."""
 
     fn: Callable
-    message_context: Optional[Conditions]
+    conditions: Optional[Conditions]
 
 
 @dataclass
@@ -110,7 +110,7 @@ class Router:
         name: str,
         args: list[str] = [],
         description: Optional[str] = None,
-        message_context: Optional[Conditions] = None,
+        conditions: Optional[Conditions] = None,
     ) -> Callable:
         """
         A decorator to register a command handler.
@@ -125,7 +125,7 @@ class Router:
                 name=name,
                 args=args,
                 description=description,
-                message_context=message_context,
+                conditions=conditions,
             )
             self.command_handlers.append(handler_def)
             return fn
@@ -140,7 +140,7 @@ class Router:
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering callback query with pattern: {pattern}")
             handler_def = CallbackHandler(
-                fn=fn, pattern=pattern, message_context=None
+                fn=fn, pattern=pattern, conditions=None
             )
             self.callback_query_handlers.append(handler_def)
             return fn
@@ -150,7 +150,7 @@ class Router:
     def reaction(
         self,
         emojis: list[str] = [],
-        message_context: Optional[Conditions] = None,
+        conditions: Optional[Conditions] = None,
     ) -> Callable:
         """
         A decorator to register a reaction handler based on reactions list.
@@ -159,7 +159,7 @@ class Router:
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering reaction handler for emojis: {emojis}")
             handler_def = ReactionHandler(
-                fn=fn, emojis=emojis, message_context=message_context
+                fn=fn, emojis=emojis, conditions=conditions
             )
             self.reaction_handlers.append(handler_def)
             return fn
@@ -174,7 +174,7 @@ class Router:
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering message with pattern: {pattern}")
             handler_def = MessageHandler(
-                fn=fn, pattern=pattern, message_context=None
+                fn=fn, pattern=pattern, conditions=None
             )
             self.message_handlers.append(handler_def)
             return fn

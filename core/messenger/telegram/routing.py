@@ -152,7 +152,7 @@ def _create_command_handler(
     conditional_handlers = []
     conditionless_handlers = []
     for handler in handlers:
-        if handler.message_context:
+        if handler.conditions:
             conditional_handlers.append(handler)
         else:
             conditionless_handlers.append(handler)
@@ -166,12 +166,16 @@ def _create_command_handler(
         found = False
         for handler in conditional_handlers:
             # Check the message context condition.
-            if check_conditions(handler.message_context, message_ctx):
+            if check_conditions(handler.conditions, message_ctx):
+                logger.info(
+                    f"Handler matched for command {name}: {handler.conditions}."
+                )
                 found = True
                 await handler.fn(update, context, reply_to=reply_to)
         if found:
             return
         for handler in conditionless_handlers:
+            logger.info(f"Calling conditionless handler for command {name}.")
             await handler.fn(update, context, reply_to=reply_to)
 
     return PTBCommandHandler(name, dispatch)
@@ -220,8 +224,11 @@ def _create_reaction_handlers(
         logger.info(f"Got emoji: {emoji}")
         for handler in emoji_map.get(emoji, []):
             # Check the message context condition.
-            if check_conditions(handler.message_context, message_ctx):
+            if check_conditions(handler.conditions, message_ctx):
                 # TODO this should not await, just shoot and forget
+                logger.info(
+                    f"Handler matched for emoji {emoji}: {handler.conditions}."
+                )
                 await handler.fn(
                     update, context, emoji=emoji, reply_to=message
                 )

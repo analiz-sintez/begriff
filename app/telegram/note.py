@@ -356,7 +356,7 @@ async def add_note(
     ctx.message_context[message.message_id] = {"note_id": note.id}
 
 
-@router.reaction(["👎"], message_context={"note_id": Any})  # finger down
+@router.reaction(["👎"], conditions={"note_id": Any})  # finger down
 @router.authorize()
 async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
     """
