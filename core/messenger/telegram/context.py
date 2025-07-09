@@ -44,10 +44,14 @@ class TelegramContext(Context):
         return self.update.effective_user.username
 
     @property
-    def message_map(self) -> Dict[int, Dict]:
-        if "_message_map" not in self.context.chat_data:
-            self.context.chat_data["_message_map"]: Dict[int, Dict] = {}
-        return self.context.chat_data["_message_map"]
+    def message_context(self) -> Dict[int, Dict]:
+        """
+        A store of per-message metadata. e.g. a note bound to the message
+        to perform context actions on it.
+        """
+        if "_message_context" not in self.context.chat_data:
+            self.context.chat_data["_message_context"]: Dict[int, Dict] = {}
+        return self.context.chat_data["_message_context"]
 
     async def _send_message(
         self,

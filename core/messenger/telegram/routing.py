@@ -2,9 +2,12 @@ import re
 import logging
 from inspect import getmodule
 from typing import (
+    Dict,
     Type,
     Callable,
     Optional,
+    Any,
+    List,
     get_type_hints,
     Optional,
     get_type_hints,
@@ -23,11 +26,13 @@ from telegram.ext import (
 
 from ...bus import Bus, Signal, unoption, decode, make_regexp
 from ..routing import (
+    check_conditions,
     CallbackHandler,
     Command,
     MessageHandler,
     ReactionHandler,
     Router,
+    Conditions,
 )
 from .context import TelegramContext
 
@@ -112,15 +117,19 @@ def _wrap_command_fn(
     """
     type_hints = get_type_hints(fn)
 
-    async def wrapped(update, context):
+    async def wrapped(update, context, **outer_kwargs):
         args = context.args if hasattr(context, "args") else []
-        kwargs = {name: None for name in arg_names}
-
-        for value, key in zip(args, arg_names[: len(args)]):
+        arg_cnt = min(len(args), len(arg_names))
+        for value, key in zip(args[:arg_cnt], arg_names[:arg_cnt]):
             if key in type_hints:
-                kwargs[key] = _coerce(value, type_hints[key])
+                outer_kwargs[key] = _coerce(value, type_hints[key])
+        kwargs = {
+            key: outer_kwargs[key]
+            for key in type_hints.keys()
+            if key in outer_kwargs
+        }
 
-        logger.debug(f"Calling {fn.__name__} with args: {kwargs}")
+        logger.debug(f"Calling {fn.__name__} with args: {outer_kwargs}")
         ctx = TelegramContext(update, context, config=router.config)
         return await fn(ctx, **kwargs)
 
@@ -128,11 +137,44 @@ def _wrap_command_fn(
 
 
 def _create_command_handler(
-    command: Command, router: Router
+    name: str, handlers: List[Command], router: Router
 ) -> PTBCommandHandler:
-    """Creates a telegram.ext.CommandHandler from a Command dataclass."""
-    wrapped_fn = _wrap_command_fn(command.fn, command.args, router)
-    return PTBCommandHandler(command.name, wrapped_fn)
+    """
+    Creates a *single* telegram.CommandHandler for a bunch of
+    CommandHandler dataclasses.
+    They may have different conditions, e.g. on message context.
+
+    """
+    # TODO: this logic is too primitive. Maybe we should have
+    # `is_final` property which terminates the search.
+    # Or sort handlers based on conditions count, search from the ones with
+    # many conditions first, and terminate the search if we found something.
+    conditional_handlers = []
+    conditionless_handlers = []
+    for handler in handlers:
+        if handler.message_context:
+            conditional_handlers.append(handler)
+        else:
+            conditionless_handlers.append(handler)
+
+    async def dispatch(update, context):
+        ctx = TelegramContext(update, context, config=router.config)
+        # Get the message replied to.
+        message_ctx = None
+        if reply_to := update.message.reply_to_message:
+            message_ctx = ctx.message_context.get(reply_to.message_id)
+        found = False
+        for handler in conditional_handlers:
+            # Check the message context condition.
+            if check_conditions(handler.message_context, message_ctx):
+                found = True
+                await handler.fn(update, context, reply_to=reply_to)
+        if found:
+            return
+        for handler in conditionless_handlers:
+            await handler.fn(update, context, reply_to=reply_to)
+
+    return PTBCommandHandler(name, dispatch)
 
 
 def _create_callback_query_handler(
@@ -145,27 +187,30 @@ def _create_callback_query_handler(
 
 
 def _create_reaction_handlers(
-    handlers: list[ReactionHandler],
+    handlers: List[ReactionHandler],
     router: Router,
 ) -> PTBReactionHandler:
     """
-    Creates a /single/ telegram.ext.MessageReactionHandler for a bunch of
+    Creates a *single* telegram.ext.MessageReactionHandler for a bunch of
     ReactionHandler dataclasses.
     """
     # Build a mapping of emojis to handlers
     emoji_map = {}
     for handler in handlers:
-        fn = _wrap_fn_with_args(handler.fn, router=router)
+        handler.fn = _wrap_fn_with_args(handler.fn, router=router)
         for emoji in handler.emojis:
             if emoji not in emoji_map:
                 emoji_map[emoji] = []
-            emoji_map[emoji].append(fn)
+            emoji_map[emoji].append(handler)
 
     async def dispatch(update, context):
+        ctx = TelegramContext(update, context, config=router.config)
+        # Get the reply to message.
         reaction_obj = update.message_reaction
         chat = reaction_obj.chat
         date = reaction_obj.date
         message_id = reaction_obj.message_id
+        message_ctx = ctx.message_context.get(message_id)
         message = Message(message_id=message_id, chat=chat, date=date)
         emoji = None
         if hasattr(reaction_obj, "new_reaction"):
@@ -173,9 +218,13 @@ def _create_reaction_handlers(
             if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
                 emoji = reactions[0].emoji
         logger.info(f"Got emoji: {emoji}")
-        for fn in emoji_map.get(emoji, []):
-            # TODO this should not await, just shoot and forget
-            await fn(update, context, emoji=emoji, reply_to=message)
+        for handler in emoji_map.get(emoji, []):
+            # Check the message context condition.
+            if check_conditions(handler.message_context, message_ctx):
+                # TODO this should not await, just shoot and forget
+                await handler.fn(
+                    update, context, emoji=emoji, reply_to=message
+                )
 
     return PTBReactionHandler(dispatch)
 
@@ -205,10 +254,17 @@ def attach_router(router: Router, application: Application):
     logger.info("Attaching handlers to the application.")
 
     # Process and add command handlers
-    for command in router.command_handlers:
-        handler = _create_command_handler(command, router)
+    # For each command gather all registered handlers.
+    command_map = {}
+    for handler in router.command_handlers:
+        if handler.name not in command_map:
+            command_map[handler.name] = []
+        handler.fn = _wrap_command_fn(handler.fn, handler.args, router)
+        command_map[handler.name].append(handler)
+    for command_name, handlers in command_map.items():
+        handler = _create_command_handler(command_name, handlers, router)
         application.add_handler(handler)
-        logger.debug(f"Command handler added for '/{command.name}'")
+        logger.debug(f"Command handler added for '/{command_name}'")
 
     # Process and add callback query handlers
     for callback_handler in router.callback_query_handlers:

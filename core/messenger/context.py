@@ -44,7 +44,7 @@ class Context:
         raise NotImplementedError()
 
     @property
-    def message_map(self) -> Dict[int, Dict]:
+    def message_context(self) -> Dict[int, Dict]:
         """
         A store of per-message metadata. e.g. a note bound to the message
         to perform context actions on it.

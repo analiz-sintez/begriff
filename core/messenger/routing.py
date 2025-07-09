@@ -7,6 +7,8 @@ from typing import (
     Optional,
     Callable,
     Union,
+    Dict,
+    Any,
     TypeAlias,
     TypeVar,
     ParamSpec,
@@ -26,38 +28,65 @@ UserInjector: TypeAlias = Callable[
 
 logger = logging.getLogger(__name__)
 
+Conditions: TypeAlias = Dict[str, Union[str, int]]
+
+
+def check_conditions(
+    conditions: Optional[Conditions], message_context: Optional[Dict]
+) -> bool:
+    """
+    Check handler conditions against given message context.
+    """
+    if not conditions:
+        return True
+    if not message_context:
+        return False
+    match = False
+    for condition, value in conditions.items():
+        if condition not in message_context:
+            continue
+        if value is not Any and message_context[condition] != value:
+            continue
+        match = True
+        break
+    return match
+
 
 @dataclass
-class Command:
-    """A generic definition for a command handler."""
+class Handler:
+    """A generic handler."""
 
     fn: Callable
+    message_context: Optional[Conditions]
+
+
+@dataclass
+class Command(Handler):
+    """A generic definition for a command handler."""
+
     name: str
     args: list[str]
     description: str
 
 
 @dataclass
-class MessageHandler:
+class MessageHandler(Handler):
     """A generic definition for a message handler."""
 
-    fn: Callable
     pattern: Union[str, re.Pattern, Callable]
 
 
 @dataclass
-class ReactionHandler:
+class ReactionHandler(Handler):
     """A generic definition for a reaction handler."""
 
-    fn: Callable
     emojis: list[str]
 
 
 @dataclass
-class CallbackHandler:
+class CallbackHandler(Handler):
     """A generic definition for a callback query handler."""
 
-    fn: Callable
     pattern: str
 
 
@@ -81,6 +110,7 @@ class Router:
         name: str,
         args: list[str] = [],
         description: Optional[str] = None,
+        message_context: Optional[Conditions] = None,
     ) -> Callable:
         """
         A decorator to register a command handler.
@@ -95,6 +125,7 @@ class Router:
                 name=name,
                 args=args,
                 description=description,
+                message_context=message_context,
             )
             self.command_handlers.append(handler_def)
             return fn
@@ -108,20 +139,28 @@ class Router:
 
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering callback query with pattern: {pattern}")
-            handler_def = CallbackHandler(fn=fn, pattern=pattern)
+            handler_def = CallbackHandler(
+                fn=fn, pattern=pattern, message_context=None
+            )
             self.callback_query_handlers.append(handler_def)
             return fn
 
         return decorator
 
-    def reaction(self, emojis: list[str] = []) -> Callable:
+    def reaction(
+        self,
+        emojis: list[str] = [],
+        message_context: Optional[Conditions] = None,
+    ) -> Callable:
         """
         A decorator to register a reaction handler based on reactions list.
         """
 
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering reaction handler for emojis: {emojis}")
-            handler_def = ReactionHandler(fn=fn, emojis=emojis)
+            handler_def = ReactionHandler(
+                fn=fn, emojis=emojis, message_context=message_context
+            )
             self.reaction_handlers.append(handler_def)
             return fn
 
@@ -134,11 +173,18 @@ class Router:
 
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering message with pattern: {pattern}")
-            handler_def = MessageHandler(fn=fn, pattern=pattern)
+            handler_def = MessageHandler(
+                fn=fn, pattern=pattern, message_context=None
+            )
             self.message_handlers.append(handler_def)
             return fn
 
         return decorator
+
+    def _check_conditions(self, conditions: Conditions, ctx: Context):
+        # TODO this should not rely on any messenger specifics,
+        # this it should be implemented here.
+        raise NotImplementedError()
 
     def authorize(self, admin=False) -> UserInjector:
         def _authorize(

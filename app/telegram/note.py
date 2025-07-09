@@ -3,7 +3,7 @@ import time
 import random
 import logging
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from dataclasses import dataclass
 
 from core.auth import User
@@ -347,20 +347,24 @@ async def add_note(
         f"{icon} *{text}* — {display_explanation}"
     )
     # Save an association between the note and the message.
-    ctx.message_map[message.message_id] = {"note_id": note.id}
+    # TODO Here is a buggy piece: we either need to check if there's something
+    # in the message context, or we are at risk to erase the early state when
+    # we edit the message.
+    # Possible solutions:
+    # - make ctx.message_context clever;
+    # - make send_message accept `context` arg and set context only on send.
+    ctx.message_context[message.message_id] = {"note_id": note.id}
 
 
-@router.reaction(["👎"])  # finger down
+@router.reaction(["👎"], message_context={"note_id": Any})  # finger down
 @router.authorize()
 async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
     """
     Handles a negative reaction on a note's explanation message.
     It regenerates the explanation, updates the note, and sends a new message.
     """
-    if not (message_ctx := ctx.message_map.get(reply_to.message_id)):
-        return
-    if not (note_id := message_ctx.get("note_id")):
-        return
+    message_ctx = ctx.message_context.get(reply_to.message_id)
+    note_id = message_ctx.get("note_id")
     if not (note := get_note(note_id)):
         return
     if note.user_id != user.id:
@@ -401,7 +405,7 @@ async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
     # Update the message map to associate the new message with the note
     # so the user can react to the new explanation as well.
     if new_message:
-        ctx.message_map[new_message.message_id] = {"note_id": note.id}
+        ctx.message_context[new_message.message_id] = {"note_id": note.id}
 
 
 @bus.on(TextExplanationRequested)
