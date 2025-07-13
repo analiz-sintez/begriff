@@ -32,6 +32,8 @@ from typing import Dict, Optional, Set
 from babel import Locale
 from polib import POFile, POEntry, pofile, mofile
 
+from ..llm import translate
+
 logger = logging.getLogger(__name__)
 
 
@@ -209,7 +211,7 @@ def update_catalog(
             )
 
 
-def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
+async def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
     """
     Get the translation from data/locale/*.po file or return the English default.
     Implements lazy-loading and caching of translation files.
@@ -224,9 +226,17 @@ def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
 
     if translations:
         entry = translations.find(string.msgid)
-        if not entry:
-            update_catalog(translations, string)
-        elif entry.msgstr:
+        if not entry or not entry.msgstr:
+            translation = None
+            try:
+                translation = await translate(
+                    string.msgid, "English", locale.english_name
+                )
+            except Exception as e:
+                logging.info("Translation service unavailable: %s.", e)
+            update_catalog(translations, string, translation)
+            return translation
+        else:
             return entry.msgstr
 
     # Fallback to the original msgid

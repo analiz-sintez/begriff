@@ -154,18 +154,19 @@ class TelegramContext(Context):
                 )
         return message
 
-    def _make_button(self, button: Button) -> InlineKeyboardButton:
+    async def _make_button(self, button: Button) -> InlineKeyboardButton:
         if isinstance(button.text, TranslatableString):
-            text = resolve(button.text, self.user.locale)
+            text = await resolve(button.text, self.user.locale)
         else:
             text = str(button.text)
         return InlineKeyboardButton(
             text, callback_data=encode(button.callback)
         )
 
-    def _make_keyboard(self, keyboard: Keyboard) -> InlineKeyboardMarkup:
+    async def _make_keyboard(self, keyboard: Keyboard) -> InlineKeyboardMarkup:
         buttons = [
-            [self._make_button(b) for b in row] for row in keyboard.buttons
+            [await self._make_button(b) for b in row]
+            for row in keyboard.buttons
         ]
         return InlineKeyboardMarkup(buttons)
 
@@ -178,13 +179,13 @@ class TelegramContext(Context):
         reply_to: Optional[Union[PTBMessage, bool]] = None,
     ):
         if isinstance(text, TranslatableString):
-            text = resolve(text, self.user.locale)
+            text = await resolve(text, self.user.locale)
         return await self._send_message(
             self.update,
             self.context,
             text,
             image=image,
-            markup=self._make_keyboard(markup) if markup else None,
+            markup=await self._make_keyboard(markup) if markup else None,
             new=new,
             reply_to=reply_to,
         )
