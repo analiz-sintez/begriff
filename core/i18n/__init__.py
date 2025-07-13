@@ -219,7 +219,7 @@ async def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
     logger.info("Got translation request for the locale: %s", locale)
     if not isinstance(string, TranslatableString):
         raise TypeError("resolve() expects a TranslatableString instance.")
-    if locale is None:
+    if locale is None or locale.language == "en":
         return string.msgid
 
     translations = get_catalog(locale)
@@ -233,7 +233,7 @@ async def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
                     string.msgid, "English", locale.english_name
                 )
             except Exception as e:
-                logging.info("Translation service unavailable: %s.", e)
+                logging.debug("Translation service unavailable: %s.", e)
             update_catalog(translations, string, translation)
             return translation
         else:
