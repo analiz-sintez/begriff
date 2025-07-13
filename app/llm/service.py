@@ -1,36 +1,14 @@
 import logging
 from typing import Optional
-from asyncio import to_thread
-from openai import OpenAI
 from ..config import Config
 from bs4 import BeautifulSoup
 import requests
 
+from core.llm import query_llm, translate
+
 # Set up logging
 
 logger = logging.getLogger(__name__)
-
-client = OpenAI(base_url=Config.LLM["host"], api_key=Config.LLM["api_key"])
-
-
-async def _query_llm(
-    instructions: str, input: str, model: Optional[str] = None
-) -> str:
-    if model is None:
-        model = Config.LLM["models"]["default"]
-
-    assert model is not None
-
-    response = await to_thread(
-        client.chat.completions.create,
-        model=model,
-        messages=[
-            {"role": "system", "content": instructions},
-            {"role": "user", "content": input},
-        ],
-    )
-    result = response.choices[0].message.content.strip()
-    return result
 
 
 async def get_explanation(
@@ -92,7 +70,7 @@ Reply: [General] Someone who solves problems, often in a quick or discreet manne
         f"Requesting explanation for {input} with instructions\n: {instructions}"
     )
 
-    explanation = await _query_llm(
+    explanation = await query_llm(
         instructions, input, model=Config.LLM["models"]["explanation"]
     )
     logger.info("Received explanation: '%s'", explanation)
@@ -142,7 +120,7 @@ Instructions:
     logger.info("Requesting recap for text from URL: %s", url)
     logger.debug("Recap instructions:\n%s", instructions)
 
-    recap = await _query_llm(
+    recap = await query_llm(
         instructions, text_content, model=Config.LLM["models"]["recap"]
     )
     logger.info("Received recap: '%s'", recap)
@@ -179,43 +157,11 @@ Instructions:
         f"Requesting base form for {input} with instructions:\n{instructions}"
     )
 
-    base_form = await _query_llm(
+    base_form = await query_llm(
         instructions, input, model=Config.LLM["models"]["base_form"]
     )
     logger.info("Received base form: '%s'", base_form)
     return base_form
-
-
-async def translate(
-    text: str, src_language: str, dst_language: str = "English"
-) -> str:
-    """
-    Translate text from a source language to a destination language using LLM.
-
-    Args:
-        text (str): The text to translate.
-        src_language (str): The source language of the text.
-        dst_language (str, optional): The target language for the translation. Defaults to English.
-
-    Returns:
-        str: The translated text.
-    """
-
-    logger.info(
-        "Translating text from '%s' to '%s': '%s'",
-        src_language,
-        dst_language,
-        text,
-    )
-
-    instructions = f"""
-Translate the following text from {src_language} to {dst_language}.
-Ensure the translation captures the original meaning as accurately as possible.
-"""
-
-    translation = await _query_llm(instructions, text)
-    logger.info("Received translation: '%s'", translation)
-    return translation
 
 
 async def find_mistakes(
@@ -267,7 +213,7 @@ Your response:
 
     # Consider adding a specific model for mistake detection in Config if needed
     # e.g., model=Config.LLM["models"]["mistakes"]
-    mistake_analysis = await _query_llm(
+    mistake_analysis = await query_llm(
         instructions,
         input,
         model=Config.LLM["models"].get("mistakes")
