@@ -290,10 +290,10 @@ def attach_router(router: Router, application: Application):
         )
 
     # Set all commands with their descriptions for the bot menu
+    # TODO resolve translatable strings
     bot_commands = [
-        BotCommand(cmd.name, cmd.description or cmd.name)
+        BotCommand(cmd.name, str(cmd.description or cmd.name))
         for cmd in router.command_handlers
-        if cmd.description is not None
     ]
 
     async def set_commands(application: Application):

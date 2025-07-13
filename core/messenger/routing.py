@@ -18,6 +18,7 @@ from typing import (
 
 from .context import Context, Message
 from ..auth import get_user, User
+from ..i18n import TranslatableString, resolve
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -110,7 +111,7 @@ class Router:
         self,
         name: str,
         args: list[str] = [],
-        description: Optional[str] = None,
+        description: Optional[Union[str, TranslatableString]] = None,
         conditions: Optional[Conditions] = None,
     ) -> Callable:
         """
@@ -182,16 +183,13 @@ class Router:
 
         return decorator
 
-    def help(self, help_text: str):
+    def help(self, help_text: Union[str, TranslatableString]):
         """
         Add a contextual help message for the haldner.
         Requires the handler to return the message.
         """
 
-        # TODO How this may work with an i11n module:
-        # - i11n module declares a half-baked string objects which should
-        #   be resolved with Context object at runtime;
-        # - if not resolved, they default to English text when used as strings.
+        help_text_str = str(help_text)
 
         def decorator(fn: Callable) -> Callable:
             """
@@ -206,21 +204,21 @@ class Router:
                 return fn
 
             logger.debug(
-                f"Registering help message: '{help_text}' for the function {fn}."
+                f"Registering help message: '{help_text_str}' for the function {fn}."
             )
-            help_hash = hashlib.md5(help_text.encode()).hexdigest()
+            help_hash = hashlib.md5(help_text_str.encode()).hexdigest()
 
-            @self.command("help", conditions={"_help": help_hash})
-            async def helper_fn(ctx, reply_to: Optional[Message] = None):
-                return await ctx.send_message(help_text, reply_to=reply_to)
-
-            # thinking face and exploding head emojis
-            # TODO move it somewhere to the config
-            @self.reaction(["🤯", "🤔"], conditions={"_help": help_hash})
-            async def reaction_helper_fn(
-                ctx, emoji: str, reply_to: Optional[Message] = None
+            async def helper_fn(
+                ctx, reply_to: Optional[Message] = None, **kwargs
             ):
                 return await ctx.send_message(help_text, reply_to=reply_to)
+
+            self.command("help", conditions={"_help": help_hash})(helper_fn)
+            # thinking face and exploding head emojis
+            # TODO move it somewhere to the config
+            self.reaction(["🤯", "🤔"], conditions={"_help": help_hash})(
+                helper_fn
+            )
 
             @wraps(fn)
             async def patched_fn(**kwargs):

@@ -7,6 +7,7 @@ from typing import Any
 from core.auth import User
 from core.messenger import Button, Keyboard, Context
 from core.bus import Signal
+from core.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..srs import (
@@ -103,7 +104,7 @@ async def _get_image_for_show(card, previous_card=None):
         return await get_default_image()
 
 
-@router.command("study", description="Start a study session")
+@router.command("study", description=_("Start a study session"))
 @router.authorize()
 async def start_study_session(ctx: Context, user: User) -> None:
     logger.info("User %s requested to study.", user.login)
@@ -113,8 +114,11 @@ async def start_study_session(ctx: Context, user: User) -> None:
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @router.authorize()
+# @router.require(frontend=['telegram']) ## TODO: check the frontend type and restrict access from unsupported frontends.
 @router.help(
-    "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer."
+    _(
+        "Here you see the question. Try to remember the answer. If you come up with it, press ANSWER to check yourself. If you can't remember it for 10 seconds, don't try too hard, press ANSWER and try to memorize the answer."
+    )
 )
 async def study_next_card(ctx: Context, user: User) -> None:
     """
@@ -161,12 +165,14 @@ async def study_next_card(ctx: Context, user: User) -> None:
         logger.info("User %s has no cards to study.", user.login)
         bus.emit(StudySessionFinished(user.id))
         image_path = await get_finish_image()
-        return await ctx.send_message("All done for today.", image=image_path)
+        return await ctx.send_message(
+            _("All done for today."), image=image_path
+        )
 
     card = cards[0]
     image_path = await _get_image_for_show(card)
 
-    keyboard = Keyboard([[Button("ANSWER", CardAnswerRequested(card.id))]])
+    keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     logger.info("Display card front for user %s: %s", user.login, card.front)
     front = card.front
     # If the card is reversed (explanation -> word), translate the explanation.
@@ -175,13 +181,15 @@ async def study_next_card(ctx: Context, user: User) -> None:
         front = await get_explanation_in_native_language(note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
-    return await ctx.send_message(front, keyboard, image_path)
+    return await ctx.send_message(front, keyboard, image_path, reply_to=None)
 
 
 @bus.on(CardAnswerRequested)
 @router.authorize()
 @router.help(
-    "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later."
+    _(
+        "Here you rate your memorization. If you couldn't come up with an answer, or your answer is wrong, press AGAIN, and the card will show up soon again. If your answer is correct, press GOOD, and the card will be scheduled for tomorrow or later."
+    )
 )
 async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     """
@@ -220,7 +228,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     keyboard = Keyboard(
         [
             [
-                Button(answer.name, CardGradeSelected(view_id, answer))
+                Button(_(answer.name), CardGradeSelected(view_id, answer))
                 for answer in Answer
             ]
         ]

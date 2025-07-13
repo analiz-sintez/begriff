@@ -17,5 +17,6 @@ BeautifulSoup4
 pandas
 vertexai
 pillow
+polib
 pymorphy3
 transliterate

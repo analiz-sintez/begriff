@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from dataclasses import dataclass
 from typing import (
     List,
@@ -7,14 +7,24 @@ from typing import (
 )
 
 from ..bus import Signal
+from ..i18n import TranslatableString
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class User:
+    id: int
+    login: str
+    locale: str
+    _: Optional[object] = None
 
 
 @dataclass
 class Message:
     id: int
     chat_id: int
+    _: object
 
 
 @dataclass
@@ -44,6 +54,10 @@ class Context:
         raise NotImplementedError()
 
     @property
+    def user(self) -> User:
+        raise NotImplementedError()
+
+    @property
     def message_context(self) -> Dict[int, Dict]:
         """
         A store of per-message metadata. e.g. a note bound to the message
@@ -53,7 +67,7 @@ class Context:
 
     async def send_message(
         self,
-        text: str,
+        text: Union[str, TranslatableString],
         markup: Optional[Keyboard] = None,
         image: Optional[str] = None,
         new: bool = False,

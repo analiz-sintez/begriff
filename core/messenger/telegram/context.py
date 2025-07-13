@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 import logging
 
 from telegram.ext import CallbackContext
@@ -6,27 +6,17 @@ from telegram.constants import ParseMode
 from telegram import (
     Update,
     InputMediaPhoto,
-    Message,
+    Message as PTBMessage,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
 
 from ...bus import encode
-from .. import Context, Button, Keyboard
+from .. import Context, Button, Keyboard, User, Message
+from ...i18n import TranslatableString, resolve
 
 
 logger = logging.getLogger(__name__)
-
-
-def make_button(button: Button) -> InlineKeyboardButton:
-    return InlineKeyboardButton(
-        button.text, callback_data=encode(button.callback)
-    )
-
-
-def make_keyboard(keyboard: Keyboard) -> InlineKeyboardMarkup:
-    buttons = [[make_button(b) for b in row] for row in keyboard.buttons]
-    return InlineKeyboardMarkup(buttons)
 
 
 class TelegramContext(Context):
@@ -41,7 +31,19 @@ class TelegramContext(Context):
         return super().__init__(config)
 
     def username(self) -> str:
-        return self.update.effective_user.username
+        return self.user.login
+
+    @property
+    def user(self) -> User:
+        if not hasattr(self, "_user"):
+            telegram_user = self.update.effective_user
+            self._user = User(
+                id=telegram_user.id,
+                login=telegram_user.username,
+                locale=telegram_user.language_code,
+                _=telegram_user,
+            )
+        return self._user
 
     @property
     def message_context(self) -> Dict[int, Dict]:
@@ -61,7 +63,7 @@ class TelegramContext(Context):
         markup=None,
         image: Optional[str] = None,
         new: bool = False,
-        reply_to: Optional[Message] = None,
+        reply_to: Optional[Union[PTBMessage, bool]] = None,
     ):
         """Send or update a message, with or without an image."""
         if image and not self.config.IMAGE["enable"]:
@@ -123,11 +125,9 @@ class TelegramContext(Context):
         else:
             # Sending a new message
             effective_reply_to_message_id = None
-            if reply_to and isinstance(reply_to, Message):
+            if isinstance(reply_to, PTBMessage):
                 effective_reply_to_message_id = reply_to.message_id
-            elif (
-                update.message
-            ):  # Default reply if `update.message` exists and no explicit `reply_to`
+            elif type(reply_to) is bool and reply_to and update.message:
                 effective_reply_to_message_id = update.message.message_id
 
             if image:
@@ -149,20 +149,37 @@ class TelegramContext(Context):
                 )
         return message
 
+    def _make_button(self, button: Button) -> InlineKeyboardButton:
+        if isinstance(button.text, TranslatableString):
+            text = resolve(button.text, self.user.locale)
+        else:
+            text = str(button.text)
+        return InlineKeyboardButton(
+            text, callback_data=encode(button.callback)
+        )
+
+    def _make_keyboard(self, keyboard: Keyboard) -> InlineKeyboardMarkup:
+        buttons = [
+            [self._make_button(b) for b in row] for row in keyboard.buttons
+        ]
+        return InlineKeyboardMarkup(buttons)
+
     async def send_message(
         self,
-        text: str,
+        text: Union[str, TranslatableString],
         markup: Optional[Keyboard] = None,
         image: Optional[str] = None,
         new: bool = False,
-        reply_to: Optional[Message] = None,
+        reply_to: Optional[Union[PTBMessage, bool]] = None,
     ):
+        if isinstance(text, TranslatableString):
+            text = resolve(text, self.user.locale)
         return await self._send_message(
             self.update,
             self.context,
             text,
             image=image,
-            markup=make_keyboard(markup) if markup else None,
+            markup=self._make_keyboard(markup) if markup else None,
             new=new,
             reply_to=reply_to,
         )
