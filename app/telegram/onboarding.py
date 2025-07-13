@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from core.bus import Signal
 from core.auth import User
 from core.messenger import Context
+from core.i18n import TranslatableString as _
 
 from .. import bus, router
 
@@ -86,7 +87,8 @@ class OnboardingFinished(Signal):
 async def help(ctx: Context, user: User) -> None:
     logger.info("User %s required help page.", user.id)
     await ctx.send_message(
-        """
+        _(
+            """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
         
 Here are the commands you can use:
@@ -98,6 +100,7 @@ Here are the commands you can use:
 📚 /study - Start a study session with your queued words.
 🌍 /language - Change your studied language.        
 """
+        )
     )
 
 
@@ -106,11 +109,13 @@ Here are the commands you can use:
 async def start(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
     await ctx.send_message(
-        """
+        _(
+            """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
 
 In a few steps we'll set up things and start.      
 """,
+        )
     )
     bus.emit(OnboardingStarted(user.id), ctx=ctx)
 
@@ -149,4 +154,4 @@ async def do_test(user: User):
 @router.authorize()
 async def finish_onboarding(ctx: Context, user: User):
     # Show a message with tips how to work with the bot.
-    await ctx.send_message("Here we go")
+    await ctx.send_message(_("Here we go"))

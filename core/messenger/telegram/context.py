@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Union
 import logging
 
+from babel import Locale
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 from telegram import (
@@ -37,10 +38,14 @@ class TelegramContext(Context):
     def user(self) -> User:
         if not hasattr(self, "_user"):
             telegram_user = self.update.effective_user
+            try:
+                locale = Locale.parse(telegram_user.language_code)
+            except:
+                locale = Locale("en")
             self._user = User(
                 id=telegram_user.id,
                 login=telegram_user.username,
-                locale=telegram_user.language_code,
+                locale=locale,
                 _=telegram_user,
             )
         return self._user

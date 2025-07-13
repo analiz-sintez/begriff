@@ -26,11 +26,11 @@
 
 
 import logging
-
 import os
-from typing import Callable, Coroutine, Dict, Optional, Set
+from typing import Dict, Optional, Set
 
-import polib
+from babel import Locale
+from polib import POFile, POEntry, pofile, mofile
 
 logger = logging.getLogger(__name__)
 
@@ -66,71 +66,167 @@ class TranslatableString:
         )
 
 
-_translation_cache: Dict[str, Optional[polib.POFile]] = {}
+_translation_cache: Dict[Locale, Optional[POFile]] = {}
 
 # The flow:
 # no file -> no entry -> entry without translation -> entry with translation
 
 
-def create_locale_file(locale: str):
+def init_catalog(locale: Locale) -> POFile:
     """
-    Create a .po file with all the strings found in the app.
-    Leave translations empty.
+    Create a new POFile from TranslatableStrings registry and write it
+    to the .po file.
     """
-    # This is a placeholder for the script that would generate the .pot file
-    # and then create specific .po files from it.
-    # For the purpose of this example, we assume this is handled by a
-    # separate script like `scripts/collect_strings.py`.
-    pass
+    po_file = POFile()
+    po_file.metadata = {
+        "Project-Id-Version": "1.0",
+        "Report-Msgid-Bugs-To": "EMAIL@ADDRESS",
+        "POT-Creation-Date": "2027-10-28 14:00+0000",
+        "PO-Revision-Date": "2027-10-28 14:00+0000",
+        "Last-Translator": "FULL NAME <EMAIL@ADDRESS>",
+        "Language-Team": "LANGUAGE <LL@li.org>",
+        "Language": str(locale),
+        "MIME-Version": "1.0",
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Transfer-Encoding": "8bit",
+    }
+
+    for ts in sorted(
+        list(TranslatableString._registry), key=lambda x: x.msgid
+    ):
+        entry = POEntry(msgid=ts.msgid, msgstr="", comment=ts.comment or "")
+        po_file.append(entry)
+
+    po_path = os.path.join(
+        "data", "locale", str(locale), "LC_MESSAGES", "messages.po"
+    )
+    os.makedirs(os.path.dirname(po_path), exist_ok=True)
+
+    try:
+        po_file.save(po_path)
+        po_file.fpath = po_path
+        logger.info(
+            f"Created and saved a new catalog for locale '{str(locale)}' at {po_path}"
+        )
+    except OSError as e:
+        logger.error(
+            f"Failed to save catalog for locale '{str(locale)}' at {po_path}: {e}"
+        )
+        return POFile()
+
+    return po_file
 
 
-def resolve(string: TranslatableString, locale: str) -> str:
+def get_catalog(locale: Locale) -> Optional[POFile]:
     """
-    Get the translation from data/locale/*.po file or return the English default.
-    Implements lazy-loading and caching of translation files.
+    Open .po catalog if it exists, otherwise create a new one from
+    TranslatableStrings registry and write it to the file.
     """
-    logger.info(f"Got translation request for the locale: {locale}")
-    if not isinstance(string, TranslatableString):
-        raise TypeError("resolve() expects a TranslatableString instance.")
-    if not locale:
-        return string.msgid
-
     translations = _translation_cache.get(locale)
     if translations is None and locale not in _translation_cache:
         # Not in cache, attempt to load
+        locale_str = str(locale)
         po_path = os.path.join(
-            "data", "locale", locale, "LC_MESSAGES", "messages.po"
+            "data", "locale", locale_str, "LC_MESSAGES", "messages.po"
         )
         mo_path = os.path.join(
-            "data", "locale", locale, "LC_MESSAGES", "messages.mo"
+            "data", "locale", locale_str, "LC_MESSAGES", "messages.mo"
         )
 
         try:
-            # Production environments should prefer compiled .mo files for performance
-            if os.path.exists(mo_path):
-                translations = polib.mofile(mo_path)
-                logger.info(f"Loaded .mo file for locale '{locale}'")
-            elif os.path.exists(po_path):
-                translations = polib.pofile(po_path)
-                logger.info(f"Loaded .po file for locale '{locale}'")
+            # Prefer .po for modifiability
+            if os.path.exists(po_path):
+                translations = pofile(po_path)
+                logger.info("Loaded .po file for locale %s", locale_str)
+            elif os.path.exists(mo_path):
+                translations = mofile(mo_path)
+                logger.info("Loaded .mo file for locale %s", locale_str)
             else:
                 logger.warning(
-                    f"No .po or .mo file found for locale '{locale}'."
+                    "No .po or .mo file found for locale %s", locale_str
                 )
-                # In a real app, this is where you might trigger a
-                # background task to generate the translation file.
-                translations = None
+                translations = init_catalog(locale)
         except Exception as e:
             logger.error(
-                f"Failed to load translation file for locale '{locale}': {e}"
+                "Failed to load translation file for locale %s: %s",
+                locale_str,
+                e,
             )
             translations = None
 
         _translation_cache[locale] = translations
+    return translations
+
+
+def update_catalog(
+    catalog: POFile,
+    entry: TranslatableString,
+    translation: Optional[str] = None,
+):
+    """Add entry to the catalog — with or without translation — and save the catalog to disk."""
+    if not hasattr(catalog, "fpath") or not catalog.fpath:
+        logger.error(
+            "Cannot update catalog: The catalog object has no file path. "
+            "It might have been loaded from a .mo file or is an in-memory object."
+        )
+        return
+
+    po_path = catalog.fpath
+    mo_path = os.path.splitext(po_path)[0] + ".mo"
+
+    os.makedirs(os.path.dirname(po_path), exist_ok=True)
+
+    existing_entry = catalog.find(entry.msgid)
+    needs_save = False
+
+    if existing_entry:
+        if translation is not None and existing_entry.msgstr != translation:
+            existing_entry.msgstr = translation
+            logger.info(
+                f"Updated translation for '{entry.msgid}' in {po_path}"
+            )
+            needs_save = True
+    else:
+        new_po_entry = POEntry(
+            msgid=entry.msgid,
+            msgstr=translation or "",
+            comment=entry.comment or "",
+        )
+        catalog.append(new_po_entry)
+        logger.info(f"Added new string '{entry.msgid}' to {po_path}")
+        needs_save = True
+
+    if needs_save:
+        try:
+            catalog.save(po_path)
+            catalog.save_as_mofile(mo_path)
+            logger.info(
+                f"Saved catalog to {po_path} and compiled to {mo_path}"
+            )
+        except OSError as e:
+            logger.error(
+                f"Failed to save catalog file {po_path} or {mo_path}: {e}"
+            )
+
+
+def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
+    """
+    Get the translation from data/locale/*.po file or return the English default.
+    Implements lazy-loading and caching of translation files.
+    """
+    logger.info("Got translation request for the locale: %s", locale)
+    if not isinstance(string, TranslatableString):
+        raise TypeError("resolve() expects a TranslatableString instance.")
+    if locale is None:
+        return string.msgid
+
+    translations = get_catalog(locale)
 
     if translations:
         entry = translations.find(string.msgid)
-        if entry and entry.msgstr:
+        if not entry:
+            update_catalog(translations, string)
+        elif entry.msgstr:
             return entry.msgstr
 
     # Fallback to the original msgid

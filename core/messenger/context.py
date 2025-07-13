@@ -5,6 +5,7 @@ from typing import (
     List,
     Optional,
 )
+from babel import Locale
 
 from ..bus import Signal
 from ..i18n import TranslatableString
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class User:
     id: int
     login: str
-    locale: str
+    locale: Locale
     _: Optional[object] = None
 
 
