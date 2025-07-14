@@ -4,11 +4,43 @@ from ..config import Config
 from bs4 import BeautifulSoup
 import requests
 
-from core.llm import query_llm, translate
+from core.llm import query_llm
 
 # Set up logging
 
 logger = logging.getLogger(__name__)
+
+
+async def translate(
+    text: str, src_language: str, dst_language: str = "English"
+) -> str:
+    """
+    Translate text from a source language to a destination language using LLM.
+
+    Args:
+        text (str): The text to translate.
+        src_language (str): The source language of the text.
+        dst_language (str, optional): The target language for the translation. Defaults to English.
+
+    Returns:
+        str: The translated text.
+    """
+
+    logger.info(
+        "Translating text from '%s' to '%s': '%s'",
+        src_language,
+        dst_language,
+        text,
+    )
+
+    instructions = f"""
+Translate the following text from {src_language} to {dst_language}.
+Ensure the translation captures the original meaning as accurately as possible.
+"""
+
+    translation = await query_llm(instructions, text)
+    logger.info("Received translation: '%s'", translation)
+    return translation
 
 
 async def get_explanation(

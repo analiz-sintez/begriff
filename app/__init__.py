@@ -1,7 +1,10 @@
 from core.messenger import Router
 from core.bus import create_bus
 from core.llm import init_llm_client
+from core.i18n import init_catalog
 from .config import Config
+
+init_catalog("data/locale")
 
 router = Router(config=Config)
 bus = create_bus(config=Config)
