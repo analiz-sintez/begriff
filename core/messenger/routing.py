@@ -261,7 +261,7 @@ class Router:
             # TODO config-based authentication.
             @wraps(fn)
             async def wrapped(ctx: Context, **kwargs):
-                if not (user := get_user(ctx.username())):
+                if not (user := get_user(ctx.user.login)):
                     raise Exception("Unauthorized.")
                 # Authorize the user.
                 allowed_logins = self.config.AUTHENTICATION["allowed_logins"]
