@@ -14,10 +14,14 @@ openai
 fsrs-rs-python
 requests
 BeautifulSoup4
-pandas
 vertexai
 pillow
 polib
 babel
-pymorphy3
+emoji-country-flag
+pandas
+polars
+duckdb
 transliterate
+pymorphy3
+openpyxl

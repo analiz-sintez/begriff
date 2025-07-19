@@ -30,7 +30,7 @@ class Message:
 
 @dataclass
 class Button:
-    text: str
+    text: Union[str, TranslatableString]
     callback: Signal
 
 

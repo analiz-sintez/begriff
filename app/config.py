@@ -25,7 +25,66 @@ class Config:
         "logging_backend": "db",
     }
 
-    LANGUAGE = {"defaults": {"study": "English", "native": "Russian"}}
+    LANGUAGE = {
+        "defaults": {"study": "en", "native": "ru"},
+        "study_languages": [
+            # ... languages ordered by speakers count:
+            "en",  # 1.7b — English
+            # "zh",  # 1.3b — (Simplifed) Chinese
+            # "hi",  # 0.6b — Hindi
+            "es",  # 0.5b — Spanish
+            # "ar",  # 0.4b — Arabic (Egyptian kind)
+            # "ur",  # 0.3b — Urdu (Pakistan)
+            "fr",  # 0.3b — French
+            # "bn",  # 0.3b — Bangla (Bangladesh)
+            "pt",  # 250m — Portuguese (Portugal kind, but there's Brazil etc)
+            "ru",  # 200m — Russian
+            "de",  # 150m — German
+            # "ja",  # 130m — Japanese
+            # ... here go various dialects from Indna, for now we'll skip them.
+            # ... those are tens of mlns each:
+            # "fa",
+            # "vi",
+            "tr",
+            # "ko",
+            # "fil",
+            "it",
+            # "th",
+            "pl",
+            # ... from here the list goes opinionated.
+            "uk",
+            "sr",
+            "hy",
+            # "ka",
+        ],
+        # this is completely cosmetic, just to draw flags properly
+        "territories": {
+            "en": "GB",
+            "zh": "CN",
+            "hi": "IN",
+            "es": "ES",
+            "ar": "EG",
+            "ur": "PK",
+            "fr": "FR",
+            "bn": "BD",
+            "pt": "PT",
+            "ru": "RU",
+            "de": "DE",
+            "ja": "JP",
+            "fa": "IR",
+            "vi": "VN",
+            "tr": "TR",
+            "ko": "KR",
+            "fil": "PH",
+            "it": "IT",
+            "th": "TH",
+            "pl": "PL",
+            "uk": "UA",
+            "sr": "RS",
+            "hy": "AM",
+            "ka": "GE",
+        },
+    }
 
     # Database configuration
     SQLALCHEMY_DATABASE_URI = os.getenv(

@@ -1,10 +1,14 @@
 import logging
 from dataclasses import dataclass
+from babel import Locale
+from flag import flag
 
+from app.srs.service import get_language
 from core.bus import Signal
 from core.auth import User
 from core.messenger import Context
 from core.i18n import TranslatableString as _
+from core.messenger import Button, Keyboard
 
 from .. import bus, router
 
@@ -40,21 +44,32 @@ class DefaultNativeLanguageSaved(Signal):
 
 # Part 2. Select study language.
 @dataclass
-class StudyLanguageSelected(Signal):
+class StudyLanguageAsked(Signal):
     user_id: int
-    study_language_id: int
+
+
+@dataclass
+class StudyLanguageSelected(Signal):
+    """A user selected study language from the list."""
+
+    user_id: int
+    language_code: str
 
 
 @dataclass
 class StudyLanguageEntered(Signal):
+    """A user manually entered study language name."""
+
     user_id: int
-    study_language_id: int
+    language_code: str
 
 
 @dataclass
 class StudyLanguageSaved(Signal):
+    """The bot saved study language chosen by the user."""
+
     user_id: int
-    native_language_id: int
+    language_id: int
 
 
 # Part 3. Test and add words.
@@ -80,6 +95,12 @@ class RemindersSelected(Signal):
 @dataclass
 class OnboardingFinished(Signal):
     user_id: int
+
+
+def get_flag(ctx: Context, locale: Locale) -> str:
+    if terr := ctx.config.LANGUAGE["territories"].get(locale.language):
+        return flag(terr)
+    return ""
 
 
 @router.command("help", description="Describe commands")
@@ -122,22 +143,45 @@ In a few steps we'll set up things and start.
 
 @bus.on(OnboardingStarted)
 @router.authorize()
-async def select_native_language(ctx: Context, user: User):
+async def ask_studied_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
-    bus.emit(OnboardingFinished(user.id), ctx=ctx)
+    locales = [
+        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
+    ]
+    buttons = [
+        Button(
+            get_flag(ctx, locale)
+            + locale.get_language_name(ctx.user.locale.language),
+            StudyLanguageSelected(user.id, locale.language),
+        )
+        for locale in locales
+    ]
+    row_size = 4
+    row_cnt = len(buttons) // row_size
+    if len(buttons) % row_size > 0:
+        row_cnt += 1
+    keyboard = Keyboard(
+        [buttons[row_size * i : row_size * (i + 1)] for i in range(row_cnt)]
+    )
+    await ctx.send_message(
+        _("Select the language you want to study:"), keyboard
+    )
 
 
-async def handle_native_language():
-    pass
-
-
-async def select_study_language():
-    pass
-
-
-async def handle_study_language():
-    pass
+@bus.on(StudyLanguageSelected)
+@router.authorize()
+async def save_studied_language(ctx: Context, user: User, language_code: str):
+    locale = Locale.parse(language_code)
+    language = get_language(locale.get_language_name("en"))
+    await ctx.send_message(
+        _(
+            "You selected: {flag}{language}",
+            flag=get_flag(ctx, locale),
+            language=locale.get_language_name(ctx.user.locale.language),
+        )
+    )
+    bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)
 
 
 async def do_test(user: User):

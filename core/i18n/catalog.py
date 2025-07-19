@@ -55,16 +55,17 @@ class TranslatableString:
 
     _registry: Set["TranslatableString"] = set()
 
-    def __init__(self, msgid: str, comment: Optional[str] = None):
+    def __init__(self, msgid: str, comment: Optional[str] = None, **kwargs):
         if not isinstance(msgid, str) or not msgid:
             raise ValueError("msgid must be a non-empty string.")
         self.msgid = msgid
         self.comment = comment
+        self.kwargs = kwargs
         self._registry.add(self)
 
     def __str__(self) -> str:
         # Default to the English msgid if not resolved.
-        return self.msgid
+        return self.msgid.format(**self.kwargs)
 
     def __repr__(self) -> str:
         return f"TranslatableString('{self.msgid}')"
@@ -230,7 +231,10 @@ def _update_catalog(
 
 
 async def _translate(
-    text: str, src_language: str, dst_language: str = "English"
+    text: str,
+    src_language: str,
+    dst_language: str = "English",
+    comment: Optional[str] = None,
 ) -> str:
     """
     Translate text from a source language to a destination language using LLM.
@@ -245,17 +249,18 @@ async def _translate(
     """
 
     logger.info(
-        "Translating text from '%s' to '%s': '%s'",
+        "Translating text from '%s' to '%s': '%s' (%s)",
         src_language,
         dst_language,
         text,
+        comment,
     )
 
-    instructions = f"""
-Translate the following text from {src_language} to {dst_language}.
+    instructions = f"""Translate the following text from {src_language} to {dst_language}.
 Ensure the translation captures the original meaning as accurately as possible.
-If you find any markup in the text, keep it intact.
-"""
+If you find any markup in the text, keep it intact."""
+    if comment:
+        instructions += f"\n\n(Context: {comment})"
 
     translation = await query_llm(instructions, text)
     logger.info("Received translation: '%s'", translation)
@@ -270,25 +275,29 @@ async def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
     logger.info("Got translation request for the locale: %s", locale)
     if not isinstance(string, TranslatableString):
         raise TypeError("resolve() expects a TranslatableString instance.")
+
     if locale is None or locale.language == "en":
-        return string.msgid
+        return str(string)
 
-    translations = _get_catalog(locale)
+    if not (translations := _get_catalog(locale)):
+        return str(string)
 
-    if translations:
-        entry = translations.find(string.msgid)
-        if not entry or not entry.msgstr:
-            translation = None
-            try:
-                translation = await _translate(
-                    string.msgid, "English", locale.english_name
-                )
-            except Exception as e:
-                logging.debug("Translation service unavailable: %s.", e)
-            _update_catalog(translations, string, translation)
-            return translation
-        else:
-            return entry.msgstr
+    entry = translations.find(string.msgid)
+    if not entry or not entry.msgstr:
+        translation = None
+        try:
+            translation = await _translate(
+                string.msgid,
+                src_language="English",
+                dst_language=locale.english_name,
+                comment=string.comment,
+            )
+        except Exception as e:
+            logging.debug("Translation service unavailable: %s.", e)
+        _update_catalog(translations, string, translation)
+        return translation.format(**string.kwargs)
+    else:
+        return entry.msgstr.format(**string.kwargs)
 
     # Fallback to the original msgid
-    return string.msgid
+    return str(string.msgid)
