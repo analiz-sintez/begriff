@@ -38,6 +38,8 @@ def check_conditions(
 ) -> bool:
     """
     Check handler conditions against given message context.
+
+    TODO examples
     """
     if not conditions:
         return True
@@ -168,7 +170,11 @@ class Router:
 
         return decorator
 
-    def message(self, pattern: Union[str, re.Pattern, Callable]) -> Callable:
+    def message(
+        self,
+        pattern: Union[str, re.Pattern, Callable],
+        conditions: Optional[Conditions] = None,
+    ) -> Callable:
         """
         A decorator to register a message handler based on a regex pattern or a filter function.
         """
@@ -176,7 +182,7 @@ class Router:
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering message with pattern: {pattern}")
             handler_def = MessageHandler(
-                fn=fn, pattern=pattern, conditions=None
+                fn=fn, pattern=pattern, conditions=conditions
             )
             self.message_handlers.append(handler_def)
             return fn
