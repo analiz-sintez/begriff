@@ -105,7 +105,7 @@ class TelegramContext(Context):
                         reply_markup=markup,
                     )
             else:
-                # If there was an image before, and now we send without,
+                # If there was an image before, and now we send without an image,
                 # we must edit_message_text, not edit_caption.
                 # However, if there was no image, edit_caption would fail.
                 # The safest is to try edit_message_text, and if it fails (e.g. was photo),

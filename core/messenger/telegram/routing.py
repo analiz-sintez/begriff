@@ -1,5 +1,6 @@
 import re
 import logging
+from functools import wraps
 from inspect import getmodule
 from typing import (
     Dict,
@@ -39,27 +40,6 @@ from .context import TelegramContext
 logger = logging.getLogger(__name__)
 
 
-class Lambda(filters.MessageFilter):
-    """
-    A function filter: applies a function to message text
-    and returns either bool or a dict with fetched arguments for
-    a handler.
-    """
-
-    __slots__ = ("fn",)
-
-    def __init__(self, fn: Callable):
-        self.fn: Callable = fn
-        super().__init__(name=f"filters.Lambda({self.fn})", data_filter=True)
-
-    def filter(
-        self, message: Message
-    ) -> Optional[dict[str, list[re.Match[str]]]]:
-        if message.text and (match := self.fn(message.text)):
-            return {"matches": [match]}
-        return {}
-
-
 def _coerce(arg: str, hint):
     """Coerce a string argument to function type hint."""
     # Get the actual type.
@@ -89,7 +69,7 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
     """
     type_hints = get_type_hints(fn)
 
-    async def wrapped(update, context, **kwargs):
+    async def wrapped(update: Update, context: TelegramContext, **kwargs):
         if context.matches:
             match = context.matches[0]
             if isinstance(match, re.Match):
@@ -105,6 +85,7 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
         ctx = TelegramContext(update, context, config=router.config)
         return await fn(ctx=ctx, **kwargs)
 
+    logger.warning(f"Wrapping function: {wrapped.__name__}")
     return wrapped
 
 
@@ -117,6 +98,7 @@ def _wrap_command_fn(
     """
     type_hints = get_type_hints(fn)
 
+    @wraps(fn)
     async def wrapped(update, context, **outer_kwargs):
         args = context.args if hasattr(context, "args") else []
         arg_cnt = min(len(args), len(arg_names))
@@ -207,7 +189,7 @@ def _create_reaction_handlers(
                 emoji_map[emoji] = []
             emoji_map[emoji].append(handler)
 
-    async def dispatch(update, context):
+    async def dispatch(update: Update, context: TelegramContext):
         ctx = TelegramContext(update, context, config=router.config)
         # Get the reply to message.
         reaction_obj = update.message_reaction
@@ -236,22 +218,72 @@ def _create_reaction_handlers(
     return PTBReactionHandler(dispatch)
 
 
-def _create_message_handler(
-    message_handler: MessageHandler,
+class LambdaFilter(filters.MessageFilter):
+    """
+    A function filter: applies a function to message text
+    and returns either bool or a dict with fetched arguments for
+    a handler.
+    """
+
+    __slots__ = ("fn",)
+
+    def __init__(self, fn: Callable):
+        self.fn: Callable = fn
+        super().__init__(
+            name=f"filters.LambdaFilter({self.fn})", data_filter=True
+        )
+
+    def filter(
+        self, message: Message
+    ) -> Optional[dict[str, list[re.Match[str]]]]:
+        if message.text and (match := self.fn(message.text)):
+            return {"matches": [match]}
+        return {}
+
+
+def _create_message_handlers(
+    message_handlers: List[MessageHandler],
     router: Router,
 ) -> PTBMessageHandler:
-    """Creates a telegram.ext.MessageHandler from a MessageHandler dataclass."""
-    pattern = message_handler.pattern
-    if isinstance(pattern, str) or isinstance(pattern, re.Pattern):
-        pattern_filter = filters.Regex(pattern)
-    elif callable(pattern):
-        pattern_filter = Lambda(pattern)
-    else:
-        raise ValueError("Pattern must be a regexp or a callable.")
+    """
+    Combile all MessageHandlers and register them
+    as onr telegram.ext.MessageHandler.
+    """
+    # Preprocess message handelrs:
+    for handler in message_handlers:
+        # ... wrap the function
+        handler.fn = _wrap_fn_with_args(handler.fn, router)
+        # ... prepare the pattern
+        pattern = handler.pattern
+        if isinstance(pattern, str) or isinstance(pattern, re.Pattern):
+            pattern_filter = filters.Regex(pattern)
+        elif callable(pattern):
+            pattern_filter = LambdaFilter(pattern)
+        else:
+            raise ValueError("Pattern must be a regexp or a callable.")
+        handler.pattern = pattern_filter
+        logger.info("Message handler added for %s.", handler.fn.__name__)
 
-    wrapped_handler = _wrap_fn_with_args(message_handler.fn, router)
+    async def dispatch(update: Update, context: TelegramContext):
+        ctx = TelegramContext(update, context, config=router.config)
+        message = update.message
+        # Here we can do the trick: get the one-time reply-to message id
+        # for the user and clear this id right after that.
+        parent_ctx = None
+        if parent := message.reply_to_message:
+            parent_ctx = ctx.message_context.get(parent.message_id)
+        # For each handler, check conditions and call if they are met.
+        for handler in message_handlers:
+            if not (matches := handler.pattern.filter(message)):
+                continue
+            if not check_conditions(handler.conditions, parent_ctx):
+                continue
+            # TODO: log wrapped function name instead of conditions
+            logger.info(f"Message handler matched: %s", handler.conditions)
+            await handler.fn(update, context, **matches)
+
     combined_filters = filters.TEXT & ~filters.COMMAND & pattern_filter
-    return PTBMessageHandler(combined_filters, wrapped_handler)
+    return PTBMessageHandler(combined_filters, dispatch)
 
 
 def attach_router(router: Router, application: Application):
@@ -268,6 +300,7 @@ def attach_router(router: Router, application: Application):
             command_map[handler.name] = []
         handler.fn = _wrap_command_fn(handler.fn, handler.args, router)
         command_map[handler.name].append(handler)
+
     for command_name, handlers in command_map.items():
         handler = _create_command_handler(command_name, handlers, router)
         application.add_handler(handler)
@@ -282,12 +315,10 @@ def attach_router(router: Router, application: Application):
         )
 
     # Process and add message handlers
-    for message_handler in router.message_handlers:
-        handler = _create_message_handler(message_handler, router)
-        application.add_handler(handler)
-        logger.debug(
-            f"Message handler added for pattern: {message_handler.pattern}"
-        )
+    # register them all at once to avoid "only first matched is called" rule
+    handler = _create_message_handlers(router.message_handlers, router)
+    application.add_handler(handler)
+    logger.debug(f"Message handlers added.")
 
     # Set all commands with their descriptions for the bot menu
     # TODO resolve translatable strings
