@@ -196,7 +196,12 @@ class TestResolve:
         result = await resolve(ts, locale)
 
         assert result == "Bonjour"
-        mock_translate.assert_awaited_once_with("Hello", "English", "French")
+        mock_translate.assert_awaited_once_with(
+            "Hello",
+            src_language="English",
+            dst_language="French",
+            comment="A greeting",
+        )
         assert po_path.exists()
         assert mo_path.exists()
 
@@ -223,11 +228,16 @@ class TestResolve:
         ts = TranslatableString("Failure")
 
         result = await resolve(ts, locale)
-        assert result is None
-        mock_translate.assert_awaited_once_with("Failure", "English", "German")
+        assert result == ts.msgid
+        mock_translate.assert_awaited_once_with(
+            "Failure",
+            src_language="English",
+            dst_language="German",
+            comment=None,
+        )
 
         result2 = await resolve(ts, locale)
-        assert result2 is None
+        assert result2 == ts.msgid
         assert mock_translate.call_count == 2
 
     async def test_resolve_raises_type_error_for_invalid_input(self):

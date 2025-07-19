@@ -181,7 +181,7 @@ def _get_catalog(locale: Locale) -> Optional[POFile]:
 
 def _update_catalog(
     catalog: POFile,
-    entry: TranslatableString,
+    string: TranslatableString,
     translation: Optional[str] = None,
 ):
     """Add entry to the catalog — with or without translation — and save the catalog to disk."""
@@ -197,24 +197,24 @@ def _update_catalog(
 
     os.makedirs(os.path.dirname(po_path), exist_ok=True)
 
-    existing_entry = catalog.find(entry.msgid)
+    entry = catalog.find(string.msgid)
     needs_save = False
 
-    if existing_entry:
-        if translation is not None and existing_entry.msgstr != translation:
-            existing_entry.msgstr = translation
+    if entry:
+        if translation is not None and entry.msgstr != translation:
+            entry.msgstr = translation
             logger.info(
                 f"Updated translation for '{entry.msgid}' in {po_path}"
             )
             needs_save = True
     else:
-        new_po_entry = POEntry(
-            msgid=entry.msgid,
+        entry = POEntry(
+            msgid=string.msgid,
             msgstr=translation or "",
-            comment=entry.comment or "",
+            comment=string.comment or "",
         )
-        catalog.append(new_po_entry)
-        logger.info(f"Added new string '{entry.msgid}' to {po_path}")
+        catalog.append(entry)
+        logger.info(f"Added new string '{string.msgid}' to {po_path}")
         needs_save = True
 
     if needs_save:
@@ -228,6 +228,8 @@ def _update_catalog(
             logger.error(
                 f"Failed to save catalog file {po_path} or {mo_path}: {e}"
             )
+
+    return entry
 
 
 async def _translate(
@@ -282,22 +284,24 @@ async def resolve(string: TranslatableString, locale: Optional[Locale]) -> str:
     if not (translations := _get_catalog(locale)):
         return str(string)
 
-    entry = translations.find(string.msgid)
-    if not entry or not entry.msgstr:
-        translation = None
-        try:
-            translation = await _translate(
-                string.msgid,
-                src_language="English",
-                dst_language=locale.english_name,
-                comment=string.comment,
-            )
-        except Exception as e:
-            logging.debug("Translation service unavailable: %s.", e)
-        _update_catalog(translations, string, translation)
-        return translation.format(**string.kwargs)
-    else:
+    if not (entry := translations.find(string.msgid)):
+        entry = _update_catalog(translations, string, None)
+
+    # If we already done the translation, format it and return the result.
+    if entry.msgstr:
         return entry.msgstr.format(**string.kwargs)
 
-    # Fallback to the original msgid
-    return str(string.msgid)
+    # If the translation is missing, try to translate,
+    # otherwise default to english version.
+    try:
+        translation = await _translate(
+            string.msgid,
+            src_language="English",
+            dst_language=locale.english_name,
+            comment=string.comment,
+        )
+        _update_catalog(translations, string, translation)
+        return translation.format(**string.kwargs)
+    except Exception as e:
+        logging.debug("Translation service unavailable: %s.", e)
+        return str(string.msgid)
