@@ -61,7 +61,6 @@ class StudyLanguageEntered(Signal):
     """A user manually entered study language name."""
 
     user_id: int
-    language_code: str
 
 
 @dataclass
@@ -151,9 +150,9 @@ async def ask_studied_language(ctx: Context, user: User):
     ]
     buttons = [
         Button(
-            get_flag(ctx, locale)
+            text=get_flag(ctx, locale)
             + locale.get_language_name(ctx.user.locale.language),
-            StudyLanguageSelected(user.id, locale.language),
+            callback=StudyLanguageSelected(user.id, locale.language),
         )
         for locale in locales
     ]
@@ -165,8 +164,28 @@ async def ask_studied_language(ctx: Context, user: User):
         [buttons[row_size * i : row_size * (i + 1)] for i in range(row_cnt)]
     )
     await ctx.send_message(
-        _("Select the language you want to study:"), keyboard
+        _("Select the language you want to study:"),
+        keyboard,
+        on_reply=StudyLanguageEntered(user_id=user.id),
     )
+    # # this shoud hang not only on messages, but also on events.
+    # response = ctx.input(
+    #     _("Select the language you want to study:"), keyboard
+    # )
+
+
+@bus.on(StudyLanguageEntered)
+@router.authorize()
+async def parse_studied_language(ctx, user):
+    try:
+        locale = Locale.parse(
+            ctx.update.message.text
+            # ctx.message.text
+        )
+        bus.emit(StudyLanguageSelected(user.id, locale.language), ctx=ctx)
+    except Exception as e:
+        logger.error("Exception while parsing studied language name: %s", e)
+        await ctx.send_message(_("Couldn't parse the language you entered."))
 
 
 @bus.on(StudyLanguageSelected)
