@@ -24,7 +24,6 @@ from ..srs import (
     update_note,
     Note,
 )
-from .note_list import NoteDeletionRequested
 
 
 @dataclass
@@ -54,6 +53,12 @@ class ExplanationNoteAdded(Signal):
 
 @dataclass
 class ExplanationNoteUpdated(Signal):
+    note_id: int
+
+
+@dataclass
+class NoteDeletionRequested(Signal):
+    user_id: int
     note_id: int
 
 
@@ -242,7 +247,7 @@ async def debug_note(ctx: Context, note_id: int):
     debug_info = {
         "note_id": note_id,
     }
-    await ctx.send_message(str(debug_info))
+    await ctx.send_message(f"```{debug_info}```")
 
 
 @router.message(_is_note_format)
@@ -362,7 +367,7 @@ async def add_note(
         await get_explanation_in_native_language(note)
     )
     message = await ctx.send_message(
-        f"{icon} *{text}* — {display_explanation}"
+        f"{icon} *{text}* — {display_explanation}", reply_to=None
     )
     # Save an association between the note and the message.
     # TODO Here is a buggy piece: we either need to check if there's something

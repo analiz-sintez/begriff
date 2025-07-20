@@ -21,7 +21,11 @@ from ..srs import (
     get_note,
     update_note as srs_update_note,
 )
-from .note import get_explanation_in_native_language, format_explanation
+from .note import (
+    get_explanation_in_native_language,
+    format_explanation,
+    NoteDeletionRequested,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -49,12 +53,6 @@ class NoteTitleEditRequested(Signal):
 
 @dataclass
 class NoteExplanationEditRequested(Signal):
-    user_id: int
-    note_id: int
-
-
-@dataclass
-class NoteDeletionRequested(Signal):
     user_id: int
     note_id: int
 
