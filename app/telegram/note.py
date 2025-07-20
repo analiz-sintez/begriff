@@ -3,7 +3,7 @@ import time
 import random
 import logging
 
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
 
 from core.auth import User
@@ -24,6 +24,7 @@ from ..srs import (
     update_note,
     Note,
 )
+from .note_list import NoteDeletionRequested
 
 
 @dataclass
@@ -217,34 +218,48 @@ def _parse_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     return text, explanation
 
 
-def _is_note_format(text: str) -> bool:
+def _is_note_format(text: str) -> Optional[Dict]:
     """
     Check if every line in the input text is in the format suitable for notes.
     """
     lines = text.strip().split("\n")
-    result = all(
+    if all(
         re.match(r"^[^/]{1,200}(?:: .*)?$", line.strip()) for line in lines
-    )
-    logging.info(f"Message {text} contains notes = {result}")
-    return result
+    ):
+        logging.info(f"Message {text} contains notes.")
+        return {"notes": lines}
+    return {}
+
+
+@router.command("delete", conditions={"note_id": Any})
+async def delete_note(ctx: Context, note_id: int):
+    bus.emit(NoteDeletionRequested(ctx.user.id, note_id), ctx=ctx)
+
+
+@router.command("debug", conditions={"note_id": Any})
+@router.authorize()
+async def debug_note(ctx: Context, note_id: int):
+    debug_info = {
+        "note_id": note_id,
+    }
+    await ctx.send_message(str(debug_info))
 
 
 @router.message(_is_note_format)
 @router.authorize()
-async def add_notes(ctx: Context, user: User) -> None:
+async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 
     Args:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    message_text = ctx.update.message.text.split("\n")
-    if len(message_text) > 100:
+    if len(notes) > 100:
         return await ctx.send_message(
             _("You can add up to 100 words at a time.")
         )
 
-    for _, line in enumerate(message_text):
+    for _, line in enumerate(notes):
         text, explanation = _parse_line(line)
         if not text:
             await ctx.send_message(f"Couldn't parse the text: {line.strip()}")
