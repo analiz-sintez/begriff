@@ -73,5 +73,23 @@ class Context:
         image: Optional[str] = None,
         new: bool = False,
         reply_to: Optional[Message] = None,
+        on_reply: Optional[Signal] = None,
     ):
+        """
+        Arguments:
+        new:
+          Don't edit the message even if it's possible.
+        reply_to:
+          A message which to reply.
+        on_reply:
+          A signal to be emitted if a user replies to this message.
+          What counts as reply is determined by each messenger's adaptor.
+          Recommended options are:
+          - For telegram-like messengers: direct reply with a "reply" mechanics.
+          - Also, a message right after the current one, without intermittance by
+            a command, and possibly within a given time frame, should count as
+            reply.
+          - For slack-like messengers: a message in the same thread.
+
+        """
         raise NotImplementedError()

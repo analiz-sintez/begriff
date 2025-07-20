@@ -25,7 +25,7 @@ from telegram.ext import (
     filters,
 )
 
-from ...bus import Bus, Signal, unoption, decode, make_regexp
+from ...bus import Bus, Signal, unoption, decode, make_regexp, get_bus
 from ..routing import (
     check_conditions,
     CallbackHandler,
@@ -148,12 +148,13 @@ def _create_command_handler(
         found = False
         for handler in conditional_handlers:
             # Check the message context condition.
-            if check_conditions(handler.conditions, message_ctx):
-                logger.info(
-                    f"Handler matched for command {name}: {handler.conditions}."
-                )
-                found = True
-                await handler.fn(update, context, reply_to=reply_to)
+            if (
+                match := check_conditions(handler.conditions, message_ctx)
+            ) is None:
+                continue
+            logger.info(f"Handler matched for command {name}: {match}.")
+            found = True
+            await handler.fn(update, context, reply_to=reply_to, **match)
         if found:
             return
         for handler in conditionless_handlers:
@@ -206,14 +207,15 @@ def _create_reaction_handlers(
         logger.info(f"Got emoji: {emoji}")
         for handler in emoji_map.get(emoji, []):
             # Check the message context condition.
-            if check_conditions(handler.conditions, message_ctx):
-                # TODO this should not await, just shoot and forget
-                logger.info(
-                    f"Handler matched for emoji {emoji}: {handler.conditions}."
-                )
-                await handler.fn(
-                    update, context, emoji=emoji, reply_to=message
-                )
+            if (
+                match := check_conditions(handler.conditions, message_ctx)
+            ) is None:
+                continue
+            # TODO this should not await, just shoot and forget
+            logger.info(f"Handler matched for emoji {emoji}: {match}.")
+            await handler.fn(
+                update, context, emoji=emoji, reply_to=message, **match
+            )
 
     return PTBReactionHandler(dispatch)
 
@@ -227,10 +229,10 @@ def _create_message_handlers(
     as onr telegram.ext.MessageHandler.
     """
 
-    def find_named_groups(pat: re.Pattern, string: str) -> dict:
+    def find_named_groups(pat: re.Pattern, string: str) -> Optional[Dict]:
         """Return all named groups found in a string, or {} if it doesn't match."""
         if not (match := pat.search(string)):
-            return {}
+            return None
         return {key: match.group(key) for key in pat.groupindex.keys()}
 
     # Preprocess message handelrs:
@@ -253,20 +255,29 @@ def _create_message_handlers(
     async def dispatch(update: Update, context: TelegramContext):
         ctx = TelegramContext(update, context, config=router.config)
         message = update.message
-        logging.info("Dispatching message:\n%s", message.text)
+        logging.info("Dispatching message: id=%s", message.message_id)
         # Here we can do the trick: get the one-time reply-to message id
         # for the user and clear this id right after that.
+        if signal := context.user_data.get("_on_reply"):
+            context.user_data["_on_reply"] = None
+            get_bus().emit(signal, ctx=ctx)
+            return
         parent_ctx = None
         if parent := message.reply_to_message:
-            parent_ctx = ctx.message_context.get(parent.message_id)
+            parent_ctx = ctx.message_context.get(parent.message_id, {})
+            if signal := parent_ctx.get("_on_reply"):
+                get_bus().emit(signal, ctx=ctx)
+                return
         # For each handler, check conditions and call if they are met.
         for handler in message_handlers:
-            if not (matches := handler.pattern(message.text)):
+            if (pattern_match := handler.pattern(message.text)) is None:
                 continue
-            if not check_conditions(handler.conditions, parent_ctx):
+            if (
+                cond_match := check_conditions(handler.conditions, parent_ctx)
+            ) is None:
                 continue
             logger.info(f"Message handler matched: %s", handler.fn.__name__)
-            await handler.fn(update, context, **matches)
+            await handler.fn(update, context, **pattern_match, **cond_match)
 
     combined_filters = filters.TEXT & ~filters.COMMAND
     return PTBMessageHandler(combined_filters, dispatch)

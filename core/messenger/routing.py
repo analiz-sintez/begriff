@@ -35,24 +35,29 @@ Conditions: TypeAlias = Dict[str, Union[str, int]]
 
 def check_conditions(
     conditions: Optional[Conditions], message_context: Optional[Dict]
-) -> bool:
+) -> Optional[Dict]:
     """
     Check handler conditions against given message context.
+
+    Conditions list is a list of exact values which are matched against the
+    values found in the message context. If any of the conditions is missing
+    in the message context, the match has failed.
+
+    All the condition values are passed to the handler as keyword arguments.
 
     TODO examples
     """
     if not conditions:
-        return True
+        return {}
     if not message_context:
-        return False
-    match = False
+        return None
+    match = {}
     for condition, value in conditions.items():
         if condition not in message_context:
-            continue
+            return None
         if value is not Any and message_context[condition] != value:
-            continue
-        match = True
-        break
+            return None
+        match[condition] = message_context[condition]
     return match
 
 

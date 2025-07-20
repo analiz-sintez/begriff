@@ -12,7 +12,7 @@ from telegram import (
     InlineKeyboardMarkup,
 )
 
-from ...bus import encode
+from ...bus import Signal, encode
 from .. import Context, Button, Keyboard, User, Message
 from ...i18n import TranslatableString, resolve
 
@@ -177,10 +177,13 @@ class TelegramContext(Context):
         image: Optional[str] = None,
         new: bool = False,
         reply_to: Optional[Union[PTBMessage, bool]] = None,
+        on_reply: Optional[Signal] = None,
     ):
+        if on_reply:
+            self.context.user_data["_on_reply"] = on_reply
         if isinstance(text, TranslatableString):
             text = await resolve(text, self.user.locale)
-        return await self._send_message(
+        message = await self._send_message(
             self.update,
             self.context,
             text,
@@ -189,3 +192,9 @@ class TelegramContext(Context):
             new=new,
             reply_to=reply_to,
         )
+        if on_reply:
+            logger.info(
+                "Setting on reply event for message id=%s", message.message_id
+            )
+            self.message_context[message.message_id] = {"_on_reply": on_reply}
+        return message
