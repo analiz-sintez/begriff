@@ -69,6 +69,7 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
     """
     type_hints = get_type_hints(fn)
 
+    @wraps(fn)
     async def wrapped(update: Update, context: TelegramContext, **kwargs):
         if context.matches:
             match = context.matches[0]
@@ -85,7 +86,6 @@ def _wrap_fn_with_args(fn: Callable, router: Router) -> Callable:
         ctx = TelegramContext(update, context, config=router.config)
         return await fn(ctx=ctx, **kwargs)
 
-    logger.warning(f"Wrapping function: {wrapped.__name__}")
     return wrapped
 
 
@@ -218,29 +218,6 @@ def _create_reaction_handlers(
     return PTBReactionHandler(dispatch)
 
 
-class LambdaFilter(filters.MessageFilter):
-    """
-    A function filter: applies a function to message text
-    and returns either bool or a dict with fetched arguments for
-    a handler.
-    """
-
-    __slots__ = ("fn",)
-
-    def __init__(self, fn: Callable):
-        self.fn: Callable = fn
-        super().__init__(
-            name=f"filters.LambdaFilter({self.fn})", data_filter=True
-        )
-
-    def filter(
-        self, message: Message
-    ) -> Optional[dict[str, list[re.Match[str]]]]:
-        if message.text and (match := self.fn(message.text)):
-            return {"matches": [match]}
-        return {}
-
-
 def _create_message_handlers(
     message_handlers: List[MessageHandler],
     router: Router,
@@ -249,24 +226,34 @@ def _create_message_handlers(
     Combile all MessageHandlers and register them
     as onr telegram.ext.MessageHandler.
     """
+
+    def find_named_groups(pat: re.Pattern, string: str) -> dict:
+        """Return all named groups found in a string, or {} if it doesn't match."""
+        if not (match := pat.search(string)):
+            return {}
+        return {key: match.group(key) for key in pat.groupindex.keys()}
+
     # Preprocess message handelrs:
     for handler in message_handlers:
         # ... wrap the function
         handler.fn = _wrap_fn_with_args(handler.fn, router)
         # ... prepare the pattern
         pattern = handler.pattern
-        if isinstance(pattern, str) or isinstance(pattern, re.Pattern):
-            pattern_filter = filters.Regex(pattern)
+        if isinstance(pattern, str):
+            handler.pattern = lambda s: find_named_groups(
+                re.compile(pattern), s
+            )
+        elif isinstance(pattern, re.Pattern):
+            handler.pattern = lambda s: find_named_groups(pattern, s)
         elif callable(pattern):
-            pattern_filter = LambdaFilter(pattern)
+            pass
         else:
             raise ValueError("Pattern must be a regexp or a callable.")
-        handler.pattern = pattern_filter
-        logger.info("Message handler added for %s.", handler.fn.__name__)
 
     async def dispatch(update: Update, context: TelegramContext):
         ctx = TelegramContext(update, context, config=router.config)
         message = update.message
+        logging.info("Dispatching message:\n%s", message.text)
         # Here we can do the trick: get the one-time reply-to message id
         # for the user and clear this id right after that.
         parent_ctx = None
@@ -274,15 +261,14 @@ def _create_message_handlers(
             parent_ctx = ctx.message_context.get(parent.message_id)
         # For each handler, check conditions and call if they are met.
         for handler in message_handlers:
-            if not (matches := handler.pattern.filter(message)):
+            if not (matches := handler.pattern(message.text)):
                 continue
             if not check_conditions(handler.conditions, parent_ctx):
                 continue
-            # TODO: log wrapped function name instead of conditions
-            logger.info(f"Message handler matched: %s", handler.conditions)
+            logger.info(f"Message handler matched: %s", handler.fn.__name__)
             await handler.fn(update, context, **matches)
 
-    combined_filters = filters.TEXT & ~filters.COMMAND & pattern_filter
+    combined_filters = filters.TEXT & ~filters.COMMAND
     return PTBMessageHandler(combined_filters, dispatch)
 
 

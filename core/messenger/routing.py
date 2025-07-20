@@ -185,6 +185,7 @@ class Router:
                 fn=fn, pattern=pattern, conditions=conditions
             )
             self.message_handlers.append(handler_def)
+            logger.info("Message handler added for %s.", fn.__name__)
             return fn
 
         return decorator
@@ -249,7 +250,7 @@ class Router:
         return decorator
 
     def authorize(self, admin=False) -> UserInjector:
-        def _authorize(
+        def decorator(
             fn: Callable[Concatenate[User, P], R],
         ) -> Callable[Concatenate[Context, P], R]:
             """
@@ -266,7 +267,7 @@ class Router:
             # it doesn't need to bother.
             # TODO config-based authentication.
             @wraps(fn)
-            async def wrapped(ctx: Context, **kwargs):
+            async def authorized(ctx: Context, **kwargs):
                 if not (user := get_user(ctx.user.login)):
                     raise Exception("Unauthorized.")
                 # Authorize the user.
@@ -301,7 +302,9 @@ class Router:
                     )
                 )
             new_sig = Signature(params)
-            wrapped.__signature__ = new_sig
-            return wrapped
+            authorized.__signature__ = new_sig
 
-        return _authorize
+            logger.info(f"Adding authorization check: {authorized.__name__}")
+            return authorized
+
+        return decorator
