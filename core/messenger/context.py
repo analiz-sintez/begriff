@@ -86,6 +86,7 @@ class Context:
         new: bool = False,
         reply_to: Optional[Message] = None,
         on_reply: Optional[Signal] = None,
+        context: Optional[Dict] = None,
     ):
         """
         Arguments:

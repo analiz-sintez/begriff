@@ -6,6 +6,7 @@ import logging
 from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
 
+from app.srs.service import get_card
 from core.auth import User
 from core.bus import Signal
 from core.messenger import Context
@@ -269,6 +270,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
 
 
 @router.command("delete", conditions={"note_id": Any})
+# don't need @router.authorize since it is done on signal handling
 async def delete_note(ctx: Context, note_id: int):
     bus.emit(NoteDeletionRequested(ctx.user.id, note_id), ctx=ctx)
 
@@ -276,10 +278,30 @@ async def delete_note(ctx: Context, note_id: int):
 @router.command("debug", conditions={"note_id": Any})
 @router.authorize()
 async def debug_note(ctx: Context, note_id: int):
+    note = get_note(note_id)
     debug_info = {
         "note_id": note_id,
+        "note": note,
+        "cards": note.cards,
     }
     await ctx.send_message(f"```{debug_info}```")
+
+
+@router.command("debug", conditions={"card_id": Any})
+@router.authorize()
+async def debug_card(ctx: Context, card_id: int):
+    card = get_card(card_id)
+    debug_info = {
+        "card_id": card_id,
+        "card": card,
+    }
+    await ctx.send_message(f"```{debug_info}```")
+
+
+@router.command("examples", conditions={"note_id": Any})
+@router.authorize()
+async def get_usage_examples(ctx: Context, note_id: int):
+    pass
 
 
 @bus.on(WordExplanationRequested)
@@ -366,11 +388,11 @@ async def add_note(
     display_explanation = format_explanation(
         await get_explanation_in_native_language(note)
     )
-    message = await ctx.send_message(
-        f"{icon} *{text}* — {display_explanation}", reply_to=None
+    return await ctx.send_message(
+        f"{icon} *{text}* — {display_explanation}",
+        reply_to=None,
+        context={"note_id": note.id},
     )
-    # Save an association between the note and the message.
-    ctx.context(message)["note_id"] = note.id
 
 
 @router.reaction(["👎"], conditions={"note_id": Any})  # finger down

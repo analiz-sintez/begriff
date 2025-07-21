@@ -229,6 +229,7 @@ class TelegramContext(Context):
         new: bool = False,
         reply_to: Optional[Union[PTBMessage, bool]] = None,
         on_reply: Optional[Signal] = None,
+        context: Optional[Dict] = None,
     ):
         if on_reply:
             self._context.user_data["_on_reply"] = on_reply
@@ -251,6 +252,8 @@ class TelegramContext(Context):
             parent=tg_message.reply_to_message,
             _=tg_message,
         )
+        if context:
+            self.context(message).update(context)
         if on_reply:
             logger.info("Setting on reply event for message id=%s", message.id)
             self.context(message)["_on_reply"] = on_reply

@@ -181,7 +181,13 @@ async def study_next_card(ctx: Context, user: User) -> None:
         front = await get_explanation_in_native_language(note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
-    return await ctx.send_message(front, keyboard, image_path, reply_to=None)
+    return await ctx.send_message(
+        front,
+        keyboard,
+        image_path,
+        reply_to=None,
+        context={"note_id": note.id, "card_id": card.id},
+    )
 
 
 @bus.on(CardAnswerRequested)
