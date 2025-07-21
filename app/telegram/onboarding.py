@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import List
 from babel import Locale
 from flag import flag
 
@@ -16,32 +17,46 @@ from .. import bus, router
 logger = logging.getLogger(__name__)
 
 
+################################################################
 # Part 0. Greet the user.
 @dataclass
 class OnboardingStarted(Signal):
     user_id: int
 
 
+@dataclass
+class NativeLanguageChangeRequested(Signal):
+    user_id: int
+
+
+@dataclass
+class NativeLanguageSet(Signal):
+    user_id: int
+    language_code: str
+
+
+################################################################
 # Part 1. Select (default) native language.
 # It is used as an interface language.
 @dataclass
-class DefaultNativeLanguageSelected(Signal):
+class NativeLanguageSelected(Signal):
     user_id: int
     native_language_id: int
 
 
 @dataclass
-class DefaultNativeLanguageEntered(Signal):
+class NativeLanguageEntered(Signal):
     user_id: int
     native_language_id: int
 
 
 @dataclass
-class DefaultNativeLanguageSaved(Signal):
+class NativeLanguageSaved(Signal):
     user_id: int
     native_language_id: int
 
 
+################################################################
 # Part 2. Select study language.
 @dataclass
 class StudyLanguageAsked(Signal):
@@ -71,6 +86,7 @@ class StudyLanguageSaved(Signal):
     language_id: int
 
 
+################################################################
 # Part 3. Test and add words.
 @dataclass
 class TestStarted(Signal):
@@ -84,12 +100,14 @@ class TestFinished(Signal):
     native_language_id: int
 
 
+################################################################
 # Part 4. Options
 @dataclass
 class RemindersSelected(Signal):
     user_id: int
 
 
+################################################################
 # Part N. Finish onboarding.
 @dataclass
 class OnboardingFinished(Signal):
@@ -104,7 +122,7 @@ def get_flag(ctx: Context, locale: Locale) -> str:
 
 @router.command("help", description="Describe commands")
 @router.authorize()
-async def help(ctx: Context, user: User) -> None:
+async def show_help_message(ctx: Context, user: User) -> None:
     logger.info("User %s required help page.", user.id)
     await ctx.send_message(
         _(
@@ -126,7 +144,7 @@ Here are the commands you can use:
 
 @router.command("start", description="Start using the bot")
 @router.authorize()
-async def start(ctx: Context, user: User) -> None:
+async def start_onboarding(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
     await ctx.send_message(
         _(
@@ -137,7 +155,79 @@ In a few steps we'll set up things and start.
 """,
         )
     )
+
+    current_locale = ctx.user.locale
+    language_name = current_locale.get_language_name(current_locale.language)
+    flag_str = get_flag(ctx, current_locale)
+
+    keyboard = Keyboard(
+        [
+            [
+                Button("Switch to English", NativeLanguageSet(user.id, "en")),
+                Button(
+                    _("Select other language"),
+                    NativeLanguageChangeRequested(user.id),
+                ),
+            ],
+            [Button(_("Continue"), OnboardingStarted(user.id))],
+        ]
+    )
+
+    await ctx.send_message(
+        _(
+            "Your current interface language is {language_name}{flag}. You can change it or proceed.",
+            language_name=language_name,
+            flag=f" {flag_str}" if flag_str else "",
+        ),
+        keyboard,
+    )
+
+
+@bus.on(NativeLanguageSet)
+@router.authorize()
+async def set_native_language(ctx: Context, user: User, language_code: str):
+    user.set_option("locale", language_code)
+    locale = Locale.parse(language_code)
+
+    await ctx.send_message(
+        _(
+            "Interface language set to {language}.",
+            language=locale.english_name,
+        )
+    )
+
     bus.emit(OnboardingStarted(user.id), ctx=ctx)
+
+
+def _pack_buttons(buttons: List[Button], row_size: int) -> List[List[Button]]:
+    """
+    Pack buttons into button rows, with `row_size` items in a row.
+    """
+    assert row_size > 0
+    row_cnt = len(buttons) // row_size
+    if len(buttons) % row_size > 0:
+        row_cnt += 1
+    return [buttons[row_size * i : row_size * (i + 1)] for i in range(row_cnt)]
+
+
+@bus.on(NativeLanguageChangeRequested)
+@router.authorize()
+async def ask_native_language_selection(ctx: Context, user: User):
+    locales = [
+        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
+    ]
+    buttons = [
+        Button(
+            text=get_flag(ctx, locale)
+            + locale.get_language_name(ctx.user.locale.language),
+            callback=NativeLanguageSet(user.id, locale.language),
+        )
+        for locale in locales
+    ]
+    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
+    return await ctx.send_message(
+        _("Select your interface language:"), keyboard
+    )
 
 
 @bus.on(OnboardingStarted)
@@ -156,32 +246,20 @@ async def ask_studied_language(ctx: Context, user: User):
         )
         for locale in locales
     ]
-    row_size = 4
-    row_cnt = len(buttons) // row_size
-    if len(buttons) % row_size > 0:
-        row_cnt += 1
-    keyboard = Keyboard(
-        [buttons[row_size * i : row_size * (i + 1)] for i in range(row_cnt)]
-    )
-    await ctx.send_message(
+    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
+    return await ctx.send_message(
         _("Select the language you want to study:"),
         keyboard,
         on_reply=StudyLanguageEntered(user_id=user.id),
+        new=True,
     )
-    # # this shoud hang not only on messages, but also on events.
-    # response = ctx.input(
-    #     _("Select the language you want to study:"), keyboard
-    # )
 
 
 @bus.on(StudyLanguageEntered)
 @router.authorize()
 async def parse_studied_language(ctx, user):
     try:
-        locale = Locale.parse(
-            ctx.update.message.text
-            # ctx.message.text
-        )
+        locale = Locale.parse(ctx.message.text)
         bus.emit(StudyLanguageSelected(user.id, locale.language), ctx=ctx)
     except Exception as e:
         logger.error("Exception while parsing studied language name: %s", e)

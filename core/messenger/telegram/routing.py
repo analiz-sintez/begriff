@@ -147,7 +147,7 @@ def _create_command_handler(
         if parent := ctx.message.parent:
             parent_ctx = ctx.context(parent)
 
-            # Chefk if a message should emit a signal on certain command.
+            # Check if a message should emit a signal on certain command.
             # (see Context.send_message on_command argument for details).
             if message_handlers := parent_ctx.get("_on_command"):
                 if signals := message_handlers.get(name):
@@ -226,7 +226,7 @@ def _create_reaction_handlers(
             if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
                 emoji = reactions[0].emoji
         logger.info(f"Got emoji: {emoji}")
-        # Chefk if a message should emit a signal on certain reaction.
+        # Check if a message should emit a signal on certain reaction.
         # (see Context.send_message on_reaction argument for details).
         if message_handlers := parent_ctx.get("_on_reaction"):
             if bus := get_bus():
@@ -304,6 +304,8 @@ def _create_message_handlers(
         parent_ctx = None
         if parent := message.reply_to_message:
             parent_ctx = ctx.message_context.get(parent.message_id, {})
+            # Check if a message should emit a signal on reply.
+            # (see Context.send_message on_reply argument for details).
             if signal := parent_ctx.get("_on_reply"):
                 get_bus().emit(signal, ctx=ctx)
                 return
