@@ -10,7 +10,7 @@ from app.srs.service import get_card
 from core.auth import User
 from core.bus import Signal
 from core.messenger import Context
-from core.i18n import TranslatableString
+from core.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..config import Config
@@ -60,6 +60,20 @@ class ExplanationNoteUpdated(Signal):
 @dataclass
 class NoteDeletionRequested(Signal):
     user_id: int
+    note_id: int
+
+
+@dataclass
+class NoteUpvoted(Signal):
+    """A user set a positive reaction to the note."""
+
+    note_id: int
+
+
+@dataclass
+class NoteDownvoted(Signal):
+    """A user set a negative reaction to the note."""
+
     note_id: int
 
 
@@ -269,10 +283,24 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             bus.emit(TextExplanationRequested(user.id, text), ctx=ctx)
 
 
-@router.command("delete", conditions={"note_id": Any})
-# don't need @router.authorize since it is done on signal handling
-async def delete_note(ctx: Context, note_id: int):
-    bus.emit(NoteDeletionRequested(ctx.user.id, note_id), ctx=ctx)
+@router.command("delete", description="Delete object (use via reply)")
+async def _delete_obj(ctx: Context):
+    """Show general help for the command."""
+    # BUG: if there's no direct handler for "delete" command,
+    # the signals for the command with this name won't be emitted
+    # since there will be no handler for such a command.
+    return await ctx.send_message(
+        _(
+            """
+Use this command to delete a note or other object shown in a message.
+
+As an example:
+1. you asked me for a word translation
+2. I send it to you and add a note to study
+3. you don't want to study it: send /delete as a reply to my message.
+        """
+        )
+    )
 
 
 @router.command("debug", conditions={"note_id": Any})
@@ -391,11 +419,14 @@ async def add_note(
     return await ctx.send_message(
         f"{icon} *{text}* — {display_explanation}",
         reply_to=None,
-        context={"note_id": note.id},
+        on_reaction={"👎": NoteDownvoted(note_id=note.id)},
+        on_command={
+            "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
+        },
     )
 
 
-@router.reaction(["👎"], conditions={"note_id": Any})  # finger down
+@bus.on(NoteDownvoted)
 @router.authorize()
 async def handle_negative_reaction(
     ctx: Context, user: User, reply_to: object, note_id: int
@@ -439,12 +470,11 @@ async def handle_negative_reaction(
     new_message = await ctx.send_message(
         f"{icon} *{note.field1}* — {display_explanation}",
         new=True,  # Ensure it's a new message
+        on_reaction={"👎": NoteDownvoted(note_id=note.id)},
+        on_command={
+            "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
+        },
     )
-
-    # Update the message map to associate the new message with the note
-    # so the user can react to the new explanation as well.
-    if new_message:
-        ctx.context(new_message)["note_id"] = note.id
 
 
 @bus.on(TextExplanationRequested)
