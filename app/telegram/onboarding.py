@@ -156,7 +156,7 @@ In a few steps we'll set up things and start.
         )
     )
 
-    current_locale = ctx.user.locale
+    current_locale = ctx.account.locale
     language_name = current_locale.get_language_name(current_locale.language)
     flag_str = get_flag(ctx, current_locale)
 
@@ -219,7 +219,7 @@ async def ask_native_language_selection(ctx: Context, user: User):
     buttons = [
         Button(
             text=get_flag(ctx, locale)
-            + locale.get_language_name(ctx.user.locale.language),
+            + locale.get_language_name(ctx.account.locale.language),
             callback=NativeLanguageSet(user.id, locale.language),
         )
         for locale in locales
@@ -241,7 +241,7 @@ async def ask_studied_language(ctx: Context, user: User):
     buttons = [
         Button(
             text=get_flag(ctx, locale)
-            + locale.get_language_name(ctx.user.locale.language),
+            + locale.get_language_name(ctx.account.locale.language),
             callback=StudyLanguageSelected(user.id, locale.language),
         )
         for locale in locales
@@ -275,7 +275,7 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
         _(
             "You selected: {flag}{language}",
             flag=get_flag(ctx, locale),
-            language=locale.get_language_name(ctx.user.locale.language),
+            language=locale.get_language_name(ctx.account.locale.language),
         )
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)

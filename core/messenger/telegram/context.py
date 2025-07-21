@@ -14,7 +14,7 @@ from telegram import (
 )
 
 from ...bus import Signal, encode
-from .. import Context, Button, Keyboard, User, Message, Chat
+from .. import Context, Button, Keyboard, Account, Message, Chat
 from ...i18n import TranslatableString, resolve
 
 
@@ -33,10 +33,10 @@ class TelegramContext(Context):
         return super().__init__(config)
 
     def username(self) -> str:
-        return self.user.login
+        return self.account.login
 
     @property
-    def user(self) -> User:
+    def account(self) -> Account:
         """The user which initiated an update."""
         if not hasattr(self, "_user"):
             tg_user = self._update.effective_user
@@ -44,7 +44,7 @@ class TelegramContext(Context):
                 locale = Locale.parse(tg_user.language_code)
             except:
                 locale = Locale("en")
-            self._user = User(
+            self._user = Account(
                 id=tg_user.id,
                 login=tg_user.username,
                 locale=locale,
@@ -75,7 +75,7 @@ class TelegramContext(Context):
                 self._message.parent = parent
         return self._message
 
-    def context(self, obj: Union[Message, Chat, User]) -> Dict:
+    def context(self, obj: Union[Message, Chat, Account]) -> Dict:
         """
         All this is from current user perspective. Multiple users
         can have different contexts on the same messages, chats and
@@ -93,7 +93,7 @@ class TelegramContext(Context):
             # Message context is stored in users telegram context
             store = self._context.user_data
             key = "_chats"
-        elif isinstance(obj, User):
+        elif isinstance(obj, Account):
             # Users context is stored in users telegram context
             store = self._context.user_data
             key = "_users"
@@ -207,7 +207,7 @@ class TelegramContext(Context):
 
     async def _make_button(self, button: Button) -> InlineKeyboardButton:
         if isinstance(button.text, TranslatableString):
-            text = await resolve(button.text, self.user.locale)
+            text = await resolve(button.text, self.account.locale)
         else:
             text = str(button.text)
         return InlineKeyboardButton(
@@ -236,7 +236,7 @@ class TelegramContext(Context):
         if on_reply:
             self._context.user_data["_on_reply"] = on_reply
         if isinstance(text, TranslatableString):
-            text = await resolve(text, self.user.locale)
+            text = await resolve(text, self.account.locale)
         tg_message = await self._send_message(
             self._update,
             self._context,

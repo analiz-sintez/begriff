@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class User:
+class Account:
+    """Messenger account. Not to be confused with a bot User."""
+
     id: int
     login: str
     locale: Locale
@@ -66,14 +68,14 @@ class Context:
         raise NotImplementedError()
 
     @property
-    def user(self) -> User:
+    def account(self) -> Account:
         raise NotImplementedError()
 
     @property
     def message(self) -> Message:
         raise NotImplementedError()
 
-    def context(self, obj: Union[Message, Chat, User]) -> Dict:
+    def context(self, obj: Union[Message, Chat, Account]) -> Dict:
         """Return a context dict for a given object."""
         # TODO bad naming?
         raise NotImplementedError()
