@@ -272,6 +272,111 @@ async def handle_note_edit_input(ctx: Context, user: User):
 ```
 This pattern uses `ctx.context(user)` as a simple key-value store for session state. The first function initiates the "conversation" by setting a key (`active_edit`). The next message handler checks for this key. If present, it processes the message as part of the conversation and then clears the key to end the flow. This avoids complex state machines for simple request-response interactions.
 
+
+#### How to manage a multi-step conversation? The Better Way
+
+##### Before: Using Manual State Flags
+
+The previous implementation relied on setting a flag (`active_edit`) in the user's persistent context. A generic message handler then had to check for this flag on every incoming message.
+
+```python
+# From: app/note_list.py (Old Implementation)
+
+@bus.on(NoteTitleEditRequested)
+@router.authorize()
+async def handle_note_title_edit_requested(
+    ctx: Context, user: User, note_id: int
+):
+    # Sets a flag in the user's context data.
+    ctx.context(user)["active_edit"] = {
+        "note_id": note_id,
+        "field_to_edit": "field1",
+    }
+    await ctx.send_message("Please send the new title for the note.")
+
+
+# A generic message handler that must check for the flag.
+@router.message(".*")
+@router.authorize()
+async def handle_note_edit_input(ctx: Context, user: User):
+    if "active_edit" not in ctx.context(user):
+        return True # Not an edit, pass to other handlers.
+
+    active_edit_info = ctx.context(user)["active_edit"]
+    # ... logic to update note ...
+    # Must remember to clean up the flag.
+    del ctx.context(user)["active_edit"]
+```
+This approach is functional but brittle. It requires careful state management and can lead to conflicts if multiple features use generic message handlers.
+
+##### After: Using `on_reply`
+
+The `on_reply` mechanism eliminates manual state management. We define a new signal that will be triggered by the user's next message.
+
+First, we define new signals to represent the submission of the new content.
+
+```python
+# From: app/note_list.py (New Signals)
+
+@dataclass
+class NoteTitleSubmitted(Signal):
+    user_id: int
+    note_id: int
+
+
+@dataclass
+class NoteExplanationSubmitted(Signal):
+    user_id: int
+    note_id: int
+
+```
+
+Next, we modify the handler that requests the edit. Instead of setting a state flag, it uses `on_reply` to register the `NoteTitleSubmitted` signal to be emitted with the user's next message.
+
+```python
+# From: app/note_list.py (New "Request Edit" Handler)
+
+@bus.on(NoteTitleEditRequested)
+@router.authorize()
+async def handle_note_title_edit_requested(
+    ctx: Context, user: User, note_id: int
+):
+    logger.info(
+        f"User {user.login} requested to edit title for note {note_id}"
+    )
+    # ... (code to get note and check ownership) ...
+
+    # The key change: pass the `on_reply` argument.
+    # The framework will now wait for the user's next message
+    # and emit `NoteTitleSubmitted` when it arrives.
+    await ctx.send_message(
+        "Please send the new title for the note.",
+        on_reply=NoteTitleSubmitted(user.id, note_id)
+    )
+```
+
+Finally, we replace the generic message handler with a specific signal handler that listens for `NoteTitleSubmitted`. This new handler is cleaner, more focused, and does not need to manage any state flags.
+
+```python
+# From: app/note_list.py (New "Handle Submission" Handler)
+
+# This handler directly catches the user's reply.
+@bus.on(NoteTitleSubmitted)
+@router.authorize()
+async def handle_note_title_submitted(
+    ctx: Context, user: User, note_id: int
+):
+    note_to_edit = get_note(note_id)
+    # ... logic to update note ...
+    db.session.commit()
+    await ctx.send_message(f"Note title updated to: '{new_value}'")
+```
+This approach is preferable for several reasons:
+
+-   *No State Management*: It eliminates the need to manually set and clear flags like `active_edit` from the user's context.
+-   *Decoupling*: The logic is contained in specific signal handlers (`...Requested`, `...Submitted`) rather than a single, complex message handler that must inspect conversational state.
+-   *Robustness*: It avoids conflicts between different features that might otherwise compete to handle a generic text message. The framework directs the user's reply to the correct handler automatically.
+
 #### How to handle internationalization (i18n)?
 The framework is designed for easy internationalization. You write all user-facing strings in English using the `TranslatableString` class (commonly aliased to `_`), and the framework handles translation at runtime.
 
@@ -379,5 +484,5 @@ The mechanism behind `@router.help` is powerful yet simple to use:
 <!-- Local Variables: -->
 <!-- gptel-model: gemini-2.5-pro-preview-05-06 -->
 <!-- gptel--backend-name: "Gemini" -->
-<!-- gptel--bounds: ((response (1 8) (9 23) (24 51) (52 62) (63 77) (78 105) (106 110) (111 117) (118 123) (124 142) (143 150) (151 183) (184 211) (212 214) (215 223) (224 246) (247 252) (253 281) (282 287) (288 302) (303 316) (317 324) (325 356) (357 367) (368 387) (388 399) (400 412) (413 13156) (13158 18241))) -->
+<!-- gptel--bounds: ((response (1 8) (9 23) (24 51) (52 62) (63 77) (78 105) (106 110) (111 117) (118 123) (124 142) (143 150) (151 183) (184 211) (212 214) (215 223) (224 246) (247 252) (253 281) (282 287) (288 302) (303 316) (317 324) (325 356) (357 367) (368 387) (388 399) (400 412) (413 13156) (13159 13206) (13207 17001) (17003 22086))) -->
 <!-- End: -->
