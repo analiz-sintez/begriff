@@ -1,7 +1,8 @@
+from typing import Optional
 from .service import Signal, Bus, encode, decode, make_regexp, unoption
 from .saving_backends import dump_signal_to_log, dump_signal_to_db
 
-bus = None
+bus: Optional[Bus] = None
 
 
 def create_bus(config: object):
@@ -18,5 +19,5 @@ def create_bus(config: object):
     return bus
 
 
-def get_bus():
+def get_bus() -> Optional[Bus]:
     return bus

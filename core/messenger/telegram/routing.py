@@ -146,6 +146,25 @@ def _create_command_handler(
         parent_ctx = None
         if parent := ctx.message.parent:
             parent_ctx = ctx.context(parent)
+
+            # Chefk if a message should emit a signal on certain command.
+            # (see Context.send_message on_command argument for details).
+            if message_handlers := parent_ctx.get("_on_command"):
+                if signals := message_handlers.get(name):
+                    if bus := get_bus():
+                        if isinstance(signals, Signal):
+                            signals = [signals]
+                        for signal in signals:
+                            await bus.emit_and_wait(
+                                signal, ctx=ctx, reply_to=parent
+                            )
+                    else:
+                        logger.error(
+                            "Can't send message command signals, the bus is not ready."
+                        )
+                    # Stop processing.
+                    return
+
         found = False
         for handler in conditional_handlers:
             # Check the message context condition.
@@ -207,6 +226,24 @@ def _create_reaction_handlers(
             if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
                 emoji = reactions[0].emoji
         logger.info(f"Got emoji: {emoji}")
+        # Chefk if a message should emit a signal on certain reaction.
+        # (see Context.send_message on_reaction argument for details).
+        if message_handlers := parent_ctx.get("_on_reaction"):
+            if bus := get_bus():
+                for emojis, signals in message_handlers.items():
+                    if not emoji in emojis:
+                        continue
+                    if isinstance(signals, Signal):
+                        signals = [signals]
+                    for signal in signals:
+                        await bus.emit_and_wait(
+                            signal, ctx=ctx, reply_to=parent
+                        )
+            else:
+                logger.error(
+                    "Can't send message reaction signals, the bus is not ready."
+                )
+        # Check common handlers registered directly.
         for handler in emoji_map.get(emoji, []):
             # Check the message context condition.
             if (

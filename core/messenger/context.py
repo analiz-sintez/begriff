@@ -86,6 +86,8 @@ class Context:
         new: bool = False,
         reply_to: Optional[Message] = None,
         on_reply: Optional[Signal] = None,
+        on_reaction: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
+        on_command: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
         context: Optional[Dict] = None,
     ):
         """
@@ -103,6 +105,15 @@ class Context:
             a command, and possibly within a given time frame, should count as
             reply.
           - For slack-like messengers: a message in the same thread.
+        on_reaction:
+          Signals to be emitted if a reaction is sent to the message.
+          Reaction emojis are dict keys, values are Signals that should be emitted
+          if such a reaction is recieved.
+          If a list of signals is provided, they are called one after one (not
+          simultaneously), each next Signal awaits for the previous to be processed.
+        on_command:
+          The same as `on_reaction` but for commands. The command must be a reply to
+          the message, otherwise it will be processed in the geenral flow.
 
         """
         raise NotImplementedError()

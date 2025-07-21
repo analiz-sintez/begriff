@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Union
+from typing import Optional, List, Dict, Union
 import logging
 
 from babel import Locale
@@ -229,6 +229,8 @@ class TelegramContext(Context):
         new: bool = False,
         reply_to: Optional[Union[PTBMessage, bool]] = None,
         on_reply: Optional[Signal] = None,
+        on_reaction: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
+        on_command: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
         context: Optional[Dict] = None,
     ):
         if on_reply:
@@ -257,4 +259,14 @@ class TelegramContext(Context):
         if on_reply:
             logger.info("Setting on reply event for message id=%s", message.id)
             self.context(message)["_on_reply"] = on_reply
+        if on_reaction:
+            logger.debug(
+                "Setting reaction handlers for message id=%s", message.id
+            )
+            self.context(message)["_on_reaction"] = on_reaction
+        if on_command:
+            logger.debug(
+                "Setting command handlers for message id=%s", message.id
+            )
+            self.context(message)["_on_command"] = on_command
         return message
