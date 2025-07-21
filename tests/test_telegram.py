@@ -79,15 +79,9 @@ def test_study_session(app):
         # Record a new view for the first card
         view_id = record_view_start(first_card.id)
 
-        # Mocking the update and context for handle_study_session
-        # TODO make this telegram-agnostic.
+        # Mocking the context for handle_study_session
         mock_account = AsyncMock()
         mock_account.login = user.login
-        # mock_query = AsyncMock()
-        # mock_update = AsyncMock()
-        # mock_update.callback_query = mock_query
-        # mock_update.effective_user = mock_user
-        # mock_context = AsyncMock()
         ctx = AsyncMock()
         ctx.account = mock_account
 

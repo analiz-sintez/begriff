@@ -24,36 +24,18 @@ class OnboardingStarted(Signal):
     user_id: int
 
 
+################################################################
+# Part 1. Select (default) native language.
+# It is used as an interface language.
 @dataclass
 class NativeLanguageChangeRequested(Signal):
     user_id: int
 
 
 @dataclass
-class NativeLanguageSet(Signal):
-    user_id: int
-    language_code: str
-
-
-################################################################
-# Part 1. Select (default) native language.
-# It is used as an interface language.
-@dataclass
-class NativeLanguageSelected(Signal):
-    user_id: int
-    native_language_id: int
-
-
-@dataclass
-class NativeLanguageEntered(Signal):
-    user_id: int
-    native_language_id: int
-
-
-@dataclass
 class NativeLanguageSaved(Signal):
     user_id: int
-    native_language_id: int
+    language_code: str
 
 
 ################################################################
@@ -156,14 +138,16 @@ In a few steps we'll set up things and start.
         )
     )
 
-    current_locale = ctx.account.locale
+    current_locale = ctx.locale
     language_name = current_locale.get_language_name(current_locale.language)
     flag_str = get_flag(ctx, current_locale)
 
     keyboard = Keyboard(
         [
             [
-                Button("Switch to English", NativeLanguageSet(user.id, "en")),
+                Button(
+                    "Switch to English", NativeLanguageSaved(user.id, "en")
+                ),
                 Button(
                     _("Select other language"),
                     NativeLanguageChangeRequested(user.id),
@@ -183,7 +167,7 @@ In a few steps we'll set up things and start.
     )
 
 
-@bus.on(NativeLanguageSet)
+@bus.on(NativeLanguageSaved)
 @router.authorize()
 async def set_native_language(ctx: Context, user: User, language_code: str):
     user.set_option("locale", language_code)
@@ -192,7 +176,7 @@ async def set_native_language(ctx: Context, user: User, language_code: str):
     await ctx.send_message(
         _(
             "Interface language set to {language}.",
-            language=locale.english_name,
+            language=locale.get_language_name(ctx.locale.language),
         )
     )
 
@@ -219,8 +203,8 @@ async def ask_native_language_selection(ctx: Context, user: User):
     buttons = [
         Button(
             text=get_flag(ctx, locale)
-            + locale.get_language_name(ctx.account.locale.language),
-            callback=NativeLanguageSet(user.id, locale.language),
+            + locale.get_language_name(ctx.locale.language),
+            callback=NativeLanguageSaved(user.id, locale.language),
         )
         for locale in locales
     ]
@@ -241,7 +225,7 @@ async def ask_studied_language(ctx: Context, user: User):
     buttons = [
         Button(
             text=get_flag(ctx, locale)
-            + locale.get_language_name(ctx.account.locale.language),
+            + locale.get_language_name(ctx.locale.language),
             callback=StudyLanguageSelected(user.id, locale.language),
         )
         for locale in locales
@@ -275,7 +259,7 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
         _(
             "You selected: {flag}{language}",
             flag=get_flag(ctx, locale),
-            language=locale.get_language_name(ctx.account.locale.language),
+            language=locale.get_language_name(ctx.locale.language),
         )
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)

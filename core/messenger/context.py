@@ -7,6 +7,8 @@ from typing import (
 )
 from babel import Locale
 
+from core.auth import User
+
 from ..bus import Signal
 from ..i18n import TranslatableString
 
@@ -69,6 +71,17 @@ class Context:
 
     @property
     def account(self) -> Account:
+        """The messenger account which initiated an update."""
+        raise NotImplementedError()
+
+    @property
+    def user(self) -> User:
+        """The app user which initiated an update."""
+        raise NotImplementedError()
+
+    @property
+    def locale(self) -> Locale:
+        """Locale to use for the interface."""
         raise NotImplementedError()
 
     @property
