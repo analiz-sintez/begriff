@@ -233,21 +233,7 @@ def _is_note_format(text: str) -> Optional[Dict]:
     ):
         logging.info(f"Message {text} contains notes.")
         return {"notes": lines}
-    return {}
-
-
-@router.command("delete", conditions={"note_id": Any})
-async def delete_note(ctx: Context, note_id: int):
-    bus.emit(NoteDeletionRequested(ctx.user.id, note_id), ctx=ctx)
-
-
-@router.command("debug", conditions={"note_id": Any})
-@router.authorize()
-async def debug_note(ctx: Context, note_id: int):
-    debug_info = {
-        "note_id": note_id,
-    }
-    await ctx.send_message(f"```{debug_info}```")
+    return None
 
 
 @router.message(_is_note_format)
@@ -280,6 +266,20 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             )
         else:
             bus.emit(TextExplanationRequested(user.id, text), ctx=ctx)
+
+
+@router.command("delete", conditions={"note_id": Any})
+async def delete_note(ctx: Context, note_id: int):
+    bus.emit(NoteDeletionRequested(ctx.user.id, note_id), ctx=ctx)
+
+
+@router.command("debug", conditions={"note_id": Any})
+@router.authorize()
+async def debug_note(ctx: Context, note_id: int):
+    debug_info = {
+        "note_id": note_id,
+    }
+    await ctx.send_message(f"```{debug_info}```")
 
 
 @bus.on(WordExplanationRequested)
@@ -341,8 +341,8 @@ async def add_note(
                 notes_to_inject = get_notes_to_inject(user, language)
             # Check if the message is a reply to another message.
             context_message = None
-            if ctx.update.message.reply_to_message:
-                context_message = ctx.update.message.reply_to_message.text
+            if ctx.message.parent:
+                context_message = ctx.message.parent.text
             # Ask LLM to explain the word.
             explanation = await get_explanation(
                 text,
@@ -370,24 +370,18 @@ async def add_note(
         f"{icon} *{text}* — {display_explanation}", reply_to=None
     )
     # Save an association between the note and the message.
-    # TODO Here is a buggy piece: we either need to check if there's something
-    # in the message context, or we are at risk to erase the early state when
-    # we edit the message.
-    # Possible solutions:
-    # - make ctx.message_context clever;
-    # - make send_message accept `context` arg and set context only on send.
-    ctx.message_context[message.message_id] = {"note_id": note.id}
+    ctx.context(message)["note_id"] = note.id
 
 
 @router.reaction(["👎"], conditions={"note_id": Any})  # finger down
 @router.authorize()
-async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
+async def handle_negative_reaction(
+    ctx: Context, user: User, reply_to: object, note_id: int
+):
     """
     Handles a negative reaction on a note's explanation message.
     It regenerates the explanation, updates the note, and sends a new message.
     """
-    message_ctx = ctx.message_context.get(reply_to.message_id)
-    note_id = message_ctx.get("note_id")
     if not (note := get_note(note_id)):
         return
     if note.user_id != user.id:
@@ -428,7 +422,7 @@ async def handle_negative_reaction(ctx: Context, user: User, reply_to: object):
     # Update the message map to associate the new message with the note
     # so the user can react to the new explanation as well.
     if new_message:
-        ctx.message_context[new_message.message_id] = {"note_id": note.id}
+        ctx.context(new_message)["note_id"] = note.id
 
 
 @bus.on(TextExplanationRequested)

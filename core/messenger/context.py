@@ -18,14 +18,25 @@ class User:
     id: int
     login: str
     locale: Locale
-    _: Optional[object] = None
+    _: Optional[object] = None  # raw object
+
+
+@dataclass
+class Chat:
+    id: int
+    _: Optional[object]
 
 
 @dataclass
 class Message:
     id: int
     chat_id: int
-    _: object
+    user_id: Optional[int] = None
+    text: Optional[str] = None
+    parent: Optional[object] = None  # another Message object
+    # context: Dict
+    # messenger: str
+    _: Optional[object] = None  # raw object
 
 
 @dataclass
@@ -59,11 +70,12 @@ class Context:
         raise NotImplementedError()
 
     @property
-    def message_context(self) -> Dict[int, Dict]:
-        """
-        A store of per-message metadata. e.g. a note bound to the message
-        to perform context actions on it.
-        """
+    def message(self) -> Message:
+        raise NotImplementedError()
+
+    def context(self, obj: Union[Message, Chat, User]) -> Dict:
+        """Return a context dict for a given object."""
+        # TODO bad naming?
         raise NotImplementedError()
 
     async def send_message(

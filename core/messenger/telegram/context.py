@@ -8,12 +8,13 @@ from telegram import (
     Update,
     InputMediaPhoto,
     Message as PTBMessage,
+    Chat as PTBChat,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
 
 from ...bus import Signal, encode
-from .. import Context, Button, Keyboard, User, Message
+from .. import Context, Button, Keyboard, User, Message, Chat
 from ...i18n import TranslatableString, resolve
 
 
@@ -27,8 +28,8 @@ class TelegramContext(Context):
         context: CallbackContext,
         config: Optional[object] = None,
     ):
-        self.update = update
-        self.context = context
+        self._update = update
+        self._context = context
         return super().__init__(config)
 
     def username(self) -> str:
@@ -36,29 +37,79 @@ class TelegramContext(Context):
 
     @property
     def user(self) -> User:
+        """The user which initiated an update."""
         if not hasattr(self, "_user"):
-            telegram_user = self.update.effective_user
+            tg_user = self._update.effective_user
             try:
-                locale = Locale.parse(telegram_user.language_code)
+                locale = Locale.parse(tg_user.language_code)
             except:
                 locale = Locale("en")
             self._user = User(
-                id=telegram_user.id,
-                login=telegram_user.username,
+                id=tg_user.id,
+                login=tg_user.username,
                 locale=locale,
-                _=telegram_user,
+                _=tg_user,
             )
         return self._user
 
     @property
-    def message_context(self) -> Dict[int, Dict]:
+    def message(self) -> Message:
+        """The message the user sent."""
+        if not hasattr(self, "_message"):
+            tg_message = self._update.message
+            self._message = Message(
+                id=tg_message.message_id,
+                chat_id=tg_message.chat.id,
+                user_id=tg_message.from_user.id,
+                text=tg_message.text,
+                _=tg_message,
+            )
+            if tg_reply_to := tg_message.reply_to_message:
+                parent = Message(
+                    id=tg_reply_to.message_id,
+                    chat_id=tg_reply_to.chat.id,
+                    user_id=tg_reply_to.from_user.id,
+                    text=tg_reply_to.text,
+                    _=tg_reply_to,
+                )
+                self._message.parent = parent
+        return self._message
+
+    def context(self, obj: Union[Message, Chat, User]) -> Dict:
         """
-        A store of per-message metadata. e.g. a note bound to the message
-        to perform context actions on it.
+        All this is from current user perspective. Multiple users
+        can have different contexts on the same messages, chats and
+        other users.
+
+        Message: message context;
+        Chat: chat context;
+        User: user context, including a context of one user on another one.
         """
-        if "_message_context" not in self.context.chat_data:
-            self.context.chat_data["_message_context"]: Dict[int, Dict] = {}
-        return self.context.chat_data["_message_context"]
+        if isinstance(obj, Message):
+            # Message context is stored in chats telegram context
+            store = self._context.chat_data
+            key = "_messages"
+        elif isinstance(obj, Chat):
+            # Message context is stored in users telegram context
+            store = self._context.user_data
+            key = "_chats"
+        elif isinstance(obj, User):
+            # Users context is stored in users telegram context
+            store = self._context.user_data
+            key = "_users"
+        else:
+            raise TypeError(f"Unsupported type: {type(obj)}.")
+
+        # ... create the context storage if missing
+        if key not in store:
+            store[key]: Dict[int, Dict] = {}
+        ctx = store[key]
+
+        # ... create the dict for the given object if missing
+        if obj.id not in ctx:
+            ctx[obj.id]: Dict = {}
+
+        return ctx[obj.id]
 
     async def _send_message(
         self,
@@ -180,21 +231,27 @@ class TelegramContext(Context):
         on_reply: Optional[Signal] = None,
     ):
         if on_reply:
-            self.context.user_data["_on_reply"] = on_reply
+            self._context.user_data["_on_reply"] = on_reply
         if isinstance(text, TranslatableString):
             text = await resolve(text, self.user.locale)
-        message = await self._send_message(
-            self.update,
-            self.context,
+        tg_message = await self._send_message(
+            self._update,
+            self._context,
             text,
             image=image,
             markup=await self._make_keyboard(markup) if markup else None,
             new=new,
             reply_to=reply_to,
         )
+        message = Message(
+            id=tg_message.message_id,
+            chat_id=tg_message.chat.id,
+            user_id=None,
+            text=tg_message.text,
+            parent=tg_message.reply_to_message,
+            _=tg_message,
+        )
         if on_reply:
-            logger.info(
-                "Setting on reply event for message id=%s", message.message_id
-            )
-            self.message_context[message.message_id] = {"_on_reply": on_reply}
+            logger.info("Setting on reply event for message id=%s", message.id)
+            self.context(message)["_on_reply"] = on_reply
         return message

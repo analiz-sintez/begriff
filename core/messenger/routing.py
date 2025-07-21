@@ -124,8 +124,6 @@ class Router:
         """
         A decorator to register a command handler.
         """
-        if not description:
-            description = name
 
         def decorator(fn: Callable) -> Callable:
             logger.debug(f"Registering command: /{name}: {description}")
@@ -237,17 +235,11 @@ class Router:
                 ctx = kwargs["ctx"]
                 if not (message := await fn(**kwargs)):
                     logger.warning(
-                        f"The handler {fn} doesn't return the message, so the helper wouldn't work. Add `return await ctx.send_message(...) to fix that.`"
+                        f"The handler %s doesn't return the message, so the helper wouldn't work. Add `return await ctx.send_message(...) to fix that.`",
+                        fn,
                     )
                     return
-                # TODO fix this layer leakage: `message_id` property of the
-                # telegram.Message object should be replaced with Message.id
-                # property of internal message object.
-                # For this to work, `send_message` should return the internam
-                # messare representation.
-                if message.message_id not in ctx.message_context:
-                    ctx.message_context[message.message_id] = {}
-                ctx.message_context[message.message_id]["_help"] = help_hash
+                ctx.context(message)["_help"] = help_hash
                 return message
 
             return patched_fn

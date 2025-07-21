@@ -14,7 +14,7 @@ from typing import (
     get_type_hints,
 )
 
-from telegram import BotCommand, Message, Update
+from telegram import BotCommand, Message as PTBMessage, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler as PTBCallbackQueryHandler,
@@ -36,6 +36,7 @@ from ..routing import (
     Conditions,
 )
 from .context import TelegramContext
+from .. import Message
 
 logger = logging.getLogger(__name__)
 
@@ -142,24 +143,24 @@ def _create_command_handler(
     async def dispatch(update, context):
         ctx = TelegramContext(update, context, config=router.config)
         # Get the message replied to.
-        message_ctx = None
-        if reply_to := update.message.reply_to_message:
-            message_ctx = ctx.message_context.get(reply_to.message_id)
+        parent_ctx = None
+        if parent := ctx.message.parent:
+            parent_ctx = ctx.context(parent)
         found = False
         for handler in conditional_handlers:
             # Check the message context condition.
             if (
-                match := check_conditions(handler.conditions, message_ctx)
+                match := check_conditions(handler.conditions, parent_ctx)
             ) is None:
                 continue
             logger.info(f"Handler matched for command {name}: {match}.")
             found = True
-            await handler.fn(update, context, reply_to=reply_to, **match)
+            await handler.fn(update, context, reply_to=parent, **match)
         if found:
             return
         for handler in conditionless_handlers:
             logger.info(f"Calling conditionless handler for command {name}.")
-            await handler.fn(update, context, reply_to=reply_to)
+            await handler.fn(update, context, reply_to=parent)
 
     return PTBCommandHandler(name, dispatch)
 
@@ -193,28 +194,29 @@ def _create_reaction_handlers(
     async def dispatch(update: Update, context: TelegramContext):
         ctx = TelegramContext(update, context, config=router.config)
         # Get the reply to message.
-        reaction_obj = update.message_reaction
-        chat = reaction_obj.chat
-        date = reaction_obj.date
-        message_id = reaction_obj.message_id
-        message_ctx = ctx.message_context.get(message_id)
-        message = Message(message_id=message_id, chat=chat, date=date)
+        tg_parent = update.message_reaction
+        parent = Message(
+            id=tg_parent.message_id,
+            chat_id=tg_parent.chat.id,
+            _=tg_parent,
+        )
+        parent_ctx = ctx.context(parent)
         emoji = None
-        if hasattr(reaction_obj, "new_reaction"):
-            reactions = reaction_obj.new_reaction
+        if hasattr(tg_parent, "new_reaction"):
+            reactions = tg_parent.new_reaction
             if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
                 emoji = reactions[0].emoji
         logger.info(f"Got emoji: {emoji}")
         for handler in emoji_map.get(emoji, []):
             # Check the message context condition.
             if (
-                match := check_conditions(handler.conditions, message_ctx)
+                match := check_conditions(handler.conditions, parent_ctx)
             ) is None:
                 continue
             # TODO this should not await, just shoot and forget
             logger.info(f"Handler matched for emoji {emoji}: {match}.")
             await handler.fn(
-                update, context, emoji=emoji, reply_to=message, **match
+                update, context, emoji=emoji, reply_to=parent, **match
             )
 
     return PTBReactionHandler(dispatch)

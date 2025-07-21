@@ -363,11 +363,11 @@ async def handle_note_selected(
     keyboard = Keyboard([keyboard_buttons])
 
     reply_to_message: Message | None = None
-    if ctx.update.callback_query and ctx.update.callback_query.message:
-        reply_to_message = ctx.update.callback_query.message
+    if ctx._update.callback_query and ctx._update.callback_query.message:
+        reply_to_message = ctx._update.callback_query.message
         try:
             # Acknowledge the button press to remove the loading spinner
-            await ctx.update.callback_query.answer()
+            await ctx._update.callback_query.answer()
         except Exception as e:
             logger.warning(f"Failed to answer callback query: {e}")
 
@@ -397,18 +397,18 @@ async def handle_note_title_edit_requested(
         await ctx.send_message("Error: Note not found or not yours.")
         return
 
-    ctx.context.user_data["active_edit"] = {
+    ctx.context(user)["active_edit"] = {
         "note_id": note_id,
         "field_to_edit": "field1",
         "original_message_id": (
-            ctx.update.callback_query.message.message_id
-            if ctx.update.callback_query
+            ctx._update.callback_query.message.message_id
+            if ctx._update.callback_query
             else None
         ),
     }
     await ctx.send_message("Please send the new title for the note.")
-    if ctx.update.callback_query:
-        await ctx.update.callback_query.answer()
+    if ctx._update.callback_query:
+        await ctx._update.callback_query.answer()
 
 
 @bus.on(NoteExplanationEditRequested)
@@ -424,24 +424,24 @@ async def handle_note_explanation_edit_requested(
         await ctx.send_message("Error: Note not found or not yours.")
         return
 
-    ctx.context.user_data["active_edit"] = {
+    ctx.context(user)["active_edit"] = {
         "note_id": note_id,
         "field_to_edit": "field2",
         "original_message_id": (
-            ctx.update.callback_query.message.message_id
-            if ctx.update.callback_query
+            ctx._update.callback_query.message.message_id
+            if ctx._update.callback_query
             else None
         ),
     }
     await ctx.send_message("Please send the new explanation for the note.")
-    if ctx.update.callback_query:
-        await ctx.update.callback_query.answer()
+    if ctx._update.callback_query:
+        await ctx._update.callback_query.answer()
 
 
 # @router.message(".*")
 @router.authorize()
 async def handle_note_edit_input(ctx: Context, user: User):
-    if not ctx.context.user_data or "active_edit" not in ctx.context.user_data:
+    if not ctx.context(user) or "active_edit" not in ctx.context(user):
         # This message is not part of an active edit session.
         # It should be handled by other message handlers (e.g., adding new notes).
         # The router will try other handlers if this one doesn't "consume" the update.
@@ -453,7 +453,7 @@ async def handle_note_edit_input(ctx: Context, user: User):
         )
         return True  # Indicate that this handler did not fully process the message if it's not an edit.
 
-    active_edit_info = ctx.context.user_data["active_edit"]
+    active_edit_info = ctx.context(user)["active_edit"]
     note_id = active_edit_info["note_id"]
     field_to_edit = active_edit_info["field_to_edit"]
 
@@ -461,17 +461,17 @@ async def handle_note_edit_input(ctx: Context, user: User):
 
     if not note_to_edit:
         await ctx.send_message("Error: Note not found. Edit cancelled.")
-        del ctx.context.user_data["active_edit"]
+        del ctx.context(user)["active_edit"]
         return
 
     if note_to_edit.user_id != user.id:
         await ctx.send_message(
             "Error: You can only edit your own notes. Edit cancelled.",
         )
-        del ctx.context.user_data["active_edit"]
+        del ctx.context(user)["active_edit"]
         return
 
-    new_value = ctx.update.message.text.strip()
+    new_value = ctx.message.text.strip()
     if not new_value:
         await ctx.send_message(
             "The new value cannot be empty. Please try again or send /cancel to abort.",
@@ -517,7 +517,7 @@ async def handle_note_edit_input(ctx: Context, user: User):
             "An error occurred while updating the note. Please try again.",
         )
     finally:
-        del ctx.context.user_data["active_edit"]
+        del ctx.context(user)["active_edit"]
         # To prevent other handlers from processing this message after it's been handled as an edit input:
         # raise DispatcherHandlerStop(MessageHandler) # This would require importing DispatcherHandlerStop
         # For simplicity with current router, we assume this is the end of handling for this message.
