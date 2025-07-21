@@ -81,15 +81,15 @@ def test_study_session(app):
 
         # Mocking the update and context for handle_study_session
         # TODO make this telegram-agnostic.
-        mock_user = AsyncMock()
-        mock_user.login = user.login
+        mock_account = AsyncMock()
+        mock_account.login = user.login
         # mock_query = AsyncMock()
         # mock_update = AsyncMock()
         # mock_update.callback_query = mock_query
         # mock_update.effective_user = mock_user
         # mock_context = AsyncMock()
         ctx = AsyncMock()
-        ctx.user = mock_user
+        ctx.account = mock_account
 
         # 1. Emulate requesting card answer.
         # ... due to authorize magic, we must use only keyword arguments here
