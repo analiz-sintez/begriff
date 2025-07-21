@@ -1,0 +1,184 @@
+* Sequence Diagrams
+
+Those diagrams show low-level implementation details that could help a programmer what is happening under the hood.
+
+** Study Session
+
+*** Programmer's perspecrive: simple version
+
+#+begin_src plantuml :file ./sequence_studying_low_level.png
+@startuml
+title Study Session Sequence
+skinparam sequence {
+    ArrowColor #2F4F4F
+    LifeLineBorderColor #2F4F4F
+    ActorBorderColor #2F4F4F
+    ParticipantBorderColor #2F4F4F
+    MessageFontColor #2F4F4F
+}
+actor User
+participant Bot
+participant Router
+participant Bus
+participant "SRS Service" as SRS
+participant "LLM Service" as LLM
+participant "Image Service" as Image
+
+box "Study Session Flow"
+    User -> Bot: /study
+    Bot -> Router: Handles command "study"
+    Router -> Bot: start_study_session(ctx, user)
+    Bot -> Bus: emit(StudySessionRequested)
+    note over Bus: StudySessionRequested signals start_study_session
+
+    Bus -> Bot: study_next_card(ctx, user)
+    Bot -> SRS: get_cards(user_id, ...)
+    SRS --> Bot: cards
+    alt cards
+        Bot -> Bus: emit(CardQuestionShown)
+        Bot -> User: Sends card with "ANSWER" button
+    else
+        Bot -> Bus: emit(StudySessionFinished)
+        Bot -> Image: generate_image("...finish image...")
+        Image --> Bot: image
+        Bot -> User: "All done for today." (with image)
+    end
+    
+    User -> Bot: Clicks "ANSWER"
+    Bot -> Bus: Decodes and handles callback
+    Bus -> Bot: handle_study_answer(ctx, user, card_id)
+    Bot -> SRS: get_card(card_id)
+    SRS --> Bot: card
+    Bot -> SRS: record_view_start(card_id)
+    SRS --> Bot: view_id
+    Bot -> Bus: emit(CardAnswerShown)
+    Bot -> User: Sends card with grade buttons
+
+    User -> Bot: Clicks a grade button
+    Bot -> Bus: Decodes and handles callback
+    Bus -> Bot: handle_study_grade(ctx, user, view_id, answer)
+    Bot -> SRS: get_view(view_id)
+    SRS --> Bot: view
+    Bot -> SRS: record_answer(view_id, answer)
+    SRS --> Bot: 
+    Bot -> Bus: emit(CardGraded)
+    note over Bot: Loop back to "Show Next Card"
+end box
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:sequence_studying_low_level.png]]
+
+*** Programmer's perspecrive: detailed version
+
+#+begin_src plantuml :file ./sequence_studying_lowest_level.png
+@startuml
+title Study Module Interaction Sequence
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam participantPadding 5
+skinparam boxPadding 10
+skinparam sequenceArrowThickness 2
+skinparam sequenceLifeLineBorderColor #888888
+
+actor User
+
+  participant Router
+  participant Bus
+  participant StudyHandlers as "Study Handlers"
+
+  participant SRS_Service as "SRS Service"
+  participant LLM_Service as "LLM Service"
+  participant Image_Service as "Image Service"
+
+
+User -> Router: Sends command /study
+Router -> StudyHandlers: Calls start_study_session(ctx, user)
+note right: @router.command("study")
+StudyHandlers -> Bus: emit(StudySessionRequested)
+note right: This initiates the study loop.
+
+loop For each card
+
+    Bus -> StudyHandlers: Calls study_next_card(ctx, user)
+    note right: Handler for StudySessionRequested & CardGraded
+
+    StudyHandlers -> SRS_Service: get_cards(user_id, ...)
+    SRS_Service --> StudyHandlers: List of cards due for review
+
+    alt No cards available
+        StudyHandlers -> Bus: emit(StudySessionFinished)
+        StudyHandlers -> Image_Service: generate_image(...)
+        Image_Service --> StudyHandlers: image_path
+        StudyHandlers -> User: "All done for today" message
+        note left: Session ends
+    else
+
+    StudyHandlers -> StudyHandlers: Selects first card
+    opt Card or previous card needs image
+        StudyHandlers -> Image_Service: generate_image(...)
+        Image_Service --> StudyHandlers: image_path
+    end
+    opt Card front is an explanation
+        StudyHandlers -> LLM_Service: translate(text)
+        LLM_Service --> StudyHandlers: translated_text
+    end
+
+    StudyHandlers -> Bus: emit(CardQuestionShown)
+    StudyHandlers -> User: Shows card front with "ANSWER" button
+    note right of User: Callback: CardAnswerRequested(card_id)
+
+    User -> Bus: Clicks "ANSWER" button
+    note left: User action triggers signal via callback data.
+    Bus -> StudyHandlers: Calls handle_study_answer(ctx, user, card_id)
+    note right: Handler for CardAnswerRequested
+
+    StudyHandlers -> SRS_Service: get_card(card_id)
+    SRS_Service --> StudyHandlers: Card object
+    opt Card back is an explanation
+        StudyHandlers -> LLM_Service: translate(text)
+        LLM_Service --> StudyHandlers: translated_text
+    end
+
+    StudyHandlers -> SRS_Service: record_view_start(card_id)
+    SRS_Service --> StudyHandlers: view_id
+    StudyHandlers -> Bus: emit(CardAnswerShown)
+    StudyHandlers -> User: Shows card back with grade buttons (AGAIN, GOOD, ...)
+    note right of User: Callback: CardGradeSelected(view_id, answer)
+
+    User -> Bus: Clicks grade button
+    Bus -> StudyHandlers: Calls handle_study_grade(ctx, user, view_id, answer)
+    note right: Handler for CardGradeSelected
+
+    StudyHandlers -> SRS_Service: record_answer(view_id, answer)
+    note right: Updates card stability/difficulty, reschedules.
+    SRS_Service --> StudyHandlers:
+    StudyHandlers -> Bus: emit(CardGraded)
+
+    par Background Image Generation
+        Bus -> StudyHandlers: Calls maybe_generate_image(view_id)
+        note right: Handler for CardGraded
+        StudyHandlers -> SRS_Service: get_view(view_id)
+        SRS_Service --> StudyHandlers: view object
+        opt Card is a leech & has no image
+            StudyHandlers -> LLM_Service: translate(explanation)
+            LLM_Service --> StudyHandlers: english_explanation
+            StudyHandlers -> Image_Service: generate_image(english_explanation)
+            Image_Service --> StudyHandlers: image_path
+            StudyHandlers -> SRS_Service: note.set_option("image/path", ...)
+            StudyHandlers -> Bus: emit(ImageGenerated)
+        end
+    end
+    loop to Next Card
+        note over StudyHandlers: The CardGraded signal will trigger\nstudy_next_card again to show the next card.
+    end
+    end
+
+end
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_studying_lowest_level.png]]

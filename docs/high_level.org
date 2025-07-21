@@ -1,0 +1,437 @@
+* Begriff bot sequence diagrams
+
+Those diagrams map interactions between a user and the bot and signals emitted in the process. Diagrams are purposefully high-level and don't go deep into implementation details and architectural peculiarities of the bot. The goal is to give a UX designer perspective and show signals emitted so that they can be used in analytics or for extending the bot. 
+
+** Studying the Cards
+#+begin_src plantuml :file ./sequence_studying.png
+@startuml
+title Study Session Flow
+
+actor User
+participant Bot
+participant Bus as "Event Bus"
+
+User -> Bot: /study
+activate Bot
+Bot ->> Bus: emit StudySessionRequested
+deactivate Bot
+
+group Study Loop
+
+    Bus -> Bot: on(StudySessionRequested)
+    activate Bot
+    alt has cards to study
+        Bot -> User: Show Question 1\n(with "ANSWER" button)
+        note right of Bot: emit CardQuestionShown
+    else no cards to study
+        Bot ->> Bus: emit StudySessionFinished
+        Bot -> User: "All done for today!"
+        deactivate Bot
+        end
+    deactivate Bot
+
+    ...
+    User -> Bot: Press "ANSWER" button
+    activate Bot
+    note right of Bot: Callback with CardAnswerRequested
+    Bot ->> Bus: emit CardAnswerRequested
+    deactivate Bot
+
+    Bus -> Bot: on(CardAnswerRequested)
+    activate Bot
+    Bot -> User: Show Answer 1\n(with grade buttons: AGAIN, HARD, GOOD, EASY)
+    note right of Bot: emit CardAnswerShown
+    deactivate Bot
+
+    ...
+    User -> Bot: Press "GOOD" button
+    activate Bot
+    note right of Bot: Callback with CardGradeSelected
+    Bot ->> Bus: emit CardGradeSelected
+    deactivate Bot
+
+    Bus -> Bot: on(CardGradeSelected)
+    activate Bot
+    note left of Bot: Record user's grade.
+    Bot ->> Bus: emit CardGraded
+    deactivate Bot
+
+    ' The CardGraded signal triggers two parallel actions '
+    ' 1. Show the next card '
+    Bus -> Bot: on(CardGraded)
+    activate Bot
+    alt has more cards to study
+        Bot -> User: Show Question 2\n(with "ANSWER" button)
+        note right of Bot: emit CardQuestionShown
+        deactivate Bot
+    else no more cards
+        Bot ->> Bus: emit StudySessionFinished
+        Bot -> User: "All done for today!"
+        deactivate Bot
+    end
+
+    ' 2. Maybe generate an image in the background '
+    Bus -> Bus: on(CardGraded)
+    activate Bus
+    note over Bus: If card is a "leech",\ngenerate image in background.
+    ...
+    Bus ->> Bus: emit ImageGenerated
+    deactivate Bus
+end
+
+group Contextual Help
+    alt User is confused
+        User -> Bot: React with 🤔 or 🤯 to a message
+        activate Bot
+        Bot -> User: Show help text for the current step
+        deactivate Bot
+    end
+end
+
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_studying.png]]
+
+** Querying Explanations and Creating Notes
+#+begin_src plantuml :file ./sequence_explanations.png
+@startuml
+title Note Management Flow
+
+actor User
+participant Bot
+participant Bus as "Event Bus"
+
+group Add word(s) for explanation
+    User -> Bot: "perseverance"
+    note left: Or "perseverance: quality of not giving up"
+    activate Bot
+    Bot ->> Bus: emit WordExplanationRequested
+    deactivate Bot
+
+    Bus -> Bot: on(WordExplanationRequested)
+    activate Bot
+    alt note already exists
+        Bot -> User: "🟡 perseverance - ..."
+        note right of Bot: emit ExplanationNoteUpdated
+    else note is new
+        Bot -> Bot: Call LLM for explanation
+        Bot -> User: "🟢 perseverance - ..."
+        note right of Bot: emit ExplanationNoteAdded
+    end
+    deactivate Bot
+end
+
+group Regenerate explanation
+    User -> Bot: React with 👎 to explanation message
+    activate Bot
+    note right of Bot: Message context has note_id
+    Bot -> Bot: Call LLM for new explanation
+    Bot ->> Bus: emit ExplanationNoteUpdated
+    Bot -> User: "🟡 perseverance - (new explanation)"
+    deactivate Bot
+end
+
+group Check text for mistakes
+    User -> Bot: "I will can go to the cinema tomorrow."
+    note left: A sentence > 30 chars
+    activate Bot
+    Bot ->> Bus: emit TextExplanationRequested
+    deactivate Bot
+
+    Bus -> Bot: on(TextExplanationRequested)
+    activate Bot
+    Bot -> Bot: Call LLM to find mistakes
+    Bot -> User: "1. Incorrect modal verb usage..."
+    deactivate Bot
+end
+
+group Delete a note
+    User -> Bot: Reply to a note message with /delete
+    activate Bot
+    note right of Bot: Message context has note_id
+    Bot ->> Bus: emit NoteDeletionRequested
+    deactivate Bot
+
+    Bus -> Bot: on(NoteDeletionRequested)
+    activate Bot
+    Bot -> Bot: Delete note from DB
+    Bot -> User: "Note 'perseverance' has been deleted."
+    deactivate Bot
+end
+
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_explanations.png]]
+
+** Managing Notes
+#+begin_src plantuml :file ./sequence_note_list.png
+@startuml
+title Note Listing and Management Flow
+
+actor User
+participant Bot
+participant Bus as "Event Bus"
+
+group List and Navigate Notes
+    User -> Bot: /list
+    activate Bot
+    note right of Bot: Defaults to showing "Young" notes, page 1.
+    Bot ->> Bus: emit NotesListRequested(maturity=YOUNG, page=1)
+    deactivate Bot
+
+    Bus -> Bot: on(NotesListRequested)
+    activate Bot
+    Bot -> User: Show list of Young notes\n(with note, maturity, and pagination buttons)
+    deactivate Bot
+
+    ...
+    ' User can change filter or page '
+    User -> Bot: Press "Mature" filter button
+    activate Bot
+    note right of Bot: Callback with maturity and page number.
+    Bot ->> Bus: emit NotesListRequested(maturity=MATURE, page=1)
+    deactivate Bot
+
+    Bus -> Bot: on(NotesListRequested)
+    activate Bot
+    Bot -> User: Show list of Mature notes
+    deactivate Bot
+end
+
+group View Note Details
+    User -> Bot: Press note button ("perseverance")
+    activate Bot
+    note right of Bot: Callback with NoteSelected.
+    Bot ->> Bus: emit NoteSelected
+    deactivate Bot
+
+    Bus -> Bot: on(NoteSelected)
+    activate Bot
+    Bot -> User: Show note details for "perseverance"\n(with Delete/Edit buttons)
+    deactivate Bot
+end
+
+
+group Edit Note (Example: Title)
+    User -> Bot: Press "Edit Title" button
+    activate Bot
+    Bot ->> Bus: emit NoteTitleEditRequested
+    deactivate Bot
+
+    Bus -> Bot: on(NoteTitleEditRequested)
+    activate Bot
+    Bot -> User: "Please send the new title for the note."
+    deactivate Bot
+
+    ...
+    User -> Bot: "A new title"
+    activate Bot
+    note right of Bot: A general message handler checks for an\n"active edit" session for the user.
+    Bot -> Bot: Update note in DB
+    Bot -> User: "Note title updated."
+    deactivate Bot
+end
+
+
+group Delete Note
+    User -> Bot: Press "Delete" button
+    activate Bot
+    Bot ->> Bus: emit NoteDeletionRequested
+    deactivate Bot
+
+    ' The bus will then call the handler in note.py '
+    Bus -> Bot: on(NoteDeletionRequested)
+    activate Bot
+    Bot -> Bot: Delete note from DB
+    Bot -> User: "Note 'perseverance' has been deleted."
+    deactivate Bot
+end
+
+
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_note_list.png]]
+
+** Onboarding Flow
+This diagram shows the user's first interaction with the bot using the =/start= command.
+
+#+begin_src plantuml :file ./sequence_onboarding.png
+@startuml
+title Onboarding Flow
+
+actor User
+participant Bot
+participant Bus as "Event Bus"
+
+User -> Bot: /start
+activate Bot
+Bot -> User: "Welcome to the Begriff Bot!..."
+Bot ->> Bus: emit OnboardingStarted
+deactivate Bot
+
+Bus -> Bot: on(OnboardingStarted)
+activate Bot
+Bot -> User: "Select the language you want to study:"\n(with language buttons)
+deactivate Bot
+
+alt User presses a button
+    User -> Bot: Press "Spanish" button
+    activate Bot
+    note right of Bot: Callback with StudyLanguageSelected
+    Bot ->> Bus: emit StudyLanguageSelected
+    deactivate Bot
+else User types language name
+    User -> Bot: "Spanish"
+    activate Bot
+    note right of Bot: on_reply triggers StudyLanguageEntered
+    Bot ->> Bus: emit StudyLanguageEntered
+    deactivate Bot
+
+    Bus -> Bot: on(StudyLanguageEntered)
+    activate Bot
+    note over Bot: Parse "Spanish" and emit signal
+    Bot ->> Bus: emit StudyLanguageSelected
+    deactivate Bot
+end
+
+Bus -> Bot: on(StudyLanguageSelected)
+activate Bot
+Bot -> User: "You selected: 🇪🇸 Spanish"
+note right of Bot: Save setting to user profile
+Bot ->> Bus: emit StudyLanguageSaved
+deactivate Bot
+
+Bus -> Bot: on(StudyLanguageSaved)
+activate Bot
+note over Bot: Further onboarding steps can be added here\n(e.g., initial word test, setting reminders)
+Bot ->> Bus: emit OnboardingFinished
+deactivate Bot
+
+Bus -> Bot: on(OnboardingFinished)
+activate Bot
+Bot -> User: "Here we go! You can now add words..."
+deactivate Bot
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_onboarding.png]]
+
+** Language Management Flow
+This diagram covers the =/language= command, which allows users to change their study and native languages.
+
+#+begin_src plantuml :file ./sequence_language_selection.png
+@startuml
+title Language Management Flow
+
+actor User
+participant Bot
+participant Bus as "Event Bus"
+
+group Change Language Interactively
+    User -> Bot: /language
+    activate Bot
+    Bot -> User: "You are currently studying English."\n(with buttons for other languages)
+    deactivate Bot
+
+    ...
+    User -> Bot: Press "German" button
+    activate Bot
+    note right of Bot: Callback with LanguageSelected
+    Bot ->> Bus: emit LanguageSelected
+    deactivate Bot
+
+    Bus -> Bot: on(LanguageSelected)
+    activate Bot
+    Bot -> User: "Studied language changed to German."
+    Bot ->> Bus: emit LanguageChanged
+    deactivate Bot
+end
+
+group Set Native Language
+    Bus -> Bot: on(LanguageChanged)
+    activate Bot
+    Bot -> User: "Please select the native language for your German studies."\n(with language buttons)
+    deactivate Bot
+
+    ...
+    User -> Bot: Press "English" button
+    activate Bot
+    note right of Bot: Callback with NativeLanguageSelected
+    Bot ->> Bus: emit NativeLanguageSelected
+    deactivate Bot
+
+    Bus -> Bot: on(NativeLanguageSelected)
+    activate Bot
+    Bot -> User: "Native language for German set to English."
+    Bot ->> Bus: emit NativeLanguageChanged
+    note right of Bot: Background task starts to\ntranslate explanations to English.
+    deactivate Bot
+end
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_language_selection.png]]
+
+** URL Recap Flow
+This diagram illustrates how a user gets a summary of a web page.
+
+#+begin_src plantuml :file ./sequence_recap.png
+@startuml
+title URL Recap Flow
+
+actor User
+participant Bot
+participant "External Service" as URL
+participant "LLM Service" as LLM
+
+User -> Bot: "https://example.com/article"
+activate Bot
+Bot -> URL: Fetch page content
+activate URL
+URL --> Bot: Return HTML content
+deactivate URL
+
+Bot -> Bot: Parse text from HTML
+note right: May also fetch user's\nstudy words to inject.
+Bot -> LLM: Request recap of text in study language
+activate LLM
+LLM --> Bot: Return summary
+deactivate LLM
+
+Bot -> User: "Here is a summary of the article:\n(text with _highlighted_ words)..."
+deactivate Bot
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_recap.png]]
+
+** Miscellaneous Commands
+This diagram shows simple, one-off commands like =/help=.
+
+#+begin_src plantuml :file ./sequence_misc.png
+@startuml
+title Miscellaneous Commands Flow
+
+actor User
+participant Bot
+
+User -> Bot: /help
+activate Bot
+note right of Bot: Resolve TranslatableString for help text.
+Bot -> User: "Welcome to the Begriff Bot!\nHere are the commands..."
+deactivate Bot
+
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./sequence_misc.png]]
