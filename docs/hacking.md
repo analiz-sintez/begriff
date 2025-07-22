@@ -10,7 +10,7 @@ Examples start simple and then go to extended features of the framework, so it i
 This example shows how to register a simple `/start` command. When triggered, it sends a welcome message and then emits a signal on the event bus to begin the onboarding process. This decouples the command invocation from the process itself.
 
 ```python
-# From: app/onboarding.py
+# From: app/telegram/onboarding.py
 
 # A signal to indicate the onboarding process should begin.
 @dataclass
@@ -21,7 +21,7 @@ class OnboardingStarted(Signal):
 # The @router.authorize decorator checks user permissions and injects a `user: User` object.
 @router.command("start", description="Start using the bot")
 @router.authorize()
-async def start(ctx: Context, user: User) -> None:
+async def start_onboarding(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
     # `ctx.send_message` sends a message to the user. It can handle
     # TranslatableStrings, automatically resolving them based on the user's locale.
@@ -50,7 +50,7 @@ The `@router.authorize()` decorator handles user authentication. It retrieves th
 You can process any user message that doesn't start with a `/`. The `@router.message` decorator accepts a regular expression. If the pattern contains named groups, the matched values are passed as keyword arguments to the handler.
 
 ```python
-# From: app/recap.py
+# From: app/telegram/recap.py
 
 # The pattern uses a named group `(?P<url>...)` to capture the URL.
 # This `url` will be passed as a keyword argument to the `recap_url` function.
@@ -75,11 +75,11 @@ async def recap_url(ctx: Context, user: User, url: str) -> None:
     recap = await get_recap(url, language.name, notes=None)
     response = f"{recap} [(source)]({url})"
 
-    # The `reply_to` argument makes the bot's message a direct reply
+    # Setting `reply_to=True` makes the bot's message a direct reply
     # to the user's original message.
     await ctx.send_message(
         text=response,
-        reply_to=ctx.message,
+        reply_to=True,
     )
 
 ```
@@ -89,7 +89,7 @@ The framework passes captured named groups from the regex pattern directly to th
 This is a two-part process. First, you send a message with an inline keyboard. Each button in the keyboard is associated with a `Signal` instance. When a user presses a button, the framework emits that signal, which is then caught by a handler decorated with `@bus.on(...)`.
 
 ```python
-# From: app/study.py
+# From: app/telegram/study.py
 
 # This signal is attached to the "ANSWER" button. It carries the card's ID.
 @dataclass
@@ -137,7 +137,7 @@ The core mechanic is the `Button` object, which pairs display text with a `Signa
 For more complex interactions like a paginated list, you can dynamically generate the `Keyboard` object based on the current state. The state (e.g., current page number) is passed via the `Signal` attached to the navigation buttons.
 
 ```python
-# From: app/note_list.py
+# From: app/telegram/note_list.py
 
 # Signal for navigating the notes list. It carries all necessary state.
 @dataclass
@@ -188,14 +188,31 @@ async def handle_list_notes_by_maturity_request(
 This pattern creates a self-contained component. The state is not stored on the server but is encoded in the buttons themselves. When a button is pressed, the handler receives the new state, fetches the data, and re-renders the component by editing the original message.
 
 #### How to handle message reactions?
-The framework can also handle reactions (e.g., 👍, 👎) to messages. The `@router.reaction` decorator registers a handler for a list of emojis. A key feature is the ability to set `conditions` that must be met in the context of the message being reacted to.
+The framework can handle reactions (e.g., 👍, 👎) to messages in a dynamic, signal-based way. When sending a message, you can specify an `on_reaction` dictionary that maps emojis to signals. When a user reacts to that message, the framework emits the corresponding signal.
 
 ```python
-# From: app/note.py
+# From: app/telegram/note.py
 
-# This handler triggers when a user reacts with "👎" to a message
-# that has a `note_id` in its context.
-@router.reaction(["👎"], conditions={"note_id": Any})
+# This signal is emitted when a user dislikes an explanation.
+@dataclass
+class NoteDownvoted(Signal):
+    note_id: int
+
+# This function sends a message and sets up a reaction handler for it.
+@bus.on(WordExplanationRequested)
+async def add_note(ctx: Context, user: User, text: str, ...) -> None:
+    # ... logic to get or create a note ...
+    note = create_word_note(...)
+
+    # The `on_reaction` argument maps emojis to Signal instances.
+    # When a user reacts with "👎", a `NoteDownvoted` signal will be emitted.
+    return await ctx.send_message(
+        f"🟢 *{text}* — {note.field2}",
+        on_reaction={"👎": NoteDownvoted(note_id=note.id)}
+    )
+
+# This handler catches the signal emitted by the reaction.
+@bus.on(NoteDownvoted)
 @router.authorize()
 async def handle_negative_reaction(
     ctx: Context, user: User, reply_to: Message, note_id: int
@@ -207,8 +224,7 @@ async def handle_negative_reaction(
         ctx: The context object.
         user: The authorized user.
         reply_to: The `Message` object that was reacted to, injected by the framework.
-        note_id: The value for the `note_id` key from the reacted message's context,
-                 injected because it was specified in `conditions`.
+        note_id: The value from the `NoteDownvoted` signal, injected by the bus.
     """
     if not (note := get_note(note_id)):
         return
@@ -219,18 +235,19 @@ async def handle_negative_reaction(
     update_note(note)
 
     # Send a new message with the updated explanation.
-    new_message = await ctx.send_message(f"🔄 *{note.field1}* — {new_explanation}")
-
-    # Associate the new message with the same note_id, so it can also be reacted to.
-    ctx.context(new_message)["note_id"] = note.id
+    # We can even attach the same `on_reaction` handler to the new message.
+    await ctx.send_message(
+        f"🔄 *{note.field1}* — {new_explanation}",
+        on_reaction={"👎": NoteDownvoted(note_id=note.id)},
+    )
 ```
-When a message is sent, you can attach arbitrary data to it using `ctx.context(message)[key] = value`. When a user reacts to that message, the `@router.reaction` decorator checks if the message's context satisfies the `conditions`. If it does, the handler is called, and the values from the context matching the keys in `conditions` are passed as keyword arguments. The reacted-to message itself is passed as the `reply_to` argument.
+This `on_reaction` -> `Signal` -> `@bus.on` flow provides a powerful and decoupled way to add specific interactivity to messages. Instead of creating global reaction handlers with complex conditions, you attach behavior directly to the messages that need it.
 
 #### How to manage a multi-step conversation?
 For simple, sequential conversations, you can manage state using the context persistence layer. One handler can set a state flag in the user's context data, and a subsequent generic message handler can check for this flag to determine how to process the input.
 
 ```python
-# From: app/note_list.py
+# From: app/telegram/note_list.py
 
 # This handler is triggered by a button press to start the editing process.
 @bus.on(NoteTitleEditRequested)
@@ -248,14 +265,15 @@ async def handle_note_title_edit_requested(
 
 
 # This is a generic message handler that will catch the user's next text message.
-@router.message(lambda text: not text.startswith('/')) # A filter to catch any non-command text.
+# In the router setup, this handler is configured to run if no other more specific
+# message handler matches.
 @router.authorize()
 async def handle_note_edit_input(ctx: Context, user: User):
     # Check if we are in an active edit session.
     active_edit_info = ctx.context(user).get("active_edit")
     if not active_edit_info:
         # Not an edit. Let other handlers process this, or do nothing.
-        return True # Indicate that this handler did not consume the message.
+        return
 
     note_id = active_edit_info["note_id"]
     new_value = ctx.message.text.strip()
@@ -277,111 +295,73 @@ This pattern uses `ctx.context(user)` as a simple key-value store for session st
 
 ##### Before: Using Manual State Flags
 
-The previous implementation relied on setting a flag (`active_edit`) in the user's persistent context. A generic message handler then had to check for this flag on every incoming message.
-
-```python
-# From: app/note_list.py (Old Implementation)
-
-@bus.on(NoteTitleEditRequested)
-@router.authorize()
-async def handle_note_title_edit_requested(
-    ctx: Context, user: User, note_id: int
-):
-    # Sets a flag in the user's context data.
-    ctx.context(user)["active_edit"] = {
-        "note_id": note_id,
-        "field_to_edit": "field1",
-    }
-    await ctx.send_message("Please send the new title for the note.")
-
-
-# A generic message handler that must check for the flag.
-@router.message(".*")
-@router.authorize()
-async def handle_note_edit_input(ctx: Context, user: User):
-    if "active_edit" not in ctx.context(user):
-        return True # Not an edit, pass to other handlers.
-
-    active_edit_info = ctx.context(user)["active_edit"]
-    # ... logic to update note ...
-    # Must remember to clean up the flag.
-    del ctx.context(user)["active_edit"]
-```
-This approach is functional but brittle. It requires careful state management and can lead to conflicts if multiple features use generic message handlers.
+The previous implementation relied on setting a flag (`active_edit`) in the user's persistent context. A generic message handler then had to check for this flag on every incoming message. This approach is functional but can be brittle.
 
 ##### After: Using `on_reply`
 
-The `on_reply` mechanism eliminates manual state management. We define a new signal that will be triggered by the user's next message.
+The `on_reply` mechanism eliminates manual state management. When sending a message, you can specify a signal that should be emitted when the user replies to it. The framework handles the state, listening for the next message from that user and routing it to the correct signal handler.
 
-First, we define new signals to represent the submission of the new content.
+First, we define a new signal to represent the user's input.
 
 ```python
-# From: app/note_list.py (New Signals)
+# From: app/telegram/onboarding.py (Signal Definition)
 
 @dataclass
-class NoteTitleSubmitted(Signal):
+class StudyLanguageEntered(Signal):
+    """A user manually entered study language name."""
     user_id: int
-    note_id: int
-
-
-@dataclass
-class NoteExplanationSubmitted(Signal):
-    user_id: int
-    note_id: int
-
 ```
 
-Next, we modify the handler that requests the edit. Instead of setting a state flag, it uses `on_reply` to register the `NoteTitleSubmitted` signal to be emitted with the user's next message.
+Next, the handler that asks the question uses `on_reply` to register the `StudyLanguageEntered` signal to be emitted with the user's next message.
 
 ```python
-# From: app/note_list.py (New "Request Edit" Handler)
+# From: app/telegram/onboarding.py (Requesting Input)
 
-@bus.on(NoteTitleEditRequested)
+@bus.on(OnboardingStarted)
 @router.authorize()
-async def handle_note_title_edit_requested(
-    ctx: Context, user: User, note_id: int
-):
-    logger.info(
-        f"User {user.login} requested to edit title for note {note_id}"
-    )
-    # ... (code to get note and check ownership) ...
+async def ask_studied_language(ctx: Context, user: User):
+    # ... (code to create language selection keyboard) ...
 
     # The key change: pass the `on_reply` argument.
     # The framework will now wait for the user's next message
-    # and emit `NoteTitleSubmitted` when it arrives.
-    await ctx.send_message(
-        "Please send the new title for the note.",
-        on_reply=NoteTitleSubmitted(user.id, note_id)
+    # and emit `StudyLanguageEntered` when it arrives.
+    return await ctx.send_message(
+        _("Select the language you want to study:"),
+        keyboard,
+        on_reply=StudyLanguageEntered(user_id=user.id),
+        new=True,
     )
 ```
 
-Finally, we replace the generic message handler with a specific signal handler that listens for `NoteTitleSubmitted`. This new handler is cleaner, more focused, and does not need to manage any state flags.
+Finally, we create a specific signal handler that listens for `StudyLanguageEntered`. This new handler is cleaner, more focused, and does not need to manage any state flags.
 
 ```python
-# From: app/note_list.py (New "Handle Submission" Handler)
+# From: app/telegram/onboarding.py (Handling the Input)
 
 # This handler directly catches the user's reply.
-@bus.on(NoteTitleSubmitted)
+@bus.on(StudyLanguageEntered)
 @router.authorize()
-async def handle_note_title_submitted(
-    ctx: Context, user: User, note_id: int
-):
-    note_to_edit = get_note(note_id)
-    # ... logic to update note ...
-    db.session.commit()
-    await ctx.send_message(f"Note title updated to: '{new_value}'")
+async def parse_studied_language(ctx: Context, user: User):
+    try:
+        # ctx.message.text contains the user's reply.
+        locale = Locale.parse(ctx.message.text)
+        # Emit another signal to continue the flow.
+        bus.emit(StudyLanguageSelected(user.id, locale.language), ctx=ctx)
+    except Exception as e:
+        logger.error("Exception while parsing studied language name: %s", e)
+        await ctx.send_message(_("Couldn't parse the language you entered."))
 ```
 This approach is preferable for several reasons:
 
--   *No State Management*: It eliminates the need to manually set and clear flags like `active_edit` from the user's context.
--   *Decoupling*: The logic is contained in specific signal handlers (`...Requested`, `...Submitted`) rather than a single, complex message handler that must inspect conversational state.
+-   *No State Management*: It eliminates the need to manually set and clear flags from the user's context.
+-   *Decoupling*: The logic is contained in specific signal handlers (`OnboardingStarted`, `StudyLanguageEntered`) rather than a single, complex message handler that must inspect conversational state.
 -   *Robustness*: It avoids conflicts between different features that might otherwise compete to handle a generic text message. The framework directs the user's reply to the correct handler automatically.
 
 #### How to handle internationalization (i18n)?
 The framework is designed for easy internationalization. You write all user-facing strings in English using the `TranslatableString` class (commonly aliased to `_`), and the framework handles translation at runtime.
 
 ```python
-# From: app/onboarding.py
+# From: app/telegram/onboarding.py
 
 # It is a common convention to alias TranslatableString to a short name like _.
 from core.i18n import TranslatableString as _
@@ -393,7 +373,7 @@ from babel import Locale
 # including in command descriptions.
 @router.command("start", description=_("Start using the bot"))
 @router.authorize()
-async def start(ctx: Context, user: User) -> None:
+async def start_onboarding(ctx: Context, user: User) -> None:
     # This creates a translatable object. The framework automatically collects
     # all such strings, which can then be extracted into standard .po files
     # for translators.
@@ -422,14 +402,14 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
         _(
             "You selected: {flag}{language}",
             flag=get_flag(ctx, locale),
-            language=locale.get_language_name(ctx.user.locale.language),
+            language=locale.get_language_name(ctx.locale.language),
         )
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)
 ```
 The internationalization system works as follows:
 1.  You define all user-facing strings as `TranslatableString("Your English string here")`.
-2.  When `ctx.send_message` receives such an object, it automatically calls an internal `resolve` function, passing the string and the user's locale (`ctx.user.locale`).
+2.  When `ctx.send_message` receives such an object, it automatically calls an internal `resolve` function, passing the string and the user's locale (`ctx.locale`).
 3.  The `resolve` function looks for a translation in the appropriate `.po` file for the user's language.
 4.  If a translation is found, it's returned. If not, the system can be configured to use a service (like an LLM) to generate a translation on-the-fly and save it for future use.
 5.  If no translation can be found or generated, it safely falls back to the original English string.
@@ -439,7 +419,7 @@ This approach keeps the code clean and readable in one language while automating
 You can attach a help message to the specific message sent by a handler. This help can be triggered by the user reacting to that message (e.g., with `🤔`) or replying to it with `/help`. This is achieved with the `@router.help` decorator.
 
 ```python
-# From: app/study.py
+# From: app/telegram/study.py
 
 from core.i18n import TranslatableString as _
 
@@ -454,7 +434,7 @@ from core.i18n import TranslatableString as _
 )
 @bus.on(CardGraded)
 @router.authorize()
-async def study_next_card(ctx: Context, user: User) -> None:
+async def study_next_card(ctx: Context, user: User):
     # ... logic to fetch a card ...
     card = get_cards(...)[0]
     note = card.note
@@ -478,11 +458,3 @@ The mechanism behind `@router.help` is powerful yet simple to use:
     - Both of these handlers are programmed to simply send the provided help text.
 3.  The decorator then wraps your `study_next_card` function. After your function runs and returns a `Message` object, the wrapper injects the unique hash into that specific message's context: `ctx.context(message)["_help"] = hash`.
 4.  Now, if a user replies `/help` to that particular message or reacts with `🤔` or `🤯`, the `conditions` of the hidden handlers are met, and the contextual help is displayed. This keeps the help system tightly coupled to the specific UI element it's explaining.
-
-### 
-
-<!-- Local Variables: -->
-<!-- gptel-model: gemini-2.5-pro-preview-05-06 -->
-<!-- gptel--backend-name: "Gemini" -->
-<!-- gptel--bounds: ((response (1 8) (9 23) (24 51) (52 62) (63 77) (78 105) (106 110) (111 117) (118 123) (124 142) (143 150) (151 183) (184 211) (212 214) (215 223) (224 246) (247 252) (253 281) (282 287) (288 302) (303 316) (317 324) (325 356) (357 367) (368 387) (388 399) (400 412) (413 13156) (13159 13206) (13207 17001) (17003 22086))) -->
-<!-- End: -->
