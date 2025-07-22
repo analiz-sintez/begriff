@@ -155,9 +155,7 @@ async def get_explanation_in_native_language(note: Note) -> str:
     studied_language = note.language
 
     # Determine the native language ID for this studied language
-    native_language_id = user.get_option(
-        f"languages/{studied_language.id}/native_language"
-    )
+    native_language_id = user.get_option(f"native_language")
 
     # Fallback if native language ID is not set for some reason, though UI should prevent this.
     if native_language_id is None:
@@ -351,6 +349,11 @@ async def add_note(
             "studied_language", Config.LANGUAGE["defaults"]["study"]
         )
     )
+    native_language = get_language(
+        user.get_option(
+            "native_language", Config.LANGUAGE["defaults"]["native"]
+        )
+    )
 
     # Convert to base form.
     # TODO: Instead of magic constant, use info about which signal
@@ -394,7 +397,7 @@ async def add_note(
             context_message = None
             if ctx.message.parent:
                 context_message = ctx.message.parent.text
-            # Ask LLM to explain the word.
+            # Ask LLM to explain the word in user's studied language.
             explanation = await get_explanation(
                 text,
                 language.name,
@@ -412,6 +415,13 @@ async def add_note(
             text,
             explanation,
         )
+        # Ask LLM to translate the word into user's native language.
+        translation = await translate(
+            text,
+            src_language=language.name,
+            dst_language=native_language.name,
+        )
+        note.set_option(f"translations/{native_language.code}", translation)
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
     display_explanation = format_explanation(
@@ -499,12 +509,26 @@ class ExamplesSent(Signal):
 
 async def get_usage_examples(note: Note):
     language = get_language(note.language_id)
+    defaults = Config.LANGUAGE["defaults"]
+    native_language = get_language(
+        note.user.get_option("native_language", defaults["native"])
+    )
     return await query_llm(
         f"""
-You are {language.name} tutor helping a student to learn new language. Generate three usage examples for the given word or phrase.
+You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
+
+Generate three usage examples for the given word or phrase.
 
 - Examples should be full sentencts.
-- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets.
+- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.
+
+The pattern: the student studies German and their native language is English, the word is: "Konto".
+
+Your response:
+        
+"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.
+[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.
+[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen."
         """,
         note.field1,
     )
@@ -518,7 +542,7 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
 
     try:
         examples = await get_usage_examples(note)
-        response = f"{examples}"
+        response = format_explanation(examples)
     except Exception as e:
         logging.error(f"Got error while making examples: {e}")
         response = _("Couldn't make examples, sorry.")
