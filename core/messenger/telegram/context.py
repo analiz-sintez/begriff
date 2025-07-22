@@ -256,7 +256,11 @@ class TelegramContext(Context):
         context: Optional[Dict] = None,
     ):
         if on_reply:
+            # set global on-reply flag — it will trigger from the next message
             self._context.user_data["_on_reply"] = on_reply
+        else:
+            # remove the global flag as quick as possible
+            self._context.user_data["_on_reply"] = None
         if isinstance(text, TranslatableString):
             text = await resolve(text, self.locale)
         tg_message = await self._send_message(

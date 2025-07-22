@@ -145,6 +145,8 @@ In a few steps we'll set up things and start.
     keyboard = Keyboard(
         [
             [
+                # this button is purposefully not translated:
+                # a user should always be able to switch to understandable language
                 Button(
                     "Switch to English", NativeLanguageSaved(user.id, "en")
                 ),
@@ -260,7 +262,7 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
     user.set_option("studied_language", language.id)
     await ctx.send_message(
         _(
-            "You selected: {flag}{language}",
+            "You now study {flag}{language}.",
             flag=get_flag(ctx, locale),
             language=locale.get_language_name(ctx.locale.language),
         )

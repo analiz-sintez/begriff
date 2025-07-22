@@ -196,10 +196,17 @@ def _create_callback_query_handler(
     wrapped_handler = _wrap_fn_with_args(handler.fn, router)
 
     @wraps(wrapped_handler)
-    async def wrapped(update, context, *args, **kwargs):
+    async def wrapped(
+        update: Update, context: TelegramContext, *args, **kwargs
+    ):
         # Any user action cleans the global on_reply stash,
         # no matter consumed the signal in it or not.
+        # BUG: This doesn't work for some reason. Maybe callbacks have different
+        # contexts?
         if signal := context.user_data.get("_on_reply"):
+            logger.info(
+                "Callback handler found global _on_reply, removing it."
+            )
             context.user_data["_on_reply"] = None
         return await wrapped_handler(update, context, *args, **kwargs)
 
