@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Dict
 from datetime import datetime
 from sqlalchemy import (
     Integer,
@@ -7,6 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     Interval,
 )
+from babel import Locale
+from babel.localedata import locale_identifiers
 
 from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, mapped_column, Mapped
@@ -16,6 +18,21 @@ from ..config import Config
 
 
 dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
+
+
+_language_to_code: Dict[str, str] = {}
+
+
+def _language_code_by_name(language_name):
+    global _language_to_code
+    if len(_language_to_code) == 0:
+        for code in locale_identifiers():
+            if not (locale := Locale(code)):
+                continue
+            if not (name := locale.english_name):
+                continue
+            _language_to_code[name] = code
+    return _language_to_code.get(language_name)
 
 
 class Language(Model):
@@ -28,6 +45,16 @@ class Language(Model):
 
     def __repr__(self) -> str:
         return f"<Language(id={self.id}, name={self.name})>"
+
+    @property
+    def code(self) -> Optional[str]:
+        return _language_code_by_name(self.name)
+
+    @property
+    def locale(self):
+        if not (code := self.code):
+            return
+        return Locale(code)
 
 
 class Note(Model, OptionsMixin):
