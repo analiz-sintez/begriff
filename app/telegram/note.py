@@ -244,7 +244,7 @@ def _is_note_format(text: str) -> Optional[Dict]:
     """
     lines = text.strip().split("\n")
     if all(
-        re.match(r"^[^/]{1,200}(?:: .*)?$", line.strip()) for line in lines
+        re.match(r"^[^/!?]{1,200}(?:: .*)?$", line.strip()) for line in lines
     ):
         logging.info(f"Message {text} contains notes.")
         return {"notes": lines}

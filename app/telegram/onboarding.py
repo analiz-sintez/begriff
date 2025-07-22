@@ -172,6 +172,8 @@ In a few steps we'll set up things and start.
 async def set_native_language(ctx: Context, user: User, language_code: str):
     user.set_option("locale", language_code)
     locale = Locale.parse(language_code)
+    language = get_language(locale.get_language_name("en"))
+    user.set_option("native_language", language.id)
 
     await ctx.send_message(
         _(
@@ -255,6 +257,7 @@ async def parse_studied_language(ctx, user):
 async def save_studied_language(ctx: Context, user: User, language_code: str):
     locale = Locale.parse(language_code)
     language = get_language(locale.get_language_name("en"))
+    user.set_option("studied_language", language.id)
     await ctx.send_message(
         _(
             "You selected: {flag}{language}",
