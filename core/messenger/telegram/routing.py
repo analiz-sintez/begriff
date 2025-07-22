@@ -141,6 +141,10 @@ def _create_command_handler(
             conditionless_handlers.append(handler)
 
     async def dispatch(update, context):
+        # Any user action cleans the global on_reply stash,
+        # no matter consumed the signal in it or not.
+        if signal := context.user_data.get("_on_reply"):
+            context.user_data["_on_reply"] = None
         ctx = TelegramContext(update, context, config=router.config)
         # Get the message replied to.
         parent_ctx = None
@@ -190,6 +194,15 @@ def _create_callback_query_handler(
 ) -> PTBCallbackQueryHandler:
     """Creates a telegram.ext.CallbackQueryHandler from a CallbackHandler dataclass."""
     wrapped_handler = _wrap_fn_with_args(handler.fn, router)
+
+    @wraps(wrapped_handler)
+    async def wrapped(update, context, *args, **kwargs):
+        # Any user action cleans the global on_reply stash,
+        # no matter consumed the signal in it or not.
+        if signal := context.user_data.get("_on_reply"):
+            context.user_data["_on_reply"] = None
+        return await wrapped_handler(update, context, *args, **kwargs)
+
     return PTBCallbackQueryHandler(wrapped_handler, pattern=handler.pattern)
 
 
@@ -211,6 +224,10 @@ def _create_reaction_handlers(
             emoji_map[emoji].append(handler)
 
     async def dispatch(update: Update, context: TelegramContext):
+        # Any user action cleans the global on_reply stash,
+        # no matter consumed the signal in it or not.
+        if signal := context.user_data.get("_on_reply"):
+            context.user_data["_on_reply"] = None
         ctx = TelegramContext(update, context, config=router.config)
         # Get the reply to message.
         tg_parent = update.message_reaction
@@ -269,7 +286,8 @@ def _create_message_handlers(
     """
 
     def find_named_groups(pat: re.Pattern, string: str) -> Optional[Dict]:
-        """Return all named groups found in a string, or {} if it doesn't match."""
+        """Return all named groups found in a string, or None if it doesn't match."""
+        logger.debug("Matching string %s against regexp %s", string, pat)
         if not (match := pat.search(string)):
             return None
         return {key: match.group(key) for key in pat.groupindex.keys()}
@@ -279,22 +297,18 @@ def _create_message_handlers(
         # ... wrap the function
         handler.fn = _wrap_fn_with_args(handler.fn, router)
         # ... prepare the pattern
-        pattern = handler.pattern
-        if isinstance(pattern, str):
-            handler.pattern = lambda s: find_named_groups(
-                re.compile(pattern), s
-            )
-        elif isinstance(pattern, re.Pattern):
-            handler.pattern = lambda s: find_named_groups(pattern, s)
-        elif callable(pattern):
-            pass
-        else:
+        if isinstance(handler.pattern, str):
+            handler.pattern = re.compile(handler.pattern)
+        if not (
+            callable(handler.pattern)
+            or isinstance(handler.pattern, re.Pattern)
+        ):
             raise ValueError("Pattern must be a regexp or a callable.")
 
     async def dispatch(update: Update, context: TelegramContext):
         ctx = TelegramContext(update, context, config=router.config)
-        message = update.message
-        logging.info("Dispatching message: id=%s", message.message_id)
+        message = ctx.message
+        logging.info("Dispatching message: id=%s", message.id)
         # Here we can do the trick: get the one-time reply-to message id
         # for the user and clear this id right after that.
         if signal := context.user_data.get("_on_reply"):
@@ -302,8 +316,8 @@ def _create_message_handlers(
             get_bus().emit(signal, ctx=ctx)
             return
         parent_ctx = None
-        if parent := message.reply_to_message:
-            parent_ctx = ctx.message_context.get(parent.message_id, {})
+        if parent := message.parent:
+            parent_ctx = ctx.context(parent)
             # Check if a message should emit a signal on reply.
             # (see Context.send_message on_reply argument for details).
             if signal := parent_ctx.get("_on_reply"):
@@ -311,7 +325,14 @@ def _create_message_handlers(
                 return
         # For each handler, check conditions and call if they are met.
         for handler in message_handlers:
-            if (pattern_match := handler.pattern(message.text)) is None:
+            pattern_match = None
+            if isinstance(handler.pattern, re.Pattern):
+                pattern_match = find_named_groups(
+                    handler.pattern, message.text
+                )
+            elif callable(handler.pattern):
+                pattern_match = handler.pattern(message.text)
+            if pattern_match is None:
                 continue
             if (
                 cond_match := check_conditions(handler.conditions, parent_ctx)

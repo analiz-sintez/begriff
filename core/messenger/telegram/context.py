@@ -247,7 +247,7 @@ class TelegramContext(Context):
         markup: Optional[Keyboard] = None,
         image: Optional[str] = None,
         new: bool = False,
-        reply_to: Optional[Union[PTBMessage, bool]] = None,
+        reply_to: Optional[Union[Message, bool]] = None,
         on_reply: Optional[Signal] = None,
         on_reaction: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
         on_command: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
@@ -264,7 +264,7 @@ class TelegramContext(Context):
             image=image,
             markup=await self._make_keyboard(markup) if markup else None,
             new=new,
-            reply_to=reply_to,
+            reply_to=reply_to._ if isinstance(reply_to, Message) else reply_to,
         )
         message = Message(
             id=tg_message.message_id,

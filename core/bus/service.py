@@ -212,12 +212,13 @@ def make_regexp(signal_type: Type[Signal]) -> str:
     pattern = f"^{signal_type.__name__}"
 
     # Iterate through the fields to match each attribute
+    # TODO support lists and dicts of scalar types?
     for field in fields(signal_type):
         attr = field.name
         attr_type = field.type
         if is_optional(attr_type):
             attr_type = unoption(attr_type)
-        if issubclass(attr_type, Enum):
+        if isinstance(attr_type, object) and issubclass(attr_type, Enum):
             # If the attribute is an Enum, match its possible values
             enum_values = "|".join([e.name for e in attr_type])
             pattern += f":(?P<{attr}>{enum_values})"
