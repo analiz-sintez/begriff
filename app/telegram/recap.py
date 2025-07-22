@@ -1,15 +1,16 @@
 import re
 import logging
-from typing import List, Optional
 from dataclasses import dataclass
 
+from app.srs.service import get_note
 from core.auth import User
 from core.messenger import Context
 from core.bus import Signal
-from core.i18n import TranslatableString
+from core.llm import query_llm
+from core.i18n import TranslatableString as _
 
 from .. import router, bus
-from ..srs import get_language
+from ..srs import get_language, get_note, Note
 from ..config import Config
 from ..llm import get_recap, translate
 from .note import get_notes_to_inject
@@ -82,23 +83,32 @@ class TranslationSent(Signal):
     text: str
 
 
-@router.message("^!(?P<text>.*)$")
+@router.message("^!!(?P<text>.*)$")
 @router.authorize()
-async def translate_phrase(ctx: Context, user: User, text: str) -> None:
+async def _translate_phrase(ctx: Context, user: User, text: str) -> None:
     defaults = ctx.config.LANGUAGE["defaults"]
     language = get_language(
         user.get_option("studied_language", defaults["study"])
     )
+    bus.emit(TranslationRequested(user.id, language.id, text), ctx=ctx)
+
+
+@bus.on(TranslationRequested)
+@router.authorize()
+async def translate_phrase(
+    ctx: Context, user: User, language_id: int, text: str
+) -> None:
+    defaults = ctx.config.LANGUAGE["defaults"]
+    language = get_language(language_id)
     native_language = get_language(
         user.get_option("native_language", defaults["native"])
     )
-    bus.emit(TranslationRequested(user.id, language.id, text))
 
     try:
         translation = await translate(
             text, src_language=native_language.name, dst_language=language.name
         )
-        response = f"{text}\n\n{translation}"
+        response = f"{translation}"
     except Exception as e:
         logging.error(f"Got error while translating: {e}")
         response = _("Couldn't translate, sorry.")
@@ -106,5 +116,6 @@ async def translate_phrase(ctx: Context, user: User, text: str) -> None:
     await ctx.send_message(
         text=response,
         reply_to=ctx.message,
+        on_reaction={"👎": TranslationRequested(user.id, language.id, text)},
     )
     bus.emit(TranslationSent(user.id, language.id, text))

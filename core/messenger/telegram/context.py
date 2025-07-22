@@ -73,26 +73,28 @@ class TelegramContext(Context):
             return Locale("en")
 
     @property
-    def message(self) -> Message:
+    def message(self) -> Optional[Message]:
         """The message the user sent."""
         if not hasattr(self, "_message"):
-            tg_message = self._update.message
-            self._message = Message(
-                id=tg_message.message_id,
-                chat_id=tg_message.chat.id,
-                user_id=tg_message.from_user.id,
-                text=tg_message.text,
-                _=tg_message,
-            )
-            if tg_reply_to := tg_message.reply_to_message:
-                parent = Message(
-                    id=tg_reply_to.message_id,
-                    chat_id=tg_reply_to.chat.id,
-                    user_id=tg_reply_to.from_user.id,
-                    text=tg_reply_to.text,
-                    _=tg_reply_to,
+            if tg_message := self._update.message:
+                self._message = Message(
+                    id=tg_message.message_id,
+                    chat_id=tg_message.chat.id,
+                    user_id=tg_message.from_user.id,
+                    text=tg_message.text,
+                    _=tg_message,
                 )
-                self._message.parent = parent
+                if tg_reply_to := tg_message.reply_to_message:
+                    parent = Message(
+                        id=tg_reply_to.message_id,
+                        chat_id=tg_reply_to.chat.id,
+                        user_id=tg_reply_to.from_user.id,
+                        text=tg_reply_to.text,
+                        _=tg_reply_to,
+                    )
+                    self._message.parent = parent
+            else:
+                self._message = None
         return self._message
 
     def context(self, obj: Union[Message, Chat, Account]) -> Dict:

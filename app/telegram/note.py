@@ -7,6 +7,7 @@ from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
 
 from app.srs.service import get_card
+from core.llm import query_llm
 from core.auth import User
 from core.bus import Signal
 from core.messenger import Context
@@ -419,7 +420,10 @@ async def add_note(
     return await ctx.send_message(
         f"{icon} *{text}* — {display_explanation}",
         reply_to=None,
-        on_reaction={"👎": NoteDownvoted(note_id=note.id)},
+        on_reaction={
+            "👎": NoteDownvoted(note_id=note.id),  # finger down
+            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+        },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
@@ -475,6 +479,56 @@ async def handle_negative_reaction(
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
     )
+
+
+################################################################
+# Examples
+@dataclass
+class ExamplesRequested(Signal):
+    """User requested usage examples for a note."""
+
+    note_id: int
+
+
+@dataclass
+class ExamplesSent(Signal):
+    """Usage examples for a note sent to the user."""
+
+    note_id: int
+
+
+async def get_usage_examples(note: Note):
+    language = get_language(note.language_id)
+    return await query_llm(
+        f"""
+You are {language.name} tutor helping a student to learn new language. Generate three usage examples for the given word or phrase.
+
+- Examples should be full sentencts.
+- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets.
+        """,
+        note.field1,
+    )
+
+
+@bus.on(ExamplesRequested)
+@router.authorize()
+async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
+    if not (note := get_note(note_id)):
+        return
+
+    try:
+        examples = await get_usage_examples(note)
+        response = f"{examples}"
+    except Exception as e:
+        logging.error(f"Got error while making examples: {e}")
+        response = _("Couldn't make examples, sorry.")
+
+    await ctx.send_message(
+        text=response,
+        reply_to=ctx.message,
+        on_reaction={"👎": ExamplesRequested(note.id)},
+    )
+    bus.emit(ExamplesSent(note.id))
 
 
 @bus.on(TextExplanationRequested)
