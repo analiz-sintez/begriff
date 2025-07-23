@@ -289,56 +289,50 @@ async def handle_list_notes_by_maturity_request(
 
 @bus.on(NoteSelected)
 @router.authorize()
-async def handle_note_selected(
+async def show_note_card(
     ctx: Context,
     user: User,
     note_id: int,
 ):
     logger.info(f"User {user.login} selected note {note_id}")
 
-    selected_note = get_note(note_id)
+    note = get_note(note_id)
 
-    if not selected_note:
+    if not note:
         await ctx.send_message("Error: Note not found.", new=True)
         return
 
-    if selected_note.user_id != user.id:
+    if note.user_id != user.id:
         await ctx.send_message(
             "Error: You can only view details of your own notes.", new=True
         )
         return
 
     # Prepare explanation details
-    original_explanation_raw = selected_note.field2
+    original_explanation_raw = note.field2
     original_explanation_formatted = format_explanation(
         original_explanation_raw
     )
-    studied_language_name = selected_note.language.name
+    studied_language_name = note.language.name
 
     explanation_in_native_lang_raw = await get_explanation_in_native_language(
-        selected_note
+        note
     )
     explanation_in_native_lang_formatted = format_explanation(
         explanation_in_native_lang_raw
     )
 
-    message_text_parts = [f"*{selected_note.field1}*"]
+    message_text_parts = [f"*{note.field1}*"]
     message_text_parts.append(
         f"\n\n_{studied_language_name}_:\n{original_explanation_formatted}"
     )
 
     if original_explanation_raw != explanation_in_native_lang_raw:
-        native_language_id = user.get_option(
-            f"languages/{selected_note.language_id}/native_language"
-        )
-        if (
-            native_language_id
-            and native_language_id != selected_note.language_id
-        ):
-            native_language_obj = get_language(native_language_id)
-            if native_language_obj:
+        native_language_id = user.get_option("native_language")
+        if native_language_id and native_language_id != note.language_id:
+            if native_language := get_language(native_language_id):
                 message_text_parts.append(
-                    f"\n\n_{native_language_obj.name}_:\n{explanation_in_native_lang_formatted}"
+                    f"\n\n_{native_language.name}_:\n{explanation_in_native_lang_formatted}"
                 )
             else:
                 logger.warning(
@@ -349,7 +343,7 @@ async def handle_note_selected(
     keyboard_buttons = [
         Button(
             "Delete",
-            callback=NoteDeletionRequested(user.id, selected_note.id),
+            callback=NoteDeletionRequested(user.id, note.id),
         ),
         # Button(
         #     "Edit Title",
@@ -372,7 +366,7 @@ async def handle_note_selected(
             logger.warning(f"Failed to answer callback query: {e}")
 
     # Send a new message replying to the list message (if available)
-    image_path = selected_note.get_option("image/path")
+    image_path = note.get_option("image/path")
     if not (isinstance(image_path, str) and os.path.exists(image_path)):
         image_path = None
     await ctx.send_message(

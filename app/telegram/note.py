@@ -176,7 +176,7 @@ async def get_explanation_in_native_language(note: Note) -> str:
         return note.field2
 
     # Check cache in note options
-    translation_option_key = f"translations/{native_language.id}"
+    translation_option_key = f"explanations/{native_language.code}"
     cached_translation = note.get_option(translation_option_key)
 
     if cached_translation is not None and isinstance(cached_translation, str):
@@ -344,22 +344,19 @@ async def add_note(
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
+    defaults = ctx.config.LANGUAGE["defaults"]
     language = get_language(
-        user.get_option(
-            "studied_language", Config.LANGUAGE["defaults"]["study"]
-        )
+        user.get_option("studied_language", defaults["study"])
     )
     native_language = get_language(
-        user.get_option(
-            "native_language", Config.LANGUAGE["defaults"]["native"]
-        )
+        user.get_option("native_language", defaults["native"])
     )
 
     # Convert to base form.
     # TODO: Instead of magic constant, use info about which signal
     # triggered this slot. This requires to pass some context
     # from `bus.emit()` to slots.
-    if Config.LLM["convert_to_base_form"] and len(text) <= 12:
+    if ctx.config.LLM["convert_to_base_form"] and len(text) <= 12:
         text_base_form = await get_base_form(text, language.name)
         logger.info("Converted %s to base form: %s", text, text_base_form)
         text = text_base_form
@@ -391,7 +388,7 @@ async def add_note(
             # TODO: move it to `get_explanation`, it belongs to its
             # area of responsiblity
             notes_to_inject = None
-            if "explanation" in Config.LLM["inject_notes"]:
+            if "explanation" in ctx.config.LLM["inject_notes"]:
                 notes_to_inject = get_notes_to_inject(user, language)
             # Check if the message is a reply to another message.
             context_message = None
@@ -460,7 +457,7 @@ async def handle_negative_reaction(
 
     # Regenerate the explanation, similar to creating a new one
     notes_to_inject = None
-    if "explanation" in Config.LLM["inject_notes"]:
+    if "explanation" in ctx.config.LLM["inject_notes"]:
         notes_to_inject = get_notes_to_inject(user, note.language)
 
     # We don't have the original message context (like a reply-to) on reaction, so pass None
@@ -468,8 +465,10 @@ async def handle_negative_reaction(
         note.field1, note.language.name, notes=notes_to_inject, context=None
     )
 
-    # Update the note with the new explanation
+    # Update the note with the new explanation.
     note.field2 = new_explanation
+    # Clear translated explanations cache.
+    note.set_option("explanations", {})
     update_note(note)
     bus.emit(ExplanationNoteUpdated(note.id))
     logger.info(
