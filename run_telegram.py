@@ -1,11 +1,9 @@
-import os
 import logging
-from datetime import datetime
 
 from telegram import Update
 from telegram.ext import Application
 
-from core import create_app
+from core import setup_logging, create_app
 from core.bus import Bus
 from core.messenger import Router
 from core.messenger.telegram import attach_bus, attach_router
@@ -15,26 +13,7 @@ import app.telegram  # load business logic: routes and signals
 from app.config import Config
 
 
-def setup_logging():
-    # Set up logging:
-    # ... ensure the directory for logs exists
-    log_dir = "./logs"
-    os.makedirs(log_dir, exist_ok=True)
-    log_filename = (
-        f"telegram-{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log"
-    )
-    # ... set handlers and their levels
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(f"{log_dir}/{log_filename}")
-    file_handler.setLevel(logging.DEBUG)
-    # ... install handlers and set common settings
-    log_format = "%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s"
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format=log_format,
-        handlers=[console_handler, file_handler],
-    )
+setup_logging()
 
 
 def create_bot(token: str, router: Router, bus: Bus) -> Application:
@@ -57,7 +36,6 @@ def create_bot(token: str, router: Router, bus: Bus) -> Application:
 
 
 def main():
-    setup_logging()
     logger = logging.getLogger(__name__)
 
     token = Config.TELEGRAM["bot_token"]
