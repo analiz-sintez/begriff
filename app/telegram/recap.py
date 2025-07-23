@@ -83,7 +83,33 @@ class TranslationSent(Signal):
     text: str
 
 
-@router.message("^!!(?P<text>.*)$")
+@router.message("^!!$")
+@router.authorize()
+async def _help_on_translate_phrase(ctx: Context, user: User) -> None:
+    await ctx.send_message(
+        _(
+            """
+🌐 Want to say something in your new language?
+Just send me a word or phrase from your native language, and I’ll translate it into the one you're studying.
+Start your message with !! to get an instant translation.
+
+🧪 *Examples:*
+You're learning German and want to say:
+
+*You:* `!! Hello everybody!`
+*Me:* Hallo zusammen!
+
+*You:* `!! I’m running late, sorry!`
+*Me:* Ich komme zu spät,entschuldige!
+
+*You:* `!! What do you think about it?`
+*Me:* Was hältst du davon?
+"""
+        )
+    )
+
+
+@router.message("^!!(?P<text>.+)$")
 @router.authorize()
 async def _translate_phrase(ctx: Context, user: User, text: str) -> None:
     defaults = ctx.config.LANGUAGE["defaults"]
@@ -141,7 +167,37 @@ class ClarificationSent(Signal):
     text: str
 
 
-@router.message("^\?\?(?P<text>.*)$")
+@router.message("^\?\?$")
+@router.authorize()
+async def _help_on_clarify_text(ctx: Context, user: User) -> None:
+    await ctx.send_message(
+        _(
+            """
+📌 Need help with a tricky phrase or word form?
+Just send me something that looks confusing — like an unfamiliar article, a weird word ending, or a phrase that doesn’t make sense — and I’ll explain what’s going on.
+
+🔍 *Example:* You're learning German and come across the phrase der Schule, but you know “school” is feminine — “die Schule”. What gives?
+
+*You:* `?? der Schule`
+*Me:*
+The phrase "der Schule" is in the dative case, singular form of the feminine noun "die Schule" (the school).
+
+Case comparison:
+
+- die Schule — nominative (used as the subject)
+- der Schule — dative (used as the indirect object, or "to/for the school")
+
+💬 Example usage:
+Ich gehe zur Schule. (I go to school.)
+Here, "zur" = "zu der" (to the), and "zu" triggers the dative case.
+
+✅ So, "der" is the dative article for feminine nouns like Schule.
+"""
+        )
+    )
+
+
+@router.message("^\?\?(?P<text>.+)$")
 @router.authorize()
 async def _clarify_text(ctx: Context, user: User, text: str) -> None:
     defaults = ctx.config.LANGUAGE["defaults"]
@@ -167,7 +223,9 @@ async def get_clarification(text: str, language: str, native_language: str):
         f"""
 You are {language} tutor helping a student to learn new language. Their native language is {native_language}.
 
-You will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment. 
+You will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.
+
+Keep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.
         """,
         text,
     )
