@@ -23,7 +23,7 @@ dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
 _language_to_code: Dict[str, str] = {}
 
 
-def _language_code_by_name(language_name):
+def language_code_by_name(language_name):
     global _language_to_code
     if len(_language_to_code) == 0:
         for code in locale_identifiers():
@@ -31,8 +31,8 @@ def _language_code_by_name(language_name):
                 continue
             if not (name := locale.english_name):
                 continue
-            _language_to_code[name] = code
-    return _language_to_code.get(language_name)
+            _language_to_code[name.lower()] = code
+    return _language_to_code.get(language_name.lower())
 
 
 class Language(Model):
@@ -48,7 +48,7 @@ class Language(Model):
 
     @property
     def code(self) -> Optional[str]:
-        return _language_code_by_name(self.name)
+        return language_code_by_name(self.name)
 
     @property
     def locale(self):

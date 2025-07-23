@@ -12,6 +12,8 @@ from ..config import Config
 from ..srs import get_language, get_notes
 from .note import get_explanation_in_native_language
 
+# from .onboarding import
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +55,11 @@ class NativeLanguageChanged(Signal):
     native_language_id: int
 
 
-@router.command(
-    "language",
-    args=["language_name", "native_language_name"],
-    description="Change studied language or set its native language",
-)
+# @router.command(
+#     "language",
+#     args=["language_name", "native_language_name"],
+#     description="Change studied language or set its native language",
+# )
 @router.authorize()
 async def change_language(
     ctx: Context,
