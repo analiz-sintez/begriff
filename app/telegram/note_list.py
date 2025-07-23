@@ -25,6 +25,7 @@ from .note import (
     get_explanation_in_native_language,
     format_explanation,
     NoteDeletionRequested,
+    ExamplesRequested,
 )
 
 
@@ -375,6 +376,9 @@ async def show_note_card(
         markup=keyboard,
         new=True,  # Always send a new message for note details
         reply_to=reply_to_message,
+        on_reaction={
+            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+        },
     )
 
 

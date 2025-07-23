@@ -483,7 +483,10 @@ async def handle_negative_reaction(
     new_message = await ctx.send_message(
         f"{icon} *{note.field1}* — {display_explanation}",
         new=True,  # Ensure it's a new message
-        on_reaction={"👎": NoteDownvoted(note_id=note.id)},
+        on_reaction={
+            "👎": NoteDownvoted(note_id=note.id),
+            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+        },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
