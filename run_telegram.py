@@ -3,17 +3,17 @@ import logging
 from telegram import Update
 from telegram.ext import Application
 
-from core import setup_logging, create_app
+from core import setup_logging
 from core.bus import Bus
 from core.messenger import Router
 from core.messenger.telegram import attach_bus, attach_router
 
-from app import bus, router
-import app.telegram  # load business logic: routes and signals
+from app import bus, router, create_app
 from app.config import Config
 
 
 setup_logging()
+logger = logging.getLogger(__name__)
 
 
 def create_bot(token: str, router: Router, bus: Bus) -> Application:
@@ -36,7 +36,7 @@ def create_bot(token: str, router: Router, bus: Bus) -> Application:
 
 
 def main():
-    logger = logging.getLogger(__name__)
+    app = create_app(Config)
 
     token = Config.TELEGRAM["bot_token"]
     if not token:
@@ -48,8 +48,6 @@ def main():
 
     # Add the run function from bot.py to the file where you set up the bot
     logger.info("Running bot setup.")
-
-    app = create_app(Config)
 
     webhook_url = Config.TELEGRAM.get("webhook_url")
     if webhook_url:

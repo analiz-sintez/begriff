@@ -1,8 +1,17 @@
+import core
 from core.messenger import Router
 from core.bus import create_bus
 from core.llm import init_llm_client
 from core.i18n import init_catalog
 from .config import Config
+
+
+def create_app():
+    """Factory method required by `flask` CLI"""
+    import app.telegram
+
+    return core.create_app(Config)
+
 
 init_catalog("data/locale")
 
