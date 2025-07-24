@@ -36,7 +36,7 @@ def create_bot(token: str, router: Router, bus: Bus) -> Application:
 
 
 def main():
-    app = create_app(Config)
+    app = create_app()
 
     token = Config.TELEGRAM["bot_token"]
     if not token:

@@ -8,8 +8,10 @@ from .config import Config
 
 def create_app():
     """Factory method required by `flask` CLI"""
+    # intialize all modules to gather routes
     import app.telegram
 
+    # create an app
     return core.create_app(Config)
 
 

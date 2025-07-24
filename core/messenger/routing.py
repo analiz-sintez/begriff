@@ -301,7 +301,7 @@ class Router:
             new_sig = Signature(params)
             authorized.__signature__ = new_sig
 
-            logger.info(f"Adding authorization check: {authorized.__name__}")
+            logger.debug(f"Adding authorization check: {authorized.__name__}")
             return authorized
 
         return decorator
