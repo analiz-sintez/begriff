@@ -61,7 +61,7 @@ class Note(Model, OptionsMixin):
     __tablename__ = "notes"
     id = mapped_column(Integer, primary_key=True)
     field1: Mapped[str]
-    field2: Mapped[str]
+    field2: Mapped[Optional[str]]
     user_id = mapped_column(Integer, ForeignKey(User.id))
     language_id = mapped_column(Integer, ForeignKey(Language.id))
 
@@ -82,7 +82,7 @@ class Note(Model, OptionsMixin):
         return f"<Note(id={self.id}, field1={self.field1}, field2={self.field2}, user_id={self.user_id}, language_id={self.language_id})>"
 
 
-class Card(Model):
+class Card(Model, OptionsMixin):
     __tablename__ = "cards"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
