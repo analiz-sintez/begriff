@@ -38,9 +38,17 @@ types:
 db-init:
 	. $(VENV_PATH)/bin/activate && flask db init
 
-# Update database migrations
-migrate:
-	. $(VENV_PATH)/bin/activate && flask db migrate && flask db upgrade
+# Create a migration script for the current code base
+db-migrate:
+	. $(VENV_PATH)/bin/activate && flask db migrate
+
+# Upgrade the database
+# Other useful commands:
+# `flask db history` — show all the known database versions
+# `flask db stamp <>`, e.g. `HEAD` — assign a version to the current database
+# The version is stored in the `alembic_migrations` table.
+db-upgrade:
+	. $(VENV_PATH)/bin/activate && flask db upgrade
 
 # Clean the virtual environment and remove the existing database
 clean:
