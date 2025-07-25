@@ -515,13 +515,23 @@ class GrammarCheckDownvoted(Signal):
     text: str
 
 
-@router.command("check", ["text"])
+@router.command(
+    "check", ["text"], description=_("Check a phrase for grammar mistakes")
+)
 @router.authorize()
 async def _check_sentence_for_mistakes(
     ctx: Context,
     user: User,
-    text: str,
+    text: Optional[str] = None,
 ):
+    if not text:
+        return await ctx.send_message(
+            _(
+                """
+Send me a phrase or a sentence, and I'll check it for grammatic or other mistakes.
+        """
+            )
+        )
     bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
 
 
@@ -545,8 +555,8 @@ async def check_sentence_for_mistakes(
     message = await ctx.send_message(
         reply,
         on_reaction={
-            Emoji.THUMBSDOWN: GrammarDownvoted(note_id=note.id, text=text),
-            Emoji.PRAY: GrammarCheckRequested(note_id=note.id, text=text),
+            Emoji.THUMBSDOWN: GrammarCheckDownvoted(user.id, text),
+            Emoji.PRAY: GrammarCheckRequested(user.id, text),
         },
     )
     bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)

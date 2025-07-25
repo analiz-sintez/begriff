@@ -97,6 +97,7 @@ Here’s what you can do:
 
 📜 /list — View your saved words and their details
 📚 /study — Begin a study session with your words
+📚 /check — Another way to check a sentence for grammar
 🌍 /language — Change the language you're learning
 🚀 /start — Launch the tutorial and setup
 ❓ /help — See this command guide anytime

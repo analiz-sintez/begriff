@@ -377,7 +377,7 @@ async def show_note_card(
         new=True,  # Always send a new message for note details
         reply_to=reply_to_message,
         on_reaction={
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),  # :prey:
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
     )
 

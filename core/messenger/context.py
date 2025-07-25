@@ -145,7 +145,7 @@ class Context:
         raise NotImplementedError()
 
     @property
-    def message(self) -> Message:
+    def message(self) -> Optional[Message]:
         raise NotImplementedError()
 
     def context(self, obj: Union[Message, Chat, Account]) -> Dict:
