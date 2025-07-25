@@ -1,10 +1,12 @@
 import logging
-from typing import Union, Dict, List, TypeAlias
+from datetime import datetime
+from typing import Union, Dict, List, TypeAlias, Annotated
 
 from sqlalchemy.orm import mapped_column, DeclarativeBase
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.types import JSON
 from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy_utc import UtcDateTime
 from flask_sqlalchemy import SQLAlchemy
 
 
@@ -25,6 +27,8 @@ Model: BaseModel = db.Model  # pyright: ignore
 
 logger = logging.getLogger(__name__)
 
+
+dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
 
 JsonValue: TypeAlias = Union[
     Dict[str, "JsonValue"], List["JsonValue"], str, int, float, bool, None
@@ -70,3 +74,17 @@ class OptionsMixin:
             d = d[key]
         logger.debug("Retrieved option: %s = %s", name, d)
         return d
+
+
+def log_sql_query(query) -> None:
+    """
+    Log the SQL query statement if available.
+
+    Args:
+        query: SQLAlchemy query object.
+    """
+    if query is not None:
+        query_text = str(
+            query.statement.compile(compile_kwargs={"literal_binds": True})
+        )
+        logger.debug("SQL Query: %s", query_text)

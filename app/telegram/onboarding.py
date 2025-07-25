@@ -4,7 +4,6 @@ from typing import List
 from babel import Locale
 from flag import flag
 
-from app.srs.service import get_language
 from core.bus import Signal
 from core.auth import User
 from core.messenger import Context
@@ -12,7 +11,7 @@ from core.i18n import TranslatableString as _
 from core.messenger import Button, Keyboard
 
 from .. import bus, router
-from ..srs import language_code_by_name
+from app.notes import get_language, language_code_by_name
 
 
 logger = logging.getLogger(__name__)

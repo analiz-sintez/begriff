@@ -2,7 +2,7 @@ import random
 import logging
 from enum import Enum
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
 import fsrs_rs_python as fsrs
@@ -11,10 +11,13 @@ from sqlalchemy import and_
 from sqlalchemy.orm import aliased
 
 from core import db
+from core.db import log_sql_query
 from core.bus import Signal
+
 from .. import bus
 from ..config import Config
-from .models import Note, Card, View, Language, Answer
+from ..notes import Note
+from .models import Card, View, Answer
 
 
 # TODO: Move this one into `srs.service`?
@@ -24,60 +27,6 @@ class CardAdded(Signal):
 
 
 logger = logging.getLogger(__name__)
-
-
-def log_sql_query(query) -> None:
-    """
-    Log the SQL query statement if available.
-
-    Args:
-        query: SQLAlchemy query object.
-    """
-    if query is not None:
-        query_text = str(
-            query.statement.compile(compile_kwargs={"literal_binds": True})
-        )
-        logger.debug("SQL Query: %s", query_text)
-
-
-def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
-    """
-    Retrieve or create a language by name or id. The provided identifier
-    is considered as a name if it's a string, or an id if it's an integer.
-
-    Args:
-        identifier: The name or id of the language.
-
-    Returns:
-        Language: The language object.
-    """
-    if isinstance(identifier, str):
-        logger.info("Retrieving language with name: %s", identifier)
-        language = Language.query.filter_by(name=identifier).first()
-    elif isinstance(identifier, int):
-        logger.info("Retrieving language with id: %d", identifier)
-        language = Language.query.filter_by(id=identifier).first()
-    else:
-        raise ValueError("Identifier must be a string (name) or integer (id).")
-
-    if not language and isinstance(identifier, str):
-        logger.info("Language not found, creating new one: %s", identifier)
-        language = Language(name=identifier)
-
-        try:
-            db.session.add(language)
-            db.session.commit()
-            logger.info("Language created successfully: %s", language)
-        except IntegrityError as e:
-            db.session.rollback()
-            logger.error(
-                "Integrity error occurred while creating a language: %s", e
-            )
-            raise ValueError(
-                "Integrity error occurred while creating a language."
-            )
-
-    return language
 
 
 def create_word_note(
@@ -308,20 +257,6 @@ def record_answer(view_id: int, answer: Answer) -> None:
         "Answer recorded and next review scheduled on %s.",
         card.ts_scheduled.strftime("%Y-%m-%d"),
     )
-
-
-def get_note(note_id: int) -> Optional[Note]:
-    """
-    Get a note by id.
-
-    Args:
-        note_id: The id of the note.
-
-    Returns:
-        Note: The note object, or None if not found.
-    """
-    logger.info("Getting note by id '%d'", note_id)
-    return Note.query.filter_by(id=note_id).first()
 
 
 def get_card(card_id: int) -> Optional[Card]:

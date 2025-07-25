@@ -1,6 +1,5 @@
 from enum import Enum
-from typing import Optional, Annotated, Dict
-from datetime import datetime
+from typing import Optional, Dict
 from sqlalchemy import (
     Integer,
     String,
@@ -10,81 +9,23 @@ from sqlalchemy import (
 from babel import Locale
 from babel.localedata import locale_identifiers
 
-from sqlalchemy_utc import UtcDateTime
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
-from core.auth import Model, User, OptionsMixin
+from core.db import Model, OptionsMixin, dttm_utc
+from core.auth import User
 from ..config import Config
-
-
-dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
-
-
-_language_to_code: Dict[str, str] = {}
-
-
-def language_code_by_name(language_name):
-    global _language_to_code
-    if len(_language_to_code) == 0:
-        for code in locale_identifiers():
-            if not (locale := Locale(code)):
-                continue
-            if not (name := locale.english_name):
-                continue
-            _language_to_code[name.lower()] = code
-    return _language_to_code.get(language_name.lower())
-
-
-class Language(Model):
-    __tablename__ = "languages"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String, unique=True)
-
-    def to_dict(self) -> dict:
-        return {"id": self.id, "name": self.name}
-
-    def __repr__(self) -> str:
-        return f"<Language(id={self.id}, name={self.name})>"
-
-    @property
-    def code(self) -> Optional[str]:
-        return language_code_by_name(self.name)
-
-    @property
-    def locale(self):
-        if not (code := self.code):
-            return
-        return Locale(code)
-
-
-class Note(Model, OptionsMixin):
-    __tablename__ = "notes"
-    id = mapped_column(Integer, primary_key=True)
-    field1: Mapped[str]
-    field2: Mapped[Optional[str]]
-    user_id = mapped_column(Integer, ForeignKey(User.id))
-    language_id = mapped_column(Integer, ForeignKey(Language.id))
-
-    cards = relationship("Card", backref="note", cascade="all, delete-orphan")
-    user = relationship("User", backref="notes")
-    language = relationship("Language", backref="notes")
-
-    def to_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "field1": self.field1,
-            "field2": self.field2,
-            "user_id": self.user_id,
-            "language_id": self.language_id,
-        }
-
-    def __repr__(self) -> str:
-        return f"<Note(id={self.id}, field1={self.field1}, field2={self.field2}, user_id={self.user_id}, language_id={self.language_id})>"
+from ..notes import Note, Language
 
 
 class Card(Model, OptionsMixin):
     __tablename__ = "cards"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    type: Mapped[str] = mapped_column(String(50))
+    __mapper_args__ = {
+        "polymorphic_on": "type",
+        "polymorphic_identity": "card",
+    }
+
     note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
     front: Mapped[str]
     back: Mapped[str]
