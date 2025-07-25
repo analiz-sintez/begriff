@@ -10,7 +10,7 @@ from app.srs.service import get_card
 from core.llm import query_llm
 from core.auth import User
 from core.bus import Signal
-from core.messenger import Context
+from core.messenger import Context, Emoji
 from core.i18n import TranslatableString as _
 
 from .. import bus, router
@@ -40,12 +40,6 @@ class PhraseExplanationRequested(Signal):
     user_id: int
     text: str
     explanation: Optional[str] = None
-
-
-@dataclass
-class TextExplanationRequested(Signal):
-    user_id: int
-    text: str
 
 
 @dataclass
@@ -279,7 +273,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
                 PhraseExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         else:
-            bus.emit(TextExplanationRequested(user.id, text), ctx=ctx)
+            bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
 
 
 @router.command("delete", description="Delete object (use via reply)")
@@ -428,8 +422,8 @@ async def add_note(
         f"{icon} *{text}* — {display_explanation}",
         reply_to=None,
         on_reaction={
-            "👎": NoteDownvoted(note_id=note.id),  # finger down
-            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+            Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -484,13 +478,78 @@ async def handle_negative_reaction(
         f"{icon} *{note.field1}* — {display_explanation}",
         new=True,  # Ensure it's a new message
         on_reaction={
-            "👎": NoteDownvoted(note_id=note.id),
-            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+            Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
     )
+
+
+################################################################
+# Grammar check
+
+
+@dataclass
+class GrammarCheckRequested(Signal):
+    """A user asked to check the phrase or sentence for the grammar errors."""
+
+    user_id: int
+    text: str
+
+
+@dataclass
+class GrammarCheckSent(Signal):
+    """The user text was checked for the grammar errors and the reply was sent."""
+
+    user_id: int
+    text: str
+
+
+@dataclass
+class GrammarCheckDownvoted(Signal):
+    """The user disliked the grammar check we sent them."""
+
+    user_id: int
+    text: str
+
+
+@router.command("check", ["text"])
+@router.authorize()
+async def _check_sentence_for_mistakes(
+    ctx: Context,
+    user: User,
+    text: str,
+):
+    bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
+
+
+@bus.on(GrammarCheckRequested)
+@router.authorize()
+async def check_sentence_for_mistakes(
+    ctx: Context,
+    user: User,
+    text: str,
+    explanation: Optional[str] = None,
+):
+    defaults = ctx.config.LANGUAGE["defaults"]
+    language = get_language(
+        user.get_option("studied_language", defaults["study"])
+    )
+    native_language = get_language(
+        user.get_option(f"native_language", defaults["native"])
+    )
+
+    reply = await find_mistakes(text, language.name, native_language.name)
+    message = await ctx.send_message(
+        reply,
+        on_reaction={
+            Emoji.THUMBSDOWN: GrammarDownvoted(note_id=note.id, text=text),
+            Emoji.PRAY: GrammarCheckRequested(note_id=note.id, text=text),
+        },
+    )
+    bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
 
 
 ################################################################
@@ -505,6 +564,13 @@ class ExamplesRequested(Signal):
 @dataclass
 class ExamplesSent(Signal):
     """Usage examples for a note sent to the user."""
+
+    note_id: int
+
+
+@dataclass
+class ExamplesDownvoted(Signal):
+    """The user downvoted usage examples we sent to them."""
 
     note_id: int
 
@@ -537,6 +603,7 @@ Your response:
 
 
 @bus.on(ExamplesRequested)
+@bus.on(ExamplesDownvoted)
 @router.authorize()
 async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     if not (note := get_note(note_id)):
@@ -552,31 +619,6 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     await ctx.send_message(
         text=response,
         reply_to=ctx.message,
-        on_reaction={"👎": ExamplesRequested(note.id)},
+        on_reaction={Emoji.THUMBSDOWN: ExamplesRequested(note.id)},
     )
     bus.emit(ExamplesSent(note.id))
-
-
-@bus.on(TextExplanationRequested)
-@router.authorize()
-async def add_text(
-    ctx: Context,
-    user: User,
-    text: str,
-    explanation: Optional[str] = None,
-):
-    language = get_language(
-        user.get_option(
-            "studied_language", Config.LANGUAGE["defaults"]["study"]
-        )
-    )
-    native_language_id = user.get_option(
-        f"languages/{language.id}/native_language",
-        default_value=language.id,  # Fallback
-    )
-    native_language = (
-        get_language(native_language_id) if native_language_id else language
-    )
-
-    reply = await find_mistakes(text, language.name, native_language.name)
-    await ctx.send_message(reply)

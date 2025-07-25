@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from typing import Optional, Dict, Union
 from dataclasses import dataclass
 from typing import (
@@ -54,6 +55,65 @@ class Keyboard:
     buttons: List[List[Button]]
 
 
+class Emoji(Enum):
+    """
+    Popular emojis.
+    """
+
+    @classmethod
+    def exists(cls, symbol: str) -> bool:
+        return symbol in cls._value2member_map_
+
+    @classmethod
+    def get(
+        cls, symbol: str, default: Optional["Emoji"] = None
+    ) -> Optional["Emoji"]:
+        """
+        Get an Emoji by the emoji symbol or return `default` if the symbol
+        is not found.
+
+        Example:
+        > Emoji.get("😀", default=Emoji.SMILE)
+        or even shorter,
+        > Emoji.get("😀", Emoji.SMILE)
+        """
+        if not cls.exists(symbol):
+            return default
+        return cls(symbol)
+
+    GRINNING = "😀"
+    SMILEY = "😃"
+    SMILE = "😄"
+    GRIN = "😁"
+    JOY = "😂"
+    ROFL = "🤣"
+    SWEAT_SMILE = "😅"
+    HEART_EYES = "😍"
+    FACE_WITH_HAND_OVER_MOUTH = "🤭"
+    THINKING = "🤔"
+    RELIEVED = "😌"
+    SMIRK = "😏"
+    UNAMUSED = "😒"
+    SOB = "😭"
+    CRY = "😢"
+    PLEADING_FACE = "🥺"
+    INNOCENT = "😇"
+    ANGRY = "😠"
+    RAGE = "😡"
+    THUMBSUP = "👍"
+    THUMBSDOWN = "👎"
+    CLAP = "👏"
+    PRAY = "🙏"
+    OK_HAND = "👌"
+    WAVE = "👋"
+    EYES = "👀"
+    SEE_NO_EVIL = "🙈"
+    FIRE = "🔥"
+    HUNDRED = "💯"
+    HEART = "❤️"
+    POOP = "💩"
+
+
 class Context:
     """
     TODO:
@@ -101,7 +161,7 @@ class Context:
         new: bool = False,
         reply_to: Optional[Message] = None,
         on_reply: Optional[Signal] = None,
-        on_reaction: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
+        on_reaction: Optional[Dict[Emoji, Union[Signal, List[Signal]]]] = None,
         on_command: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
         context: Optional[Dict] = None,
     ):

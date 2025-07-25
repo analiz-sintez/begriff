@@ -36,7 +36,7 @@ from ..routing import (
     Conditions,
 )
 from .context import TelegramContext
-from .. import Message
+from .. import Message, Emoji
 
 logger = logging.getLogger(__name__)
 
@@ -220,9 +220,12 @@ def _create_reaction_handlers(
     """
     Creates a *single* telegram.ext.MessageReactionHandler for a bunch of
     ReactionHandler dataclasses.
+
+    For now, only new reactions are handled. Telegram reports on reaction
+    deletions but for simplicity we don't process them.
     """
     # Build a mapping of emojis to handlers
-    emoji_map = {}
+    emoji_map: Dict[Emoji, List[ReactionHandler]] = {}
     for handler in handlers:
         handler.fn = _wrap_fn_with_args(handler.fn, router=router)
         for emoji in handler.emojis:
@@ -231,11 +234,11 @@ def _create_reaction_handlers(
             emoji_map[emoji].append(handler)
 
     async def dispatch(update: Update, context: TelegramContext):
+        ctx = TelegramContext(update, context, config=router.config)
         # Any user action cleans the global on_reply stash,
         # no matter consumed the signal in it or not.
         if signal := context.user_data.get("_on_reply"):
             context.user_data["_on_reply"] = None
-        ctx = TelegramContext(update, context, config=router.config)
         # Get the reply to message.
         tg_parent = update.message_reaction
         parent = Message(
@@ -243,26 +246,26 @@ def _create_reaction_handlers(
             chat_id=tg_parent.chat.id,
             _=tg_parent,
         )
+        # Check for new reactions.
         parent_ctx = ctx.context(parent)
-        emoji = None
+        emoji: Optional[Emoji] = None
         if hasattr(tg_parent, "new_reaction"):
             reactions = tg_parent.new_reaction
             if len(reactions) == 1 and hasattr(reactions[0], "emoji"):
-                emoji = reactions[0].emoji
-        logger.info(f"Got emoji: {emoji}")
+                emoji = Emoji.get(reactions[0].emoji)
+            logger.info(f"Got emoji: {emoji}")
+        # If no new reaction found, stop dispatching.
+        if not emoji:
+            return
         # Check if a message should emit a signal on certain reaction.
         # (see Context.send_message on_reaction argument for details).
         if message_handlers := parent_ctx.get("_on_reaction"):
             if bus := get_bus():
-                for emojis, signals in message_handlers.items():
-                    if not emoji in emojis:
-                        continue
-                    if isinstance(signals, Signal):
-                        signals = [signals]
-                    for signal in signals:
-                        await bus.emit_and_wait(
-                            signal, ctx=ctx, reply_to=parent
-                        )
+                signals = message_handlers.get(emoji, [])
+                if isinstance(signals, Signal):
+                    signals = [signals]
+                for signal in signals:
+                    await bus.emit_and_wait(signal, ctx=ctx, reply_to=parent)
             else:
                 logger.error(
                     "Can't send message reaction signals, the bus is not ready."

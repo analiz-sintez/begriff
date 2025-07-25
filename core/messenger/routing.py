@@ -16,7 +16,7 @@ from typing import (
     Concatenate,
 )
 
-from .context import Context, Message
+from .context import Context, Message, Emoji
 from ..auth import get_user, User
 from ..i18n import TranslatableString, resolve
 
@@ -89,7 +89,7 @@ class MessageHandler(Handler):
 class ReactionHandler(Handler):
     """A generic definition for a reaction handler."""
 
-    emojis: list[str]
+    emojis: list[Emoji]
 
 
 @dataclass

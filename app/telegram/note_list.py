@@ -8,7 +8,7 @@ from telegram import Message
 from core.db import db
 from core.auth import User
 from core.bus import Signal
-from core.messenger import Context, Keyboard, Button
+from core.messenger import Context, Keyboard, Button, Emoji
 
 from .. import bus, router
 from ..config import Config
@@ -377,7 +377,7 @@ async def show_note_card(
         new=True,  # Always send a new message for note details
         reply_to=reply_to_message,
         on_reaction={
-            "🙏": ExamplesRequested(note_id=note.id),  # :prey:
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),  # :prey:
         },
     )
 

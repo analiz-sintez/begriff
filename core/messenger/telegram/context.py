@@ -13,10 +13,9 @@ from telegram import (
     InlineKeyboardMarkup,
 )
 
-from core.auth import User, get_user
-
+from ...auth import User, get_user
 from ...bus import Signal, encode
-from .. import Context, Button, Keyboard, Account, Message, Chat
+from .. import Context, Button, Keyboard, Account, Message, Chat, Emoji
 from ...i18n import TranslatableString, resolve
 
 
@@ -251,7 +250,7 @@ class TelegramContext(Context):
         new: bool = False,
         reply_to: Optional[Union[Message, bool]] = None,
         on_reply: Optional[Signal] = None,
-        on_reaction: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
+        on_reaction: Optional[Dict[Emoji, Union[Signal, List[Signal]]]] = None,
         on_command: Optional[Dict[str, Union[Signal, List[Signal]]]] = None,
         context: Optional[Dict] = None,
     ):

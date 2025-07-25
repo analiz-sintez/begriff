@@ -2,9 +2,8 @@ import re
 import logging
 from dataclasses import dataclass
 
-from app.srs.service import get_note
 from core.auth import User
-from core.messenger import Context
+from core.messenger import Context, Emoji
 from core.bus import Signal
 from core.llm import query_llm
 from core.i18n import TranslatableString as _
@@ -142,7 +141,9 @@ async def translate_phrase(
     await ctx.send_message(
         text=response,
         reply_to=ctx.message,
-        on_reaction={"👎": TranslationRequested(user.id, language.id, text)},
+        on_reaction={
+            Emoji.THUMBSDOWN: TranslationRequested(user.id, language.id, text)
+        },
     )
     bus.emit(TranslationSent(user.id, language.id, text))
 
