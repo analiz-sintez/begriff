@@ -40,7 +40,7 @@ db-init:
 
 # Create a migration script for the current code base
 db-migrate:
-	. $(VENV_PATH)/bin/activate && flask db migrate
+	. $(VENV_PATH)/bin/activate && flask db migrate -m "$(m)"
 
 # Upgrade the database
 # Other useful commands:
