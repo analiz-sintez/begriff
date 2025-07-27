@@ -6,15 +6,14 @@ from sqlalchemy import (
     ForeignKey,
     Interval,
 )
-from babel import Locale
-from babel.localedata import locale_identifiers
 
 from sqlalchemy.orm import relationship, mapped_column, Mapped
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from core.db import Model, OptionsMixin, dttm_utc
 from core.auth import User
 from ..config import Config
-from ..notes import Note, Language
+from ..notes import Note
 
 
 class Card(Model, OptionsMixin):
@@ -27,8 +26,8 @@ class Card(Model, OptionsMixin):
     }
 
     note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
-    front: Mapped[str]
-    back: Mapped[str]
+    _front: Mapped[str] = mapped_column("front")
+    _back: Mapped[str] = mapped_column("back")
 
     # Memory state:
     # those two we don't know before the first review
@@ -70,6 +69,22 @@ class Card(Model, OptionsMixin):
             and self.difficulty >= Config.FSRS["card_is_leech"]["difficulty"]
             and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
         )
+
+    @hybrid_property
+    def front(self):
+        return self._front
+
+    @front.setter
+    def front(self, value):
+        self._front = value
+
+    @hybrid_property
+    def back(self):
+        return self._back
+
+    @back.setter
+    def back(self, value):
+        self._back = value
 
 
 class Answer(Enum):

@@ -5,13 +5,8 @@ from core import create_app, db
 from core.auth import User, get_user
 
 from app.config import Config as DefaultConfig
-from app.srs.models import (
-    Note,
-    Card,
-    View,
-    Language,
-    Answer,
-)
+from app.notes import Note, Language
+from app.srs.models import Card, View, Answer
 from app.srs import (
     create_word_note,
     get_cards,

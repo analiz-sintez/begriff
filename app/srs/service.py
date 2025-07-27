@@ -20,7 +20,6 @@ from ..notes import Note
 from .models import Card, View, Answer
 
 
-# TODO: Move this one into `srs.service`?
 @dataclass
 class CardAdded(Signal):
     card_id: int

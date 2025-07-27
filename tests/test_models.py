@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from core import create_app, db
 from core.auth import User
-from app.srs.models import Note, Card, View, Language
+from app.notes import Note, Language
+from app.srs import Card, View
 
 
 class Config:
