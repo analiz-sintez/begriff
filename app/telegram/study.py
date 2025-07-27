@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.auth import User
-from core.messenger import Button, Keyboard, Context
+from core.messenger import Button, Keyboard, Context, Emoji
 from core.bus import Signal
 from core.i18n import TranslatableString as _
 
@@ -20,11 +20,17 @@ from ..srs import (
     Answer,
     Maturity,
     count_new_cards_studied,
+    DirectCard,
+    ReverseCard,
 )
 from ..llm import translate
 from ..image import generate_image
 from ..config import Config
-from .note import format_explanation, get_explanation_in_native_language
+from .note import (
+    format_explanation,
+    get_explanation_in_native_language,
+    ExamplesRequested,
+)
 
 
 # States: ASK -> ANSWER -> RECORD
@@ -187,6 +193,13 @@ async def study_next_card(ctx: Context, user: User) -> None:
         image_path,
         reply_to=None,
         context={"note_id": note.id, "card_id": card.id},
+        on_reaction=(
+            {
+                Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            }
+            if isinstance(card, DirectCard)
+            else None
+        ),
     )
 
 
@@ -239,7 +252,13 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
             ]
         ]
     )
-    return await ctx.send_message(f"{front}\n\n{back}", keyboard)
+    return await ctx.send_message(
+        f"{front}\n\n{back}",
+        keyboard,
+        on_reaction={
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+        },
+    )
 
 
 @bus.on(CardGradeSelected)

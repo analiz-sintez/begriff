@@ -109,7 +109,7 @@ Here’s what you can do:
 @router.authorize()
 async def start_onboarding(ctx: Context, user: User) -> None:
     """Launch the onboarding process."""
-    ctx.start_conversation(type="onboarding")
+    ctx.start_conversation(action="onboarding")
     await ctx.send_message(
         _(
             """
@@ -362,6 +362,7 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
         )
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)
+    # ctx.emit(StudyLanguageSaved(user.id, language.id))
 
 
 async def do_test(user: User):
@@ -375,7 +376,9 @@ async def do_test(user: User):
 
 
 @bus.on(OnboardingFinished)
-@bus.on(StudyLanguageSaved, {"type": "onboarding"})
+@bus.on(StudyLanguageSaved, {"action": "onboarding"})
+# @router.on(OnboardingFinished)
+# @router.on(StudyLanguageSaved, {"action": "onboarding"})
 @router.authorize()
 async def finish_onboarding(ctx: Context, user: User):
     # Show a message with tips how to work with the bot.
