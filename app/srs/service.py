@@ -17,7 +17,7 @@ from core.bus import Signal
 from .. import bus
 from ..config import Config
 from ..notes import Note
-from .models import Card, View, Answer
+from .models import Card, View, Answer, DirectCard, ReverseCard
 
 
 @dataclass
@@ -72,12 +72,8 @@ def create_word_note(
 
         # Create two cards for the note.
         now = datetime.now(timezone.utc)
-        front_card = Card(
-            note_id=note.id, front=text, back=explanation, ts_scheduled=now
-        )
-        back_card = Card(
-            note_id=note.id, front=explanation, back=text, ts_scheduled=now
-        )
+        front_card = DirectCard(note_id=note.id, ts_scheduled=now)
+        back_card = ReverseCard(note_id=note.id, ts_scheduled=now)
         db.session.add_all([front_card, back_card])
         logger.info("Cards created: %s, %s", front_card, back_card)
 
@@ -101,17 +97,7 @@ def update_note(note: Note) -> None:
     Args:
         note: The note to update.
     """
-    logger.info("Updating note with id: %d", note.id)
-    cards = Card.query.filter_by(note_id=note.id).all()
-    for card in cards:
-        if card.front == note.field1:
-            card.back = note.field2
-            logger.info("Card updated: %s", card)
-        elif card.back == note.field1:
-            card.front = note.field2
-            logger.info("Card updated: %s", card)
-    db.session.commit()
-    logger.info("Note update committed successfully.")
+    logger.info("Note update with id: %d skipped.", note.id)
 
 
 def get_view(view_id: int) -> Optional[View]:

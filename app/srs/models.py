@@ -26,8 +26,6 @@ class Card(Model, OptionsMixin):
     }
 
     note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
-    _front: Mapped[str] = mapped_column("front")
-    _back: Mapped[str] = mapped_column("back")
 
     # Memory state:
     # those two we don't know before the first review
@@ -70,21 +68,41 @@ class Card(Model, OptionsMixin):
             and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
         )
 
-    @hybrid_property
+    @property
     def front(self):
-        return self._front
+        raise NotImplementedError()
 
-    @front.setter
-    def front(self, value):
-        self._front = value
-
-    @hybrid_property
+    @property
     def back(self):
-        return self._back
+        raise NotImplementedError()
 
-    @back.setter
-    def back(self, value):
-        self._back = value
+
+class DirectCard(Card):
+    __mapper_args__ = {
+        "polymorphic_identity": "direct_card",
+    }
+
+    @property
+    def front(self):
+        return self.note.field1
+
+    @property
+    def back(self):
+        return self.note.field2
+
+
+class ReverseCard(Card):
+    __mapper_args__ = {
+        "polymorphic_identity": "reverse_card",
+    }
+
+    @property
+    def front(self):
+        return self.note.field2
+
+    @property
+    def back(self):
+        return self.note.field1
 
 
 class Answer(Enum):

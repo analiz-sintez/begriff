@@ -105,6 +105,8 @@ def _wrap_command_fn(
             args = [update.message.text.split(" ", 1)[1]]
         elif len(arg_names) > 1:
             args = context.args if hasattr(context, "args") else []
+        else:
+            args = []
         arg_cnt = min(len(args), len(arg_names))
         for value, key in zip(args[:arg_cnt], arg_names[:arg_cnt]):
             if key in type_hints:

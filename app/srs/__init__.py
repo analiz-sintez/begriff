@@ -9,6 +9,8 @@ from .models import (
     Card,
     View,
     Answer,
+    DirectCard,
+    ReverseCard,
 )
 from .service import (
     create_word_note,

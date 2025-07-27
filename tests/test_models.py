@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from core import create_app, db
 from core.auth import User
 from app.notes import Note, Language
-from app.srs import Card, View
+from app.srs import Card, View, DirectCard, ReverseCard
 
 
 class Config:
@@ -27,10 +27,8 @@ def app():
         db.session.add(note)
         db.session.flush()
 
-        card = Card(
+        card = DirectCard(
             note=note,
-            front="Hello",
-            back="World",
             ts_scheduled=datetime.now(timezone.utc),
             stability=0.5,
             difficulty=0.5,
@@ -87,11 +85,15 @@ def test_view_relationship(app):
 
 def test_card_creation(app):
     with app.app_context():
-        note = Note.query.first()
-        card = Card(
+        user = User.query.filter_by(login="test_user").first()
+        language = Language.query.filter_by(name="English").first()
+        note = Note(field1="Test", field2="Note", user=user, language=language)
+
+        db.session.add(note)
+        db.session.commit()
+
+        card = ReverseCard(
             note=note,
-            front="Test Front",
-            back="Test Back",
             ts_scheduled=datetime.now(timezone.utc),
             stability=0.75,
             difficulty=0.25,
@@ -100,13 +102,12 @@ def test_card_creation(app):
         db.session.add(card)
         db.session.commit()
 
-        fetched_card = Card.query.filter_by(
-            front="Test Front", back="Test Back"
-        ).first()
+        fetched_card = Card.query.filter_by(note_id=note.id).first()
         assert fetched_card is not None
-        assert fetched_card.front == "Test Front"
-        assert fetched_card.back == "Test Back"
         assert fetched_card.note == note
+        assert isinstance(fetched_card, ReverseCard)
+        assert fetched_card.front == note.field2
+        assert fetched_card.back == note.field1
         assert fetched_card.stability == 0.75
         assert fetched_card.difficulty == 0.25
 
