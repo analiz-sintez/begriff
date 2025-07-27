@@ -82,9 +82,14 @@ class TelegramContext(Context):
     def message(self) -> Optional[Message]:
         """The message the user sent."""
         if not hasattr(self, "_message"):
-            if (tg_message := self._update.message) or (
-                tg_message := self._update.callback_query.message
+            tg_message = None
+            if hasattr(self._update, "message"):
+                tg_message = self._update.message
+            elif hasattr(self._update, "callback_query") and hasattr(
+                self._update.callback_query, "message"
             ):
+                tg_message = self._update.callback_query.message
+            if tg_message:
                 self._message = Message(
                     id=tg_message.message_id,
                     chat_id=tg_message.chat.id,
