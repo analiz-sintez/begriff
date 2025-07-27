@@ -16,9 +16,9 @@ def test_register_signal(bus):
     class TestSignal(Signal):
         pass
 
-    assert TestSignal not in bus._slots
+    assert TestSignal not in bus._plugs
     bus.register(TestSignal)
-    assert TestSignal in bus._slots
+    assert TestSignal in bus._plugs
 
 
 def test_register_non_signal_should_raise_type_error(bus):
@@ -33,7 +33,7 @@ def test_connect_slot(bus):
     slot = MagicMock()
     bus.connect(TestSignal, slot)
 
-    assert slot in bus._slots[TestSignal]
+    assert slot in [p.slot for p in bus._plugs[TestSignal]]
 
 
 def test_emit_signal_without_slots(bus):

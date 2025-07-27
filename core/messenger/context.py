@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Union
 from dataclasses import dataclass
@@ -41,7 +42,32 @@ class Message:
     parent: Optional[object] = None  # another Message object
     # context: Dict
     # messenger: str
+    # conversation: Conversation
     _: Optional[object] = None  # raw object
+
+
+@dataclass
+class Conversation:
+    """
+    Messages are grouped into conversations.
+    Messages within a single conversation most probably share the same
+    context.
+
+    If a message leads to an emittance of a signal, this signal may be
+    processed differently whether it belongs to a conversation or not.
+
+    E.g. when a user selects the studying language, the signal is emitted.
+    If the user is in the middle of the onboarding, this signal should lead
+    to the next step of it, otherwise the signal should be ignored.
+
+    For now, a new conversation is started:
+    - if it is directly said by a send_message parameter
+    - if no parent message with a conversation is found
+
+    The message is not necessarily ascribed to a conversation.
+    """
+
+    id: int
 
 
 @dataclass
@@ -148,7 +174,25 @@ class Context:
     def message(self) -> Optional[Message]:
         raise NotImplementedError()
 
-    def context(self, obj: Union[Message, Chat, Account]) -> Dict:
+    @property
+    def conversation(self) -> Optional[Conversation]:
+        raise NotImplementedError()
+
+    @conversation.setter
+    def conversation(self, value: Conversation):
+        raise NotImplementedError()
+
+    def start_conversation(self, **context):
+        """Start a new conversation."""
+        id = int(1000 * datetime.now().timestamp())
+        conv = Conversation(id)
+        self.conversation = conv
+        for key, value in context.items():
+            self.context(conv)[key] = value
+
+    def context(
+        self, obj: Union[Message, Chat, Account, Conversation]
+    ) -> Dict:
         """Return a context dict for a given object."""
         # TODO bad naming?
         raise NotImplementedError()

@@ -8,6 +8,9 @@ from typing import (
     Callable,
     Type,
     List,
+    Dict,
+    TypeAlias,
+    Any,
     get_type_hints,
     Optional,
     get_origin,
@@ -40,9 +43,56 @@ def unoption(hint: type) -> type:
     return hint
 
 
+Conditions: TypeAlias = Dict[str, Union[str, int]]
+
+
+def check_conditions(
+    conditions: Optional[Conditions],
+    *contexts: Dict,
+) -> Optional[Dict]:
+    """
+    Check handler conditions against given message context.
+
+    Conditions list is a list of exact values which are matched against the
+    values found in the message context. If any of the conditions is missing
+    in the message context, the match has failed.
+
+    All the condition values are passed to the handler as keyword arguments.
+
+    TODO examples
+    """
+    # If no conditins are set, consider they met.
+    if not conditions:
+        return {}
+    # If there are conditions but no context, consider them failed.
+    if not contexts:
+        return None
+    # Add extra contexts if provided, with the descending priority
+    # (the first context gets the highest priority, the last one gets the lowest).
+    context = dict(contexts[-1])
+    # ... traverse contexts in the reversed order,
+    #     but skip the last one as we've already took it
+    for more_context in contexts[:-1][::-1]:
+        context.update(more_context)
+    match = {}
+    for condition, value in conditions.items():
+        if condition not in context:
+            return None
+        if value is not Any and context[condition] != value:
+            return None
+        match[condition] = context[condition]
+    return match
+
+
 @dataclass
 class Signal:
     pass
+
+
+@dataclass
+class Plug:
+    slot: Callable
+    conditions: Conditions
 
 
 class Bus:
@@ -53,15 +103,15 @@ class Bus:
             Callable[[Signal, list[Callable]], None]
         ] = None,
     ):
-        self._slots = dict()
+        self._plugs: Dict[Type[Signal], List[Plug]] = dict()
         self._save_signal = saving_backend
         self.config = config
 
     def save_signal(self, signal):
         if not self._save_signal:
             return
-        slots = self._slots.get(type(signal), [])
-        self._save_signal(signal, slots)
+        plugs = self._plugs.get(type(signal), [])
+        self._save_signal(signal, [p.slot for p in plugs])
 
     @classmethod
     def signals(cls, signal_type: Type[Signal] = Signal):
@@ -80,20 +130,29 @@ class Bus:
                 "You should inherit your signals from Signal class."
                 " It allows to track all the signals tree of the application."
             )
-        if signal_type not in self._slots:
-            self._slots[signal_type] = []
+        if signal_type not in self._plugs:
+            self._plugs[signal_type] = []
             logger.info(f"Registered signal type: {signal_type.__name__}")
 
-    def on(self, signal_type: Type[Signal]):
+    def on(
+        self,
+        signal_type: Type[Signal],
+        conditions: Conditions = {},
+    ):
         """Make a decorator which connects a signal to any slot."""
 
-        def _wrapper(slot: Callable):
-            self.connect(signal_type, slot)
+        def _wrapper(slot: Callable) -> Callable:
+            self.connect(signal_type, slot, conditions)
             return slot
 
         return _wrapper
 
-    def connect(self, signal_type: Type[Signal], slot: Callable):
+    def connect(
+        self,
+        signal_type: Type[Signal],
+        slot: Callable,
+        conditions: Conditions = {},
+    ):
         """
         Connect a signal to a slot: the slot will be called each time
         the signal is emitted, with signal parameters.
@@ -101,8 +160,9 @@ class Bus:
         self._ensure_slot_parameter_types(signal_type, slot)
         # Remember the connection
         self.register(signal_type)
-        if slot not in self._slots[signal_type]:
-            self._slots[signal_type].append(slot)
+        plug = Plug(slot, conditions)
+        if plug not in self._plugs[signal_type]:
+            self._plugs[signal_type].append(plug)
 
     def _ensure_slot_parameter_types(
         self, signal_type: Type[Signal], slot: Callable
@@ -137,18 +197,34 @@ class Bus:
         signal_dict = asdict(signal)
 
         tasks = []
-        if signal_type in self._slots:
-            for slot in self._slots[signal_type]:
-                slot_signature = signature(slot)
-                relevant_args = {}
+        if signal_type not in self._plugs:
+            return tasks
 
-                for param in slot_signature.parameters.values():
-                    if param.name in signal_dict:
-                        relevant_args[param.name] = signal_dict[param.name]
-                    elif param.name in kwargs:
-                        relevant_args[param.name] = kwargs[param.name]
+        for plug in self._plugs[signal_type]:
+            if conditions := plug.conditions:
+                # ??? get all the contexts from the args provided
+                # TERRIBLE LEAK FROM THE CONTEXT LAYER
+                if not (ctx := kwargs.get("ctx")):
+                    continue
+                contexts = []
+                if ctx.message:
+                    contexts.append(ctx.context(ctx.message))
+                if ctx.conversation:
+                    contexts.append(ctx.context(ctx.conversation))
+                if check_conditions(conditions, *contexts) is None:
+                    continue
 
-                tasks.append(asyncio.create_task(slot(**relevant_args)))
+            slot = plug.slot
+            slot_signature = signature(slot)
+            relevant_args = {}
+
+            for param in slot_signature.parameters.values():
+                if param.name in signal_dict:
+                    relevant_args[param.name] = signal_dict[param.name]
+                elif param.name in kwargs:
+                    relevant_args[param.name] = kwargs[param.name]
+
+            tasks.append(asyncio.create_task(slot(**relevant_args)))
 
         return tasks
 

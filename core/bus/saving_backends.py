@@ -1,7 +1,7 @@
 import json
 import logging
 from enum import Enum
-from typing import Callable, Annotated
+from typing import Callable
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -9,13 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Integer, JSON
 from sqlalchemy.ext.mutable import MutableDict, MutableList
-from sqlalchemy_utc import UtcDateTime
 
 from .service import Signal
-from ..db import db, Model
+from ..db import db, Model, dttm_utc
 
-
-dttm_utc = Annotated[datetime, mapped_column(UtcDateTime)]
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,14 @@
 from typing import Optional
-from .service import Signal, Bus, encode, decode, make_regexp, unoption
+from .service import (
+    Signal,
+    Bus,
+    encode,
+    decode,
+    make_regexp,
+    unoption,
+    check_conditions,
+    Conditions,
+)
 from .saving_backends import dump_signal_to_log, dump_signal_to_db
 
 bus: Optional[Bus] = None

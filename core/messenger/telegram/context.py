@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional, List, Dict, Union
 import logging
 
@@ -15,7 +16,16 @@ from telegram import (
 
 from ...auth import User, get_user
 from ...bus import Signal, encode
-from .. import Context, Button, Keyboard, Account, Message, Chat, Emoji
+from .. import (
+    Context,
+    Button,
+    Keyboard,
+    Account,
+    Message,
+    Chat,
+    Emoji,
+    Conversation,
+)
 from ...i18n import TranslatableString, resolve
 
 
@@ -32,9 +42,6 @@ class TelegramContext(Context):
         self._update = update
         self._context = context
         return super().__init__(config)
-
-    def username(self) -> str:
-        return self.account.login
 
     @property
     def account(self) -> Account:
@@ -75,7 +82,9 @@ class TelegramContext(Context):
     def message(self) -> Optional[Message]:
         """The message the user sent."""
         if not hasattr(self, "_message"):
-            if tg_message := self._update.message:
+            if (tg_message := self._update.message) or (
+                tg_message := self._update.callback_query.message
+            ):
                 self._message = Message(
                     id=tg_message.message_id,
                     chat_id=tg_message.chat.id,
@@ -96,7 +105,28 @@ class TelegramContext(Context):
                 self._message = None
         return self._message
 
-    def context(self, obj: Union[Message, Chat, Account]) -> Dict:
+    @property
+    def conversation(self) -> Optional[Conversation]:
+        if hasattr(self, "_conversation"):
+            return self._conversation
+        # If the message is ascribed to a conversation, return it.
+        if not self.message:
+            return
+        if id := self.context(self.message).get("_conversation"):
+            return Conversation(id)
+        # Otherwise, check its parent message.
+        if not self.message.parent:
+            return
+        if id := self.context(self.message).get("_conversation"):
+            return Conversation(id)
+
+    @conversation.setter
+    def conversation(self, value):
+        self._conversation = value
+
+    def context(
+        self, obj: Union[Message, Chat, Account, Conversation]
+    ) -> Dict:
         """
         All this is from current user perspective. Multiple users
         can have different contexts on the same messages, chats and
@@ -110,6 +140,10 @@ class TelegramContext(Context):
             # Message context is stored in chats telegram context
             store = self._context.chat_data
             key = "_messages"
+        elif isinstance(obj, Conversation):
+            # Conversations reside in chats
+            store = self._context.chat_data
+            key = "_conversations"
         elif isinstance(obj, Chat):
             # Message context is stored in users telegram context
             store = self._context.user_data
@@ -279,6 +313,13 @@ class TelegramContext(Context):
             parent=tg_message.reply_to_message,
             _=tg_message,
         )
+        if self.conversation:
+            logger.info(
+                "Conversation found: %s, context: %s",
+                self.conversation,
+                self.context(self.conversation),
+            )
+            self.context(message)["_conversation"] = self.conversation.id
         if context:
             self.context(message).update(context)
         if on_reply:
