@@ -110,7 +110,7 @@ def upgrade_note_options():
             op.execute(
                 update(notes_table)
                 .where(notes_table.c.id == note_id)
-                .values(options=json.dumps(options))
+                .values(options=options)
             )
 
 
@@ -176,7 +176,7 @@ def downgrade_note_options():
             op.execute(
                 update(notes_table)
                 .where(notes_table.c.id == note_id)
-                .values(options=json.dumps(options))
+                .values(options=options)
             )
 
 
