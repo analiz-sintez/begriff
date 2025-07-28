@@ -65,7 +65,7 @@ def check_conditions(
     if not conditions:
         return {}
     # If there are conditions but no context, consider them failed.
-    if not contexts:
+    if len(contexts) == 0 or not contexts[-1]:
         return None
     # Add extra contexts if provided, with the descending priority
     # (the first context gets the highest priority, the last one gets the lowest).
