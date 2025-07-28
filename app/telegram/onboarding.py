@@ -166,6 +166,7 @@ class NativeLanguageConfirmed(Signal):
     """User confirmed the default native language."""
 
     user_id: int
+    language_code: str
 
 
 @dataclass
@@ -202,7 +203,8 @@ class NativeLanguageSaved(Signal):
 @router.authorize()
 async def ask_for_native_language(ctx: Context, user: User):
     current_locale = ctx.locale
-    language_name = current_locale.get_language_name(current_locale.language)
+    language_code = current_locale.language
+    language_name = current_locale.get_language_name(language_code)
 
     keyboard = Keyboard(
         [
@@ -217,7 +219,12 @@ async def ask_for_native_language(ctx: Context, user: User):
                     NativeLanguageChangeRequested(user.id),
                 ),
             ],
-            [Button(_("Continue"), NativeLanguageConfirmed(user.id))],
+            [
+                Button(
+                    _("Continue"),
+                    NativeLanguageConfirmed(user.id, language_code),
+                )
+            ],
         ]
     )
 
@@ -253,6 +260,7 @@ async def ask_native_language_selection(ctx: Context, user: User):
 
 
 @bus.on(NativeLanguageSelected)
+@bus.on(NativeLanguageConfirmed)
 @router.authorize()
 async def save_native_language(ctx: Context, user: User, language_code: str):
     user.set_option("locale", language_code)
@@ -307,7 +315,6 @@ class StudyLanguageSaved(Signal):
 
 @router.command("language", description=_("Change studied language"))
 @bus.on(NativeLanguageSaved)
-@bus.on(NativeLanguageConfirmed)
 @router.authorize()
 async def ask_studied_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
