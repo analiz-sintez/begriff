@@ -195,10 +195,12 @@ async def study_next_card(ctx: Context, user: User) -> None:
         context={"note_id": note.id, "card_id": card.id},
         on_reaction=(
             {
-                Emoji.PRAY: ExamplesRequested(note_id=note.id),
+                Emoji.PRAY: (
+                    ExamplesRequested(note_id=note.id)
+                    if isinstance(card, DirectCard)
+                    else []
+                ),
             }
-            if isinstance(card, DirectCard)
-            else None
         ),
     )
 
@@ -316,5 +318,7 @@ async def maybe_generate_image(view_id: int):
         image_path = await generate_image(explanation)
         note.set_option("image/path", image_path)
         bus.emit(ImageGenerated(view_id))
-    except:
-        logger.warning("Couldn't generate image for note: %s", note)
+    except Exception as e:
+        logger.warning(
+            "Couldn't generate image for note: %s. Error: %s", note, e
+        )

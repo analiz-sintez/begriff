@@ -334,7 +334,9 @@ class TelegramContext(Context):
             logger.debug(
                 "Setting reaction handlers for message id=%s", message.id
             )
-            self.context(message)["_on_reaction"] = on_reaction
+            if "_on_reaction" not in self.context(message):
+                self.context(message)["_on_reaction"] = {}
+            self.context(message)["_on_reaction"].update(on_reaction)
         if on_command:
             logger.debug(
                 "Setting command handlers for message id=%s", message.id

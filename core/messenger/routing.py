@@ -8,6 +8,7 @@ from typing import (
     Optional,
     Callable,
     Union,
+    List,
     Dict,
     Any,
     TypeAlias,
@@ -127,7 +128,7 @@ class Router:
 
     def reaction(
         self,
-        emojis: list[str] = [],
+        emojis: List[Emoji] = [],
         conditions: Optional[Conditions] = None,
     ) -> Callable:
         """
@@ -197,7 +198,7 @@ class Router:
             self.command("help", conditions={"_help": help_hash})(helper_fn)
             # thinking face and exploding head emojis
             # TODO move it somewhere to the config
-            self.reaction(["🤯", "🤔"], conditions={"_help": help_hash})(
+            self.reaction([Emoji.THINKING], conditions={"_help": help_hash})(
                 helper_fn
             )
 
