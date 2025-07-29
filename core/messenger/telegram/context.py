@@ -82,13 +82,19 @@ class TelegramContext(Context):
     def message(self) -> Optional[Message]:
         """The message the user sent."""
         if not hasattr(self, "_message"):
+            logger.debug("Populating context message.")
             tg_message = None
-            if hasattr(self._update, "message"):
-                tg_message = self._update.message
-            elif hasattr(self._update, "callback_query") and hasattr(
-                self._update.callback_query, "message"
+            if hasattr(self._update, "message") and (
+                tg_message := self._update.message
             ):
-                tg_message = self._update.callback_query.message
+                logger.debug("Using the user message.")
+            elif (
+                hasattr(self._update, "callback_query")
+                and hasattr(self._update.callback_query, "message")
+                and (tg_message := self._update.callback_query.message)
+            ):
+                logger.debug("Using the callback message.")
+
             if tg_message:
                 self._message = Message(
                     id=tg_message.message_id,
@@ -98,6 +104,9 @@ class TelegramContext(Context):
                     _=tg_message,
                 )
                 if tg_reply_to := tg_message.reply_to_message:
+                    logger.debug(
+                        "Found the reply-to message, populating the parent from it."
+                    )
                     parent = Message(
                         id=tg_reply_to.message_id,
                         chat_id=tg_reply_to.chat.id,
@@ -107,6 +116,7 @@ class TelegramContext(Context):
                     )
                     self._message.parent = parent
             else:
+                logger.debug("Couldn't find the message.")
                 self._message = None
         return self._message
 
