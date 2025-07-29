@@ -4,15 +4,16 @@ from telegram import Update
 from telegram.ext import Application
 
 from core import setup_logging
+
+setup_logging()
+
 from core.bus import Bus
 from core.messenger import Router
 from core.messenger.telegram import attach_bus, attach_router
 
-from app import bus, router, create_app
-from app.config import Config
+from app import bus, router, create_app, Config
 
 
-setup_logging()
 logger = logging.getLogger(__name__)
 
 

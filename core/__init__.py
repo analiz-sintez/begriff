@@ -30,7 +30,7 @@ def setup_logging():
 
 
 def create_app(config: object):
-    setup_logging()
+    # setup_logging()
     logger = logging.getLogger(__name__)
 
     app = Flask(__name__)
