@@ -24,4 +24,6 @@ from .service import (
     update_note,
     count_new_cards_studied,
     Maturity,
+    get_notes_to_inject,
+    format_explanation,
 )

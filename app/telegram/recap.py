@@ -9,10 +9,9 @@ from core.llm import query_llm
 from core.i18n import TranslatableString as _
 
 from .. import router, bus
-from ..srs import get_language, get_note, Note
+from ..srs import get_language, get_notes_to_inject, format_explanation
 from ..config import Config
 from ..llm import get_recap, translate
-from .note import get_notes_to_inject, format_explanation
 
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ async def recap_url(ctx: Context, user: User, url: str) -> None:
 # Translations
 @dataclass
 class TranslationRequested(Signal):
-    """User sent an url and wants a short recap using words."""
+    """User sent a text and wants its translation into the language they study."""
 
     user_id: int
     language_id: int

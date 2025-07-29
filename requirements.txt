@@ -19,6 +19,7 @@ pillow
 polib
 babel
 emoji-country-flag
+lingua-language-detector
 pandas
 polars
 duckdb

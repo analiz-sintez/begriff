@@ -5,3 +5,4 @@ from .service import (
     find_mistakes,
     translate,
 )
+from .language_detection import detect_language

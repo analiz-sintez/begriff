@@ -15,7 +15,13 @@ from core.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..config import Config
-from ..llm import get_explanation, get_base_form, find_mistakes, translate
+from ..llm import (
+    get_explanation,
+    get_base_form,
+    find_mistakes,
+    translate,
+    detect_language,
+)
 from ..srs import (
     Language,
     Maturity,
@@ -25,7 +31,11 @@ from ..srs import (
     get_note,
     update_note,
     Note,
+    get_notes_to_inject,
+    format_explanation,
 )
+
+from .recap import TranslationRequested
 
 
 @dataclass
@@ -73,65 +83,6 @@ class NoteDownvoted(Signal):
 
 
 logger = logging.getLogger(__name__)
-
-
-def format_explanation(explanation: str) -> str:
-    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
-
-    Args:
-        explanation: The explanation string to format.
-
-    Returns:
-        The formatted explanation string.
-    """
-    return re.sub(
-        r"\[([^\]]+)\]",
-        lambda match: f"\n_{match.group(1).lower()}_",
-        explanation,
-    )
-
-
-_notes_to_inject_cache = {}
-_cache_time = {}
-
-
-def get_notes_to_inject(user: User, language: Language) -> list:
-    """Retrieve notes to inject for a specific user and language, filtering by maturity and returning a random subset.
-
-    Args:
-        user: The user object.
-        language: The language object.
-
-    Returns:
-        A list of notes for the given user and language, filtered and randomized.
-    """
-    current_time = time.time()
-    cache_key = (user.id, language.id)
-
-    # Invalidate cache if older than 1 minute
-    if cache_key in _cache_time and current_time - _cache_time[cache_key] > 60:
-        del _notes_to_inject_cache[cache_key]
-        del _cache_time[cache_key]
-
-    if cache_key not in _notes_to_inject_cache:
-        # Fetch only notes of specified maturity
-        notes = get_notes(
-            user.id,
-            language.id,
-            maturity=[
-                getattr(Maturity, m.upper())
-                for m in Config.LLM["inject_maturity"]
-            ],
-        )
-        # Randomly select inject_count notes
-        _notes_to_inject_cache[cache_key] = notes
-        _cache_time[cache_key] = current_time
-
-    notes = _notes_to_inject_cache[cache_key]
-    random_notes = random.sample(
-        notes, min(Config.LLM["inject_count"], len(notes))
-    )
-    return random_notes
 
 
 async def get_explanation_in_native_language(note: Note) -> str:
@@ -237,7 +188,8 @@ def _is_note_format(text: str) -> Optional[Dict]:
     """
     lines = text.strip().split("\n")
     if all(
-        re.match(r"^[^/!?]{1,200}(?:: .*)?$", line.strip()) for line in lines
+        re.match(r"^[^/!?]{2}.{1,200}(?:: .*)?$", line.strip())
+        for line in lines
     ):
         logging.info(f"Message {text} contains notes.")
         return {"notes": lines}
@@ -258,13 +210,21 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             _("You can add up to 100 words at a time.")
         )
 
+    study_language = get_language(user.get_option("studied_language"))
+    study_language_name = study_language.name.lower()
+
     for _, line in enumerate(notes):
         text, explanation = _parse_line(line)
         if not text:
             await ctx.send_message(f"Couldn't parse the text: {line.strip()}")
             continue
 
-        if len(text) <= 12:
+        text_language_name = (await detect_language(text)).lower()
+        if text_language_name != study_language_name:
+            bus.emit(
+                TranslationRequested(user.id, study_language.id, text), ctx=ctx
+            )
+        elif len(text) <= 12:
             bus.emit(
                 WordExplanationRequested(user.id, text, explanation), ctx=ctx
             )
@@ -317,12 +277,6 @@ async def debug_card(ctx: Context, card_id: int):
         "card": card,
     }
     await ctx.send_message(f"```{debug_info}```")
-
-
-@router.command("examples", conditions={"note_id": Any})
-@router.authorize()
-async def get_usage_examples(ctx: Context, note_id: int):
-    pass
 
 
 @bus.on(WordExplanationRequested)

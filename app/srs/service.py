@@ -1,3 +1,5 @@
+import re
+import time
 import random
 import logging
 from enum import Enum
@@ -13,10 +15,11 @@ from sqlalchemy.orm import aliased
 from core import db
 from core.db import log_sql_query
 from core.bus import Signal
+from core.auth import User
 
 from .. import bus
 from ..config import Config
-from ..notes import Note
+from ..notes import Note, Language
 from .models import Card, View, Answer, DirectCard, ReverseCard
 
 
@@ -531,3 +534,62 @@ def get_cards(
     logger.info("Retrieved %i cards", len(results))
     logger.debug("\n".join([str(card) for card in results]))
     return results
+
+
+def format_explanation(explanation: str) -> str:
+    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
+
+    Args:
+        explanation: The explanation string to format.
+
+    Returns:
+        The formatted explanation string.
+    """
+    return re.sub(
+        r"\[([^\]]+)\]",
+        lambda match: f"\n_{match.group(1).lower()}_",
+        explanation,
+    )
+
+
+_notes_to_inject_cache = {}
+_cache_time = {}
+
+
+def get_notes_to_inject(user: User, language: Language) -> list:
+    """Retrieve notes to inject for a specific user and language, filtering by maturity and returning a random subset.
+
+    Args:
+        user: The user object.
+        language: The language object.
+
+    Returns:
+        A list of notes for the given user and language, filtered and randomized.
+    """
+    current_time = time.time()
+    cache_key = (user.id, language.id)
+
+    # Invalidate cache if older than 1 minute
+    if cache_key in _cache_time and current_time - _cache_time[cache_key] > 60:
+        del _notes_to_inject_cache[cache_key]
+        del _cache_time[cache_key]
+
+    if cache_key not in _notes_to_inject_cache:
+        # Fetch only notes of specified maturity
+        notes = get_notes(
+            user.id,
+            language.id,
+            maturity=[
+                getattr(Maturity, m.upper())
+                for m in Config.LLM["inject_maturity"]
+            ],
+        )
+        # Randomly select inject_count notes
+        _notes_to_inject_cache[cache_key] = notes
+        _cache_time[cache_key] = current_time
+
+    notes = _notes_to_inject_cache[cache_key]
+    random_notes = random.sample(
+        notes, min(Config.LLM["inject_count"], len(notes))
+    )
+    return random_notes
