@@ -125,7 +125,7 @@ class Config:
 
     IMAGE = {
         "enable": True,
-        "model": "imagen-4.0-generate-preview-05-20",
+        "model": "imagen-4.0-generate-preview-06-06",
         "prompt": "%s (sketchy, colorful)",
         "vertexai_project_id": "begriff",
     }
@@ -142,7 +142,7 @@ class Config:
         "new_cards_per_session": 10,
         "bury_siblings": True,
         "card_is_leech": {
-            "difficulty": 8.0,
-            "view_cnt": 3,
+            "difficulty": 8.5,
+            "view_cnt": 5,
         },
     }
