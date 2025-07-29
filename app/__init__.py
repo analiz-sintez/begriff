@@ -1,9 +1,23 @@
+import logging
+
 import core
 from core.messenger import Router
 from core.bus import create_bus
 from core.llm import init_llm_client
 from core.i18n import init_catalog
+from core.config import combine
+
 from .config import Config
+
+logger = logging.getLogger(__name__)
+
+try:
+    from .userconfig import Config as UserConfig
+
+    logger.info("Found the user config, putting it on top of the default one.")
+    combine(Config, UserConfig)
+except:
+    logger.info("Found no user config, using solely the default one.")
 
 
 def create_app():

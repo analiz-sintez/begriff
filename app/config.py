@@ -15,7 +15,7 @@ class Config:
         # forbid users from it.
         "blocked_logins": [],
         # Admins can see overall statistics and control access.
-        "admin_logins": ["krvkir"],
+        "admin_logins": [],
     }
 
     SIGNALS = {
