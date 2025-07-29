@@ -1,15 +1,19 @@
 import logging
-from typing import Optional
 import asyncio
 from dataclasses import dataclass
+from typing import List
+
+from flag import flag
+from babel import Locale
 
 from core.auth import User
 from core.bus import Signal
 from core.messenger import Context, Keyboard, Button
+from core.i18n import TranslatableString as _
 
 from .. import bus, router
-from ..config import Config
-from ..srs import get_language, get_notes
+from ..notes import get_language, language_code_by_name
+from ..srs import get_notes
 from .note import get_explanation_in_native_language
 
 # from .onboarding import
@@ -18,286 +22,259 @@ from .note import get_explanation_in_native_language
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class LanguageChangeRequested(Signal):
-    user_id: int
+def get_flag(ctx: Context, locale: Locale) -> str:
+    if terr := ctx.config.LANGUAGE["territories"].get(locale.language):
+        return flag(terr)
+    return ""
+
+
+def _pack_buttons(buttons: List[Button], row_size: int) -> List[List[Button]]:
+    """
+    Pack buttons into button rows, with `row_size` items in a row.
+    """
+    assert row_size > 0
+    row_cnt = len(buttons) // row_size
+    if len(buttons) % row_size > 0:
+        row_cnt += 1
+    return [buttons[row_size * i : row_size * (i + 1)] for i in range(row_cnt)]
+
+
+################################################################
+# Native language selection
+
+# Select (default) native language.
+# It is used as an interface language.
 
 
 @dataclass
-class LanguageSelected(Signal):
-    user_id: int
-    language_id: int  # Studied language ID
+class NativeLanguageConfirmed(Signal):
+    """User confirmed the default native language."""
 
-
-@dataclass
-class LanguageChanged(Signal):
     user_id: int
-    language_id: int  # Studied language ID
+    language_code: str
 
 
 @dataclass
 class NativeLanguageAsked(Signal):
+    """Bot asks a user to select a language to study."""
+
     user_id: int
-    studied_language_id: int
+
+
+@dataclass
+class NativeLanguageChangeRequested(Signal):
+    """User requested a menu to pick up the native language."""
+
+    user_id: int
 
 
 @dataclass
 class NativeLanguageSelected(Signal):
+    """A user selected study language from the list."""
+
     user_id: int
-    studied_language_id: int
-    native_language_id: int
+    language_code: str
 
 
 @dataclass
-class NativeLanguageChanged(Signal):
+class NativeLanguageSaved(Signal):
+    """The bot saved study language chosen by the user."""
+
     user_id: int
-    studied_language_id: int
-    native_language_id: int
+    language_id: int
 
 
-# @router.command(
-#     "language",
-#     args=["language_name", "native_language_name"],
-#     description="Change studied language or set its native language",
-# )
 @router.authorize()
-async def change_language(
-    ctx: Context,
-    user: User,
-    language_name: Optional[str] = None,
-    native_language_name: Optional[str] = None,
-) -> None:
-    if language_name:
-        # Setting a studied language.
-        studied_language = get_language(language_name)
-        if not studied_language:
-            await ctx.send_message(
-                f"Language '{language_name}' not found or could not be created.",
-            )
-            return
+async def ask_for_native_language(ctx: Context, user: User):
+    current_locale = ctx.locale
+    language_code = current_locale.language
+    language_name = current_locale.get_language_name(language_code)
 
-        user.set_option("studied_language", studied_language.id)
-        response_message = (
-            f"Studied language changed to {studied_language.name}."
-        )
-        bus.emit(LanguageChanged(user.id, studied_language.id), ctx=ctx)
-
-        if native_language_name:
-            # Also setting native language for this studied language.
-            native_language = get_language(native_language_name)
-            if not native_language:
-                await ctx.send_message(
-                    f"Native language '{native_language_name}' not found or could not be created.",
-                )
-                return
-
-            user.set_option(
-                f"languages/{studied_language.id}/native_language",
-                native_language.id,
-            )
-            response_message += (
-                f"\n\nNative language for studying {studied_language.name} "
-                f"set to {native_language.name}. "
-                f"Explanations will be in {native_language.name}. "
-            )
-            if native_language.id == studied_language.id:
-                response_message += f"This means explanations will be in {studied_language.name} itself."
-            else:
-                response_message += (
-                    f"To retain explanations in {studied_language.name}, "
-                    f"set it as native: /language {studied_language.name} {studied_language.name}."
-                )
-            bus.emit(
-                NativeLanguageChanged(
-                    user.id, studied_language.id, native_language.id
-                )
-            )
-        else:
-            # If only studied language is set, and no native language
-            # is specified via command,we will ask for it interactively
-            # via the LanguageChanged signal handler.
-            pass
-
-        await ctx.send_message(response_message)
-
-    else:
-        # Showing current language with language options to choose
-        user_notes = get_notes(user_id=user.id)
-        # Get unique language IDs from user's notes
-        available_studied_lang_ids = {note.language_id for note in user_notes}
-        # Ensure the currently set studied language (even if no notes exist for it) is an option,
-        # and also the default study language from config.
-        current_studied_lang_id = user.get_option("studied_language")
-        if current_studied_lang_id:
-            available_studied_lang_ids.add(current_studied_lang_id)
-
-        default_study_lang_name = Config.LANGUAGE["defaults"]["study"]
-        default_study_lang = get_language(default_study_lang_name)
-        if default_study_lang:
-            available_studied_lang_ids.add(default_study_lang.id)
-
-        current_studied_lang = (
-            get_language(current_studied_lang_id)
-            if current_studied_lang_id
-            else default_study_lang
-        )
-
-        response_message = (
-            f"You are currently studying {current_studied_lang.name}."
-            if current_studied_lang
-            else "No studied language set. Defaulting to English."
-        )
-
-        if available_studied_lang_ids:
-            response_message += "\n\nChoose a language you want to study:"
-            buttons = []
-            for lang_id in sorted(
-                list(available_studied_lang_ids)
-            ):  # Sort for consistent order
-                lang = get_language(lang_id)
-                if lang:
-                    buttons.append(
-                        Button(lang.name, LanguageSelected(user.id, lang.id))
-                    )
-            keyboard = Keyboard([buttons]) if buttons else None
-        else:
-            response_message += "\n\nYou don't have any notes yet. Add notes to create languages, or use `/language <name>`."
-            keyboard = None
-
-        await ctx.send_message(response_message, keyboard)
-
-
-@bus.on(LanguageSelected)
-@router.authorize()
-async def handle_language_selected(
-    ctx: Context, user: User, language_id: int
-) -> None:
-    # This language_id is the new studied language
-    studied_language = get_language(language_id)
-    if not studied_language:
-        await ctx.send_message("Error selecting language.")
-        return
-
-    user.set_option("studied_language", studied_language.id)
-    response_message = f"Studied language changed to {studied_language.name}."
-    # We use await here to ensure the message about language change is sent before asking for native.
-    await ctx.send_message(response_message)
-    # Now emit LanguageChanged to trigger asking for native language
-    bus.emit(LanguageChanged(user.id, studied_language.id), ctx=ctx)
-
-
-@bus.on(LanguageChanged)
-@router.authorize()
-async def ask_native_language(
-    ctx: Context, user: User, language_id: int
-) -> None:
-    # language_id here is the ID of the newly set *studied* language
-    studied_language = get_language(language_id)
-    if not studied_language:
-        logger.error(
-            f"Cannot find studied language with ID {language_id} for user {user.id}"
-        )
-        await ctx.send_message(
-            "An error occurred while setting up native language options.",
-        )
-        return
-
-    user_notes = get_notes(user_id=user.id)
-    # Get unique language IDs from user's notes
-    native_options_ids = {note.language_id for note in user_notes}
-
-    # Add default native language from config
-    default_native_lang_name = Config.LANGUAGE["defaults"]["native"]
-    default_native_lang = get_language(default_native_lang_name)
-    if default_native_lang:
-        native_options_ids.add(default_native_lang.id)
-
-    # Also add the studied language itself as an option for native
-    native_options_ids.add(studied_language.id)
-
-    if not native_options_ids:
-        await ctx.send_message(
-            f"No languages available to set as native for {studied_language.name}. "
-            f"Explanations will be in {studied_language.name} by default.",
-        )
-        # Set studied language as its own native language by default if no other options.
-        user.set_option(
-            f"languages/{studied_language.id}/native_language",
-            studied_language.id,
-        )
-        bus.emit(
-            NativeLanguageChanged(
-                user.id, studied_language.id, studied_language.id
-            )
-        )
-        return
-
-    buttons = []
-    for lang_id_opt in sorted(
-        list(native_options_ids)
-    ):  # Sort for consistent order
-        lang_opt = get_language(lang_id_opt)
-        if lang_opt:
-            buttons.append(
+    keyboard = Keyboard(
+        [
+            [
+                # this button is purposefully not translated:
+                # a user should always be able to switch to understandable language
                 Button(
-                    lang_opt.name,
-                    NativeLanguageSelected(
-                        user.id, studied_language.id, lang_opt.id
-                    ),
+                    "Switch to English", NativeLanguageSelected(user.id, "en")
+                ),
+                Button(
+                    _("Select other language"),
+                    NativeLanguageChangeRequested(user.id),
+                ),
+            ],
+            [
+                Button(
+                    _("Continue"),
+                    NativeLanguageConfirmed(user.id, language_code),
                 )
-            )
-
-    keyboard = Keyboard([buttons]) if buttons else None
-
-    response_message = (
-        f"Please select the native language for your {studied_language.name} studies. "
-        "This will be the language of explanations."
+            ],
+        ]
     )
-    bus.emit(
-        NativeLanguageAsked(user.id, studied_language_id=studied_language.id)
+
+    await ctx.send_message(
+        _(
+            "Your current interface language is {language_name}{flag}. You can change it or proceed.",
+            language_name=language_name,
+            flag=get_flag(ctx, current_locale),
+        ),
+        keyboard,
     )
-    await ctx.send_message(response_message, keyboard)
+    bus.emit(NativeLanguageAsked(user.id), ctx=ctx)
+
+
+@bus.on(NativeLanguageChangeRequested)
+@router.authorize()
+async def ask_native_language_selection(ctx: Context, user: User):
+    locales = [
+        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
+    ]
+    buttons = [
+        Button(
+            text=get_flag(ctx, locale)
+            + locale.get_language_name(ctx.locale.language),
+            callback=NativeLanguageSelected(user.id, locale.language),
+        )
+        for locale in locales
+    ]
+    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
+    return await ctx.send_message(
+        _("Select your interface language:"), keyboard
+    )
 
 
 @bus.on(NativeLanguageSelected)
+@bus.on(NativeLanguageConfirmed)
 @router.authorize()
-async def handle_native_language_selected(
-    ctx: Context,
-    user: User,
-    studied_language_id: int,
-    native_language_id: int,
-) -> None:
-    studied_language = get_language(studied_language_id)
-    native_language = get_language(native_language_id)
+async def save_native_language(ctx: Context, user: User, language_code: str):
+    user.set_option("locale", language_code)
+    locale = Locale.parse(language_code)
+    language = get_language(locale.get_language_name("en"))
+    user.set_option("native_language", language.id)
 
-    if not studied_language or not native_language:
-        logger.error(
-            f"Error fetching languages: Studied ID {studied_language_id}, Native ID {native_language_id}"
+    await ctx.send_message(
+        _(
+            "Interface language set to {language}{flag}.",
+            language=locale.get_language_name(ctx.locale.language),
+            flag=get_flag(ctx, locale),
         )
-        await ctx.send_message(
-            "An error occurred while setting the native language.",
-        )
-        return
-
-    user.set_option(
-        f"languages/{studied_language.id}/native_language",
-        native_language.id,
     )
 
-    response_message = (
-        f"Native language for {studied_language.name} set to {native_language.name}. "
-        f"Explanations will now be in {native_language.name}."
-    )
-    if studied_language.id == native_language.id:
-        response_message = (
-            f"Native language for {studied_language.name} set to itself. "
-            f"Explanations will be in {studied_language.name}."
-        )
+    bus.emit(NativeLanguageSaved(user.id, language.id), ctx=ctx)
 
-    bus.emit(
-        NativeLanguageChanged(user.id, studied_language.id, native_language.id)
+
+################################################################
+# Study language selection
+
+
+@dataclass
+class StudyLanguageChangeStarted(Signal):
+    """A user asks the bot to change the language they study."""
+
+    user_id: int
+
+
+@dataclass
+class StudyLanguageAsked(Signal):
+    """Bot asks a user to select a language to study."""
+
+    user_id: int
+
+
+@dataclass
+class StudyLanguageSelected(Signal):
+    """A user selected study language from the list."""
+
+    user_id: int
+    language_code: str
+
+
+@dataclass
+class StudyLanguageEntered(Signal):
+    """A user manually entered study language name."""
+
+    user_id: int
+
+
+@dataclass
+class StudyLanguageSaved(Signal):
+    """The bot saved study language chosen by the user."""
+
+    user_id: int
+    language_id: int
+
+
+@router.command("language", description=_("Change studied language"))
+@router.authorize()
+async def start_change_studied_language_scenario(ctx: Context, user: User):
+    # This function is needed to unbind the language change menu
+    # from the command. It allows to reuse the function e.g. in
+    # the onboarding process.
+
+    # ctx.start_conversation(scenario="change_studied_language")
+    bus.emit(StudyLanguageChangeStarted(user.id), ctx=ctx)
+
+
+@bus.on(StudyLanguageChangeStarted)
+@router.authorize()
+async def ask_studied_language(ctx: Context, user: User):
+    # Show a keyboard with available languages to study.
+    # Or read the language name from the next message from the user.
+    locales = [
+        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
+    ]
+    buttons = [
+        Button(
+            text=get_flag(ctx, locale)
+            + locale.get_language_name(ctx.locale.language),
+            callback=StudyLanguageSelected(user.id, locale.language),
+        )
+        for locale in locales
+    ]
+    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
+    return await ctx.send_message(
+        _("Select the language you want to study:"),
+        keyboard,
+        on_reply=StudyLanguageEntered(user_id=user.id),
+        new=True,
     )
-    await ctx.send_message(response_message)
+
+
+@bus.on(StudyLanguageEntered)
+@router.authorize()
+async def parse_studied_language(ctx, user):
+    try:
+        input = ctx.message.text.strip().lower()
+        if len(input) == 2:
+            locale = Locale(input)
+        else:
+            code = language_code_by_name(input)
+            locale = Locale.parse(code)
+        bus.emit(StudyLanguageSelected(user.id, locale.language), ctx=ctx)
+    except Exception as e:
+        logger.error("Exception while parsing studied language name: %s", e)
+        await ctx.send_message(_("Couldn't parse the language you entered."))
+
+
+@bus.on(StudyLanguageSelected)
+@router.authorize()
+async def save_studied_language(ctx: Context, user: User, language_code: str):
+    locale = Locale.parse(language_code)
+    language = get_language(locale.get_language_name("en"))
+    user.set_option("studied_language", language.id)
+    await ctx.send_message(
+        _(
+            "You now study {flag}{language}.",
+            flag=get_flag(ctx, locale),
+            language=locale.get_language_name(ctx.locale.language),
+        )
+    )
+    bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)
+    # ctx.emit(StudyLanguageSaved(user.id, language.id))
+
+
+################################################################
+# Utility functions
 
 
 def _handle_translation_task_error(task: asyncio.Task) -> None:
@@ -312,23 +289,24 @@ def _handle_translation_task_error(task: asyncio.Task) -> None:
         )
 
 
-@bus.on(NativeLanguageChanged)
+@bus.on(NativeLanguageSaved)
+@bus.on(StudyLanguageSaved)
+@router.authorize()
 async def generate_note_translations(
-    user_id: int, studied_language_id: int, native_language_id: int
+    ctx: Context, user: User, language_id: int
 ):
-    if studied_language_id == native_language_id:
+    studied_language = get_language(user.get_option("studied_language"))
+    native_language = get_language(user.get_option("native_language"))
+    if studied_language.id == native_language.id:
         return
     # Prepare translations of explanations for all the cards
     # of the studied language. These will run concurrently in the background.
     logger.info(
-        f"Starting background translation tasks for user {user_id}, language {studied_language_id}"
+        f"Starting background translation tasks for user {user.login}, language {studied_language.name}"
     )
-    for note in get_notes(user_id=user_id, language_id=studied_language_id):
+    for note in get_notes(user_id=user.id, language_id=studied_language.id):
         task = asyncio.create_task(get_explanation_in_native_language(note))
         task.add_done_callback(_handle_translation_task_error)
-        # Sleep to potentially rate-limit the initiation of API calls
-        # or database operations within get_explanation_in_native_language.
-        # await asyncio.sleep(0.1)
     logger.info(
-        f"Finished creating background translation tasks for user {user_id}, language {studied_language_id}"
+        f"Finished creating background translation tasks for user {user.login}, language {studied_language.name}"
     )
