@@ -3,7 +3,6 @@ import asyncio
 from dataclasses import dataclass
 from typing import List
 
-from flag import flag
 from babel import Locale
 
 from core.auth import User
@@ -12,6 +11,7 @@ from core.messenger import Context, Keyboard, Button
 from core.i18n import TranslatableString as _
 
 from .. import bus, router
+from ..util import get_flag
 from ..notes import get_language, language_code_by_name
 from ..srs import get_notes
 from .note import get_explanation_in_native_language
@@ -20,12 +20,6 @@ from .note import get_explanation_in_native_language
 
 
 logger = logging.getLogger(__name__)
-
-
-def get_flag(ctx: Context, locale: Locale) -> str:
-    if terr := ctx.config.LANGUAGE["territories"].get(locale.language):
-        return flag(terr)
-    return ""
 
 
 def _pack_buttons(buttons: List[Button], row_size: int) -> List[List[Button]]:
@@ -116,7 +110,7 @@ async def ask_for_native_language(ctx: Context, user: User):
         _(
             "Your current interface language is {language_name}{flag}. You can change it or proceed.",
             language_name=language_name,
-            flag=get_flag(ctx, current_locale),
+            flag=get_flag(current_locale),
         ),
         keyboard,
     )
@@ -131,7 +125,7 @@ async def ask_native_language_selection(ctx: Context, user: User):
     ]
     buttons = [
         Button(
-            text=get_flag(ctx, locale)
+            text=get_flag(locale)
             + locale.get_language_name(ctx.locale.language),
             callback=NativeLanguageSelected(user.id, locale.language),
         )
@@ -156,7 +150,7 @@ async def save_native_language(ctx: Context, user: User, language_code: str):
         _(
             "Interface language set to {language}{flag}.",
             language=locale.get_language_name(ctx.locale.language),
-            flag=get_flag(ctx, locale),
+            flag=get_flag(locale),
         )
     )
 
@@ -225,7 +219,7 @@ async def ask_studied_language(ctx: Context, user: User):
     ]
     buttons = [
         Button(
-            text=get_flag(ctx, locale)
+            text=get_flag(locale)
             + locale.get_language_name(ctx.locale.language),
             callback=StudyLanguageSelected(user.id, locale.language),
         )
@@ -265,7 +259,7 @@ async def save_studied_language(ctx: Context, user: User, language_code: str):
     await ctx.send_message(
         _(
             "You now study {flag}{language}.",
-            flag=get_flag(ctx, locale),
+            flag=get_flag(locale),
             language=locale.get_language_name(ctx.locale.language),
         )
     )

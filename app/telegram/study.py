@@ -136,7 +136,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    language = get_studied_language(user, ctx)
+    language = get_studied_language(user)
     now = datetime.now(timezone.utc)
     tomorrow = (
         now

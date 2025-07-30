@@ -2,7 +2,7 @@ import re
 import logging
 from dataclasses import dataclass
 
-from app.util import get_studied_language
+from app.util import get_flag, get_studied_language, get_native_language
 from core.auth import User
 from core.messenger import Context, Emoji
 from core.bus import Signal
@@ -112,8 +112,8 @@ You're learning German and want to say:
 @router.message("^!!(?P<text>.+)$")
 @router.authorize()
 async def _translate_phrase(ctx: Context, user: User, text: str) -> None:
-    studied_language = get_studied_language(user, ctx)
-    native_language = get_native_language(user, ctx)
+    studied_language = get_studied_language(user)
+    native_language = get_native_language(user)
     bus.emit(
         TranslationRequested(
             user.id,
@@ -137,18 +137,15 @@ async def translate_phrase(
     dst_language = get_language(dst_language_id)
     src_language = get_language(src_language_id)
 
-    try:
-        translation = await translate(
-            text,
-            src_language=src_language.name,
-            dst_language=dst_language.name,
-        )
-        response = f"{translation}"
-    except Exception as e:
-        logging.error(f"Got error while translating: {e}")
-        response = _("Couldn't translate, sorry.")
-
-    await ctx.send_message(
+    translation = await translate(
+        text,
+        src_language=src_language.name,
+        dst_language=dst_language.name,
+    )
+    src_flag = get_flag(src_language.locale) if src_language.locale else "?"
+    dst_flag = get_flag(dst_language.locale) if dst_language.locale else "?"
+    response = f"{src_flag} {dst_flag} {translation}"
+    message = await ctx.send_message(
         text=response,
         reply_to=ctx.message,
         on_reaction={
@@ -158,6 +155,7 @@ async def translate_phrase(
         },
     )
     bus.emit(TranslationSent(user.id, dst_language.id, text))
+    return message
 
 
 ################################################################

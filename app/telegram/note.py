@@ -144,7 +144,7 @@ async def get_explanation_in_native_language(ctx: Context, note: Note) -> str:
     studied_language = note.language
 
     # Determine the native language ID for this studied language
-    native_language = get_native_language(user, ctx)
+    native_language = get_native_language(user)
 
     # If studied language is the native language, no translation needed.
     if native_language.id == studied_language.id:
@@ -240,7 +240,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             _("You can add up to 100 words at a time.")
         )
 
-    study_language = get_studied_language(user, ctx)
+    study_language = get_studied_language(user)
     study_language_name = study_language.name.lower()
 
     for _, line in enumerate(notes):
@@ -287,8 +287,8 @@ async def add_note(
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
-    language = get_studied_language(user, ctx)
-    native_language = get_native_language(user, ctx)
+    language = get_studied_language(user)
+    native_language = get_native_language(user)
 
     # Convert to base form.
     # TODO: Instead of magic constant, use info about which signal
@@ -487,8 +487,8 @@ async def check_sentence_for_mistakes(
     text: str,
     explanation: Optional[str] = None,
 ):
-    language = get_studied_language(user, ctx)
-    native_language = get_native_language(user, ctx)
+    language = get_studied_language(user)
+    native_language = get_native_language(user)
 
     reply = await find_mistakes(text, language.name, native_language.name)
     message = await ctx.send_message(
@@ -527,7 +527,7 @@ class ExamplesDownvoted(Signal):
 
 async def get_usage_examples(note: Note, ctx: Context):
     language = get_language(note.language_id)
-    native_language = get_native_language(note.user, ctx)
+    native_language = get_native_language(note.user)
     return await query_llm(
         f"""
 You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
