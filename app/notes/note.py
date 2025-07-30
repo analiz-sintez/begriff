@@ -99,6 +99,7 @@ def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
         Language: The language object.
     """
     if isinstance(identifier, str):
+        identifier = _normalize_language_name(identifier)
         logger.info("Retrieving language with name: %s", identifier)
         language = Language.query.filter_by(name=identifier).first()
     elif isinstance(identifier, int):

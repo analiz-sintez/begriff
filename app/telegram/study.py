@@ -26,6 +26,7 @@ from ..srs import (
 from ..llm import translate
 from ..image import generate_image
 from ..config import Config
+from ..util import get_native_language, get_studied_language
 from .note import (
     format_explanation,
     get_explanation_in_native_language,
@@ -135,13 +136,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-
-    language = get_language(
-        user.get_option(
-            "studied_language", Config.LANGUAGE["defaults"]["study"]
-        )
-    )
-
+    language = get_studied_language(user, ctx)
     now = datetime.now(timezone.utc)
     tomorrow = (
         now
@@ -184,7 +179,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
     # If the card is reversed (explanation -> word), translate the explanation.
     note = card.note
     if front == note.field2:
-        front = await get_explanation_in_native_language(note)
+        front = await get_explanation_in_native_language(ctx, note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
     return await ctx.send_message(
@@ -227,12 +222,12 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     # ... if it is on the front
     front = card.front
     if front == note.field2:
-        front = await get_explanation_in_native_language(note)
+        front = await get_explanation_in_native_language(ctx, note)
     front = format_explanation(front)
     # ... if it is on the back
     back = card.back
     if back == note.field2:
-        back = await get_explanation_in_native_language(note)
+        back = await get_explanation_in_native_language(ctx, note)
     back = format_explanation(back)
 
     bus.emit(CardAnswerShown(card.id))

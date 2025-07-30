@@ -2,6 +2,7 @@ import re
 import logging
 from dataclasses import dataclass
 
+from app.util import get_studied_language
 from core.auth import User
 from core.messenger import Context, Emoji
 from core.bus import Signal
@@ -70,7 +71,8 @@ class TranslationRequested(Signal):
     """User sent a text and wants its translation into the language they study."""
 
     user_id: int
-    language_id: int
+    src_language_id: int
+    dst_language_id: int
     text: str
 
 
@@ -110,27 +112,36 @@ You're learning German and want to say:
 @router.message("^!!(?P<text>.+)$")
 @router.authorize()
 async def _translate_phrase(ctx: Context, user: User, text: str) -> None:
-    defaults = ctx.config.LANGUAGE["defaults"]
-    language = get_language(
-        user.get_option("studied_language", defaults["study"])
+    studied_language = get_studied_language(user, ctx)
+    native_language = get_native_language(user, ctx)
+    bus.emit(
+        TranslationRequested(
+            user.id,
+            src_language_id=native_language.id,
+            dst_language_id=studied_language.id,
+            text=text,
+        ),
+        ctx=ctx,
     )
-    bus.emit(TranslationRequested(user.id, language.id, text), ctx=ctx)
 
 
 @bus.on(TranslationRequested)
 @router.authorize()
 async def translate_phrase(
-    ctx: Context, user: User, language_id: int, text: str
+    ctx: Context,
+    user: User,
+    src_language_id: int,
+    dst_language_id: int,
+    text: str,
 ) -> None:
-    defaults = ctx.config.LANGUAGE["defaults"]
-    language = get_language(language_id)
-    native_language = get_language(
-        user.get_option("native_language", defaults["native"])
-    )
+    dst_language = get_language(dst_language_id)
+    src_language = get_language(src_language_id)
 
     try:
         translation = await translate(
-            text, src_language=native_language.name, dst_language=language.name
+            text,
+            src_language=src_language.name,
+            dst_language=dst_language.name,
         )
         response = f"{translation}"
     except Exception as e:
@@ -141,10 +152,12 @@ async def translate_phrase(
         text=response,
         reply_to=ctx.message,
         on_reaction={
-            Emoji.THUMBSDOWN: TranslationRequested(user.id, language.id, text)
+            Emoji.THUMBSDOWN: TranslationRequested(
+                user.id, src_language.id, dst_language.id, text
+            )
         },
     )
-    bus.emit(TranslationSent(user.id, language.id, text))
+    bus.emit(TranslationSent(user.id, dst_language.id, text))
 
 
 ################################################################

@@ -317,7 +317,7 @@ async def show_note_card(
     studied_language_name = note.language.name
 
     explanation_in_native_lang_raw = await get_explanation_in_native_language(
-        note
+        ctx, note
     )
     explanation_in_native_lang_formatted = format_explanation(
         explanation_in_native_lang_raw

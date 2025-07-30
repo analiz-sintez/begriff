@@ -1,6 +1,4 @@
 import re
-import time
-import random
 import logging
 
 from typing import Optional, Tuple, Any, List, Dict, Union
@@ -14,7 +12,6 @@ from core.messenger import Context, Emoji
 from core.i18n import TranslatableString as _
 
 from .. import bus, router
-from ..config import Config
 from ..llm import (
     get_explanation,
     get_base_form,
@@ -22,9 +19,9 @@ from ..llm import (
     translate,
     detect_language,
 )
+from ..notes import language_code_by_name
+from ..util import get_native_language, get_studied_language
 from ..srs import (
-    Language,
-    Maturity,
     get_language,
     create_word_note,
     get_notes,
@@ -36,6 +33,56 @@ from ..srs import (
 )
 
 from .recap import TranslationRequested
+
+
+logger = logging.getLogger(__name__)
+
+
+@router.command("delete", description="Delete object (use via reply)")
+async def _delete_obj(ctx: Context):
+    """Show general help for the command."""
+    # BUG: if there's no direct handler for "delete" command,
+    # the signals for the command with this name won't be emitted
+    # since there will be no handler for such a command.
+    return await ctx.send_message(
+        _(
+            """
+Use this command to delete a note or other object shown in a message.
+
+As an example:
+1. you asked me for a word translation
+2. I send it to you and add a note to study
+3. you don't want to study it: send /delete as a reply to my message.
+        """
+        )
+    )
+
+
+@router.command("debug", conditions={"note_id": Any})
+@router.authorize()
+async def debug_note(ctx: Context, note_id: int):
+    note = get_note(note_id)
+    debug_info = {
+        "note_id": note_id,
+        "note": note,
+        "cards": note.cards,
+    }
+    await ctx.send_message(f"```{debug_info}```")
+
+
+@router.command("debug", conditions={"card_id": Any})
+@router.authorize()
+async def debug_card(ctx: Context, card_id: int):
+    card = get_card(card_id)
+    debug_info = {
+        "card_id": card_id,
+        "card": card,
+    }
+    await ctx.send_message(f"```{debug_info}```")
+
+
+################################################################
+# Handling User Input & Creating New Notes
 
 
 @dataclass
@@ -82,10 +129,7 @@ class NoteDownvoted(Signal):
     note_id: int
 
 
-logger = logging.getLogger(__name__)
-
-
-async def get_explanation_in_native_language(note: Note) -> str:
+async def get_explanation_in_native_language(ctx: Context, note: Note) -> str:
     """
     Get the explanation of a note translated into the user's selected native language
     for the note's studied language. Caches the translation in note options.
@@ -100,24 +144,10 @@ async def get_explanation_in_native_language(note: Note) -> str:
     studied_language = note.language
 
     # Determine the native language ID for this studied language
-    native_language_id = user.get_option(f"native_language")
-
-    # Fallback if native language ID is not set for some reason, though UI should prevent this.
-    if native_language_id is None:
-        logger.warning(
-            f"Native language not set for studied language {studied_language.name} (ID: {studied_language.id}) for user {user.login}. Defaulting to studied language."
-        )
-        native_language_id = studied_language.id
+    native_language = get_native_language(user, ctx)
 
     # If studied language is the native language, no translation needed.
-    if native_language_id == studied_language.id:
-        return note.field2
-
-    native_language = get_language(native_language_id)
-    if not native_language:
-        logger.error(
-            f"Could not find native language with ID {native_language_id} for user {user.login}. Returning original explanation."
-        )
+    if native_language.id == studied_language.id:
         return note.field2
 
     # Check cache in note options
@@ -210,7 +240,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             _("You can add up to 100 words at a time.")
         )
 
-    study_language = get_language(user.get_option("studied_language"))
+    study_language = get_studied_language(user, ctx)
     study_language_name = study_language.name.lower()
 
     for _, line in enumerate(notes):
@@ -221,9 +251,17 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
 
         text_language_name = (await detect_language(text)).lower()
         if text_language_name != study_language_name:
-            bus.emit(
-                TranslationRequested(user.id, study_language.id, text), ctx=ctx
-            )
+            if code := language_code_by_name(text_language_name):
+                text_language = get_language(text_language_name)
+                bus.emit(
+                    TranslationRequested(
+                        user.id,
+                        src_language_id=text_language.id,
+                        dst_language_id=study_language.id,
+                        text=text,
+                    ),
+                    ctx=ctx,
+                )
         elif len(text) <= 12:
             bus.emit(
                 WordExplanationRequested(user.id, text, explanation), ctx=ctx
@@ -234,49 +272,6 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             )
         else:
             bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
-
-
-@router.command("delete", description="Delete object (use via reply)")
-async def _delete_obj(ctx: Context):
-    """Show general help for the command."""
-    # BUG: if there's no direct handler for "delete" command,
-    # the signals for the command with this name won't be emitted
-    # since there will be no handler for such a command.
-    return await ctx.send_message(
-        _(
-            """
-Use this command to delete a note or other object shown in a message.
-
-As an example:
-1. you asked me for a word translation
-2. I send it to you and add a note to study
-3. you don't want to study it: send /delete as a reply to my message.
-        """
-        )
-    )
-
-
-@router.command("debug", conditions={"note_id": Any})
-@router.authorize()
-async def debug_note(ctx: Context, note_id: int):
-    note = get_note(note_id)
-    debug_info = {
-        "note_id": note_id,
-        "note": note,
-        "cards": note.cards,
-    }
-    await ctx.send_message(f"```{debug_info}```")
-
-
-@router.command("debug", conditions={"card_id": Any})
-@router.authorize()
-async def debug_card(ctx: Context, card_id: int):
-    card = get_card(card_id)
-    debug_info = {
-        "card_id": card_id,
-        "card": card,
-    }
-    await ctx.send_message(f"```{debug_info}```")
 
 
 @bus.on(WordExplanationRequested)
@@ -292,13 +287,8 @@ async def add_note(
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
-    defaults = ctx.config.LANGUAGE["defaults"]
-    language = get_language(
-        user.get_option("studied_language", defaults["study"])
-    )
-    native_language = get_language(
-        user.get_option("native_language", defaults["native"])
-    )
+    language = get_studied_language(user, ctx)
+    native_language = get_native_language(user, ctx)
 
     # Convert to base form.
     # TODO: Instead of magic constant, use info about which signal
@@ -370,7 +360,7 @@ async def add_note(
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
     display_explanation = format_explanation(
-        await get_explanation_in_native_language(note)
+        await get_explanation_in_native_language(ctx, note)
     )
     return await ctx.send_message(
         f"{icon} *{text}* — {display_explanation}",
@@ -426,7 +416,7 @@ async def handle_negative_reaction(
     # Send the new explanation to the user as a new message
     icon = "🟡"  # Regenerated note: yellow ball
     display_explanation = format_explanation(
-        await get_explanation_in_native_language(note)
+        await get_explanation_in_native_language(ctx, note)
     )
     new_message = await ctx.send_message(
         f"{icon} *{note.field1}* — {display_explanation}",
@@ -497,13 +487,8 @@ async def check_sentence_for_mistakes(
     text: str,
     explanation: Optional[str] = None,
 ):
-    defaults = ctx.config.LANGUAGE["defaults"]
-    language = get_language(
-        user.get_option("studied_language", defaults["study"])
-    )
-    native_language = get_language(
-        user.get_option(f"native_language", defaults["native"])
-    )
+    language = get_studied_language(user, ctx)
+    native_language = get_native_language(user, ctx)
 
     reply = await find_mistakes(text, language.name, native_language.name)
     message = await ctx.send_message(
@@ -514,6 +499,7 @@ async def check_sentence_for_mistakes(
         },
     )
     bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
+    return message
 
 
 ################################################################
@@ -539,12 +525,9 @@ class ExamplesDownvoted(Signal):
     note_id: int
 
 
-async def get_usage_examples(note: Note):
+async def get_usage_examples(note: Note, ctx: Context):
     language = get_language(note.language_id)
-    defaults = Config.LANGUAGE["defaults"]
-    native_language = get_language(
-        note.user.get_option("native_language", defaults["native"])
-    )
+    native_language = get_native_language(note.user, ctx)
     return await query_llm(
         f"""
 You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
@@ -574,7 +557,7 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
         return
 
     try:
-        examples = await get_usage_examples(note)
+        examples = await get_usage_examples(note, ctx)
         response = format_explanation(examples)
     except Exception as e:
         logging.error(f"Got error while making examples: {e}")
