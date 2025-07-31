@@ -42,6 +42,7 @@ class Card(Model, OptionsMixin):
     }
 
     note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
+    note = relationship("Note", back_populates="cards")
 
     # Memory state:
     # those two we don't know before the first review

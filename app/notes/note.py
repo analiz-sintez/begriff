@@ -30,7 +30,9 @@ class Note(Model, OptionsMixin):
     user_id = mapped_column(Integer, ForeignKey(User.id))
     language_id = mapped_column(Integer, ForeignKey(Language.id))
 
-    cards = relationship("Card", backref="note", cascade="all, delete-orphan")
+    cards = relationship(
+        "Card", back_populates="note", cascade="all, delete-orphan"
+    )
     user = relationship(User, backref="notes")
     language = relationship(Language, backref="notes")
 
