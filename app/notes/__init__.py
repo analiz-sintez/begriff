@@ -1,1 +1,2 @@
-from .note import language_code_by_name, Language, Note, get_language, get_note
+from .language import language_code_by_name, Language, get_language
+from .note import Note, get_note
