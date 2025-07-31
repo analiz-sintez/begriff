@@ -77,10 +77,10 @@ def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
     """
     if isinstance(identifier, str):
         identifier = _normalize_language_name(identifier)
-        logger.info("Retrieving language with name: %s", identifier)
+        logger.debug("Retrieving language with name: %s", identifier)
         language = Language.query.filter_by(name=identifier).first()
     elif isinstance(identifier, int):
-        logger.info("Retrieving language with id: %d", identifier)
+        logger.debug("Retrieving language with id: %d", identifier)
         language = Language.query.filter_by(id=identifier).first()
     else:
         raise ValueError("Identifier must be a string (name) or integer (id).")
