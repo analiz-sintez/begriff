@@ -24,7 +24,6 @@ from ..srs import (
     ReverseCard,
 )
 from ..llm import translate
-from ..image import generate_image
 from ..config import Config
 from ..util import get_native_language, get_studied_language
 from .note import (
@@ -32,6 +31,9 @@ from .note import (
     get_explanation_in_native_language,
     ExamplesRequested,
 )
+
+if Config.IMAGE["enable"]:
+    from ..image import generate_image
 
 
 # States: ASK -> ANSWER -> RECORD

@@ -1,5 +1,5 @@
 VENV_PATH := venv
-PYTHON_BIN := python3
+PYTHON_BIN := python3.13
 
 .PHONY: all venv run clean db-init migrate
 
