@@ -1,14 +1,26 @@
 import logging
+import asyncio
 from dataclasses import dataclass
 from typing import List
 
 from nachricht.bus import Signal
 from nachricht.auth import User
 from nachricht.messenger import Context
-from nachricht.i18n import TranslatableString as _
+from nachricht.i18n import TranslatableString as _, resolve
 from nachricht.messenger import Button, Keyboard
 
-from .. import bus, router
+from .. import bus, router, Config
+from ..llm import translate
+from ..util import get_studied_language
+from .note import ExplanationNoteShown
+from .study import StudySessionRequested, StudySessionFinished
+
+if Config.IMAGE["enable"]:
+    from ..image import generate_image
+else:
+
+    async def generate_image(*args, **kwargs):
+        return None
 
 
 logger = logging.getLogger(__name__)
@@ -142,6 +154,99 @@ bus.connect(
     NativeLanguageSaved, ask_studied_language, {"action": "onboarding"}
 )
 
+################################################################
+# Adding notes
+
+
+@dataclass
+class NotesAddedFirstTime(Signal):
+    user_id: int
+
+
+@bus.on(StudyLanguageSaved, {"action": "onboarding"})
+@router.authorize()
+async def show_how_to_add_notes(ctx: Context):
+    # ctx.context(ctx.conversation)["stage"] = "add_notes"
+    text = """In a hole in the ground there lived a hobbit. Not a nasty, dirty, wet hole, filled with the ends of worms and an oozy smell, nor yet a dry, bare, sandy hole with nothing in it to sit down on or to eat: it was a hobbit-hole, and that means comfort."""
+    studied_language = get_studied_language(ctx.user)
+    text_in_studied_language = await resolve(_(text), studied_language.locale)
+    image_path = await generate_image(text)
+    return await ctx.send_message(
+        _(
+            """
+Now that we've selected the language to study, we can start.
+
+Let's assume you're reading a book. Here's a paragraph:
+
+> {text}
+
+Pick a word or two which you don't understand, write them down (each on a new line), and send them to me. See what happens.
+""",
+            text=text_in_studied_language,
+        ),
+        new=True,
+        image=image_path,
+        on_reply=NotesAddedFirstTime(ctx.user.id),
+    )
+
+
+# @bus.on(ExplanationNoteShown, {"stage": "add_notes"})
+@bus.on(NotesAddedFirstTime, {"action": "onboarding"})
+@router.authorize()
+async def tell_how_to_study_cards(ctx: Context):
+    # ctx.context(ctx.conversation)["stage"] = "study_cards"
+
+    text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill."""
+    image_path = await generate_image(text)
+    # wait while notes are sent
+    # await asyncio.sleep(7)
+
+    message = await ctx.send_message(
+        _(
+            """
+So now you know what those words mean, and hopefully you understand the paragraph. But would you remember them in a week or two, or when you encounter them again in a new text?
+
+To make your memorization firm, devote several minutes a day to rehearse the words you searched. See how it works:
+
+- I show you a word, and you try to recall its meaning.
+- If you succeed, you press "ANSWER" and check if you recalled correctly. Grade your memory, and I'll plan the next rehearsal accordingly.
+- If you couldn't recall it, press "ANSWER" anyway, read the meaning and try to remember it.
+
+There's the whole science behind how you rate your memorization and how often I show you the cards. You don't spend time on things you're remembered good, and don't miss the words you're almost forgot.
+"""
+        ),
+        new=True,
+        image=image_path,
+    )
+    bus.emit(StudySessionRequested(ctx.user.id), ctx=ctx)
+
+
+@bus.on(StudySessionFinished, {"action": "onboarding"})
+async def tell_about_other_commands(ctx: Context):
+    return await ctx.send_message(
+        _(
+            """
+You can call a study session any time you want with `/study`.  Study regularly, and your progress will come in no time.
+
+Other useful commands to explore:
+- `!!` translates a phrase from {native_flag} to {study_flag}
+- `??` clarifies tricky places in {study_flag}
+- send me a long enough text (>30 characters) and I'll check it for errors
+- send me an URL of an article and I'll make a recap for you, with the words you're currently studying (try wikipedia)
+- if you don't like the explanation I did for you, react with a finger down emoji and I'll redo it.
+- send me a long enough text (>30 characters) and I'll check it for errors
+- if you need a usage example, send :pray: emoji
+
+You can the cheatsheet page any time with `/help` command.
+
+Good luck!
+"""
+        ),
+        new=True,
+        # image=image_path,
+        # on_reply=NotesAddedFirstTime(ctx.user.id),
+    )
+
 
 ################################################################
 # Other parts
@@ -158,9 +263,6 @@ async def do_test(user: User):
 
 
 @bus.on(OnboardingFinished)
-@bus.on(StudyLanguageSaved, {"action": "onboarding"})
-# @router.on(OnboardingFinished)
-# @router.on(StudyLanguageSaved, {"action": "onboarding"})
 @router.authorize()
 async def finish_onboarding(ctx: Context, user: User):
     # Show a message with tips how to work with the bot.
