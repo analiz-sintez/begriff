@@ -9,9 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import mapped_column, Mapped
 from babel import Locale
 from babel.localedata import locale_identifiers
+from flag import flag
 
 from nachricht import db
 from nachricht.db import Model
+
+from .. import Config
 
 
 logger = logging.getLogger(__name__)
@@ -53,11 +56,11 @@ class Language(Model):
             return
         return Locale(code)
 
-    # @property
-    # def flag(self) -> str:
-    #     if terr := ctx.config.LANGUAGE["territories"].get(locale.language):
-    #         return flag(terr)
-    #     return ""
+    @property
+    def flag(self) -> str:
+        if terr := Config.LANGUAGE["territories"].get(self.locale.language):
+            return flag(terr)
+        return ""
 
 
 def _normalize_language_name(name: str) -> str:
