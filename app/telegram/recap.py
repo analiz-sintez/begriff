@@ -267,7 +267,7 @@ async def clarify_text(
         text=response,
         reply_to=ctx.message,
         on_reaction={
-            "👎": ClarificationRequested(
+            Emoji.THUMBSDOWN: ClarificationRequested(
                 user_id=user.id,
                 language_id=language.id,
                 native_language_id=native_language.id,
