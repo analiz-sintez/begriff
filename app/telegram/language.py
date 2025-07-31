@@ -11,7 +11,7 @@ from core.messenger import Context, Keyboard, Button
 from core.i18n import TranslatableString as _
 
 from .. import bus, router
-from ..util import get_flag
+from ..util import get_flag, get_studied_language, get_native_language
 from ..notes import get_language, language_code_by_name
 from ..srs import get_notes
 from .note import get_explanation_in_native_language
@@ -289,8 +289,8 @@ def _handle_translation_task_error(task: asyncio.Task) -> None:
 async def generate_note_translations(
     ctx: Context, user: User, language_id: int
 ):
-    studied_language = get_language(user.get_option("studied_language"))
-    native_language = get_language(user.get_option("native_language"))
+    studied_language = get_studied_language(user)
+    native_language = get_native_language(user)
     if studied_language.id == native_language.id:
         return
     # Prepare translations of explanations for all the cards

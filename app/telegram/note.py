@@ -240,8 +240,8 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             _("You can add up to 100 words at a time.")
         )
 
-    study_language = get_studied_language(user)
-    study_language_name = study_language.name.lower()
+    studied_language = get_studied_language(user)
+    native_language = get_native_language(user)
 
     for _, line in enumerate(notes):
         text, explanation = _parse_line(line)
@@ -249,20 +249,31 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             await ctx.send_message(f"Couldn't parse the text: {line.strip()}")
             continue
 
-        text_language_name = (await detect_language(text)).lower()
-        if text_language_name != study_language_name:
-            if code := language_code_by_name(text_language_name):
-                text_language = get_language(text_language_name)
-                bus.emit(
-                    TranslationRequested(
-                        user.id,
-                        src_language_id=text_language.id,
-                        dst_language_id=study_language.id,
-                        text=text,
-                    ),
-                    ctx=ctx,
-                )
-        elif len(text) <= 12:
+        if ctx.config.UX["guess_input_language"]:
+            # Try to guess if a user wants to translate from their native language.
+            guess = detect_language(
+                text, [studied_language.name, native_language.name]
+            )
+            text_language_name = guess.language.name.lower()
+            if (
+                text_language_name != studied_language.name.lower()
+                and guess.value
+                >= ctx.config.UX["guess_input_language_threshold"]
+            ):
+                if code := language_code_by_name(text_language_name):
+                    text_language = get_language(text_language_name)
+                    bus.emit(
+                        TranslationRequested(
+                            user.id,
+                            src_language_id=text_language.id,
+                            dst_language_id=studied_language.id,
+                            text=text,
+                        ),
+                        ctx=ctx,
+                    )
+                continue
+
+        if len(text) <= 12:
             bus.emit(
                 WordExplanationRequested(user.id, text, explanation), ctx=ctx
             )

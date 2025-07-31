@@ -1,11 +1,11 @@
 from typing import Optional, List
 
-from lingua import Language, LanguageDetectorBuilder
+from lingua import Language, LanguageDetectorBuilder, ConfidenceValue
 
 
-async def detect_language(
+def detect_language(
     text: str, languages: Optional[List[str]] = None
-) -> Optional[str]:
+) -> ConfidenceValue:
     if not languages:
         detector_ = LanguageDetectorBuilder.from_all_languages()
     else:
@@ -14,6 +14,6 @@ async def detect_language(
         )
     detector = detector_.build()
 
-    # confidence = detector.compute_language_confidence_values(text)
-    if language := detector.detect_language_of(text):
-        return language.name
+    confidences = detector.compute_language_confidence_values(text)
+    top = confidences[0]
+    return top
