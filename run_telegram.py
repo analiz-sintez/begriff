@@ -3,13 +3,13 @@ import logging
 from telegram import Update
 from telegram.ext import Application
 
-from core import setup_logging
+from nachricht import setup_logging
 
 setup_logging()
 
-from core.bus import Bus
-from core.messenger import Router
-from core.messenger.telegram import attach_bus, attach_router
+from nachricht.bus import Bus
+from nachricht.messenger import Router
+from nachricht.messenger.telegram import attach_bus, attach_router
 
 from app import bus, router, create_app, Config
 

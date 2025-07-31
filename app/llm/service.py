@@ -4,7 +4,7 @@ from ..config import Config
 from bs4 import BeautifulSoup
 import requests
 
-from core.llm import query_llm
+from nachricht.llm import query_llm
 
 # Set up logging
 

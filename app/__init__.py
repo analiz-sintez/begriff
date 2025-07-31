@@ -1,11 +1,11 @@
 import logging
 
-import core
-from core.messenger import Router
-from core.bus import create_bus
-from core.llm import init_llm_client
-from core.i18n import init_catalog
-from core.config import combine
+import nachricht
+from nachricht.messenger import Router
+from nachricht.bus import create_bus
+from nachricht.llm import init_llm_client
+from nachricht.i18n import init_catalog
+from nachricht.config import combine
 
 from .config import Config
 
@@ -26,7 +26,7 @@ def create_app():
     import app.telegram
 
     # create an app
-    return core.create_app(Config)
+    return nachricht.create_app(Config)
 
 
 init_catalog("data/locale")

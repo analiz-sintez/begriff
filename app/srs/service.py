@@ -12,10 +12,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from sqlalchemy.orm import aliased
 
-from core import db
-from core.db import log_sql_query
-from core.bus import Signal
-from core.auth import User
+from nachricht import db
+from nachricht.db import log_sql_query
+from nachricht.bus import Signal
+from nachricht.auth import User
 
 from .. import bus
 from ..config import Config

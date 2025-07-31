@@ -3,11 +3,11 @@ import logging
 from dataclasses import dataclass
 
 from app.util import get_flag, get_studied_language, get_native_language
-from core.auth import User
-from core.messenger import Context, Emoji
-from core.bus import Signal
-from core.llm import query_llm
-from core.i18n import TranslatableString as _
+from nachricht.auth import User
+from nachricht.messenger import Context, Emoji
+from nachricht.bus import Signal
+from nachricht.llm import query_llm
+from nachricht.i18n import TranslatableString as _
 
 from .. import router, bus
 from ..srs import get_language, get_notes_to_inject, format_explanation

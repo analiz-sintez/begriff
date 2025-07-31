@@ -1,8 +1,8 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 
-from core import create_app, db
-from core.auth import User, get_user
+from nachricht import create_app, db
+from nachricht.auth import User, get_user
 
 from app.config import Config as DefaultConfig
 from app.notes import Note, Language

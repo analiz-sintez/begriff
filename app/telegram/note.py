@@ -5,11 +5,11 @@ from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
 
 from app.srs.service import get_card
-from core.llm import query_llm
-from core.auth import User
-from core.bus import Signal
-from core.messenger import Context, Emoji
-from core.i18n import TranslatableString as _
+from nachricht.llm import query_llm
+from nachricht.auth import User
+from nachricht.bus import Signal
+from nachricht.messenger import Context, Emoji
+from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..llm import (

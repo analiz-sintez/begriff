@@ -1,8 +1,8 @@
 import pytest
 from datetime import datetime, timedelta, timezone
 
-from core import create_app, db
-from core.auth import User
+from nachricht import create_app, db
+from nachricht.auth import User
 from app.notes import Note, Language
 from app.srs import Card, View, DirectCard, ReverseCard
 

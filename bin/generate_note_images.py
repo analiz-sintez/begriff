@@ -2,8 +2,8 @@ import logging
 import os
 import sys
 
-from core import create_app, db
-from core.auth import User
+from nachricht import create_app, db
+from nachricht.auth import User
 
 from app.srs import get_notes, Maturity
 from app.image import generate_image

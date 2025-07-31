@@ -2,11 +2,11 @@ import logging
 from dataclasses import dataclass
 from typing import List
 
-from core.bus import Signal
-from core.auth import User
-from core.messenger import Context
-from core.i18n import TranslatableString as _
-from core.messenger import Button, Keyboard
+from nachricht.bus import Signal
+from nachricht.auth import User
+from nachricht.messenger import Context
+from nachricht.i18n import TranslatableString as _
+from nachricht.messenger import Button, Keyboard
 
 from .. import bus, router
 

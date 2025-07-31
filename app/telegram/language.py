@@ -5,10 +5,10 @@ from typing import List
 
 from babel import Locale
 
-from core.auth import User
-from core.bus import Signal
-from core.messenger import Context, Keyboard, Button
-from core.i18n import TranslatableString as _
+from nachricht.auth import User
+from nachricht.bus import Signal
+from nachricht.messenger import Context, Keyboard, Button
+from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..util import get_flag, get_studied_language, get_native_language

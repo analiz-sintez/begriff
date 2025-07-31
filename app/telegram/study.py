@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any
 
-from core.auth import User
-from core.messenger import Button, Keyboard, Context, Emoji
-from core.bus import Signal
-from core.i18n import TranslatableString as _
+from nachricht.auth import User
+from nachricht.messenger import Button, Keyboard, Context, Emoji
+from nachricht.bus import Signal
+from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..srs import (

@@ -10,8 +10,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from core.db import Model, OptionsMixin, dttm_utc
-from core.auth import User
+from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.auth import User
 from ..config import Config
 from ..notes import Note
 

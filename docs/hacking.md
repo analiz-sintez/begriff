@@ -364,7 +364,7 @@ The framework is designed for easy internationalization. You write all user-faci
 # From: app/telegram/onboarding.py
 
 # It is a common convention to alias TranslatableString to a short name like _.
-from core.i18n import TranslatableString as _
+from nachricht.i18n import TranslatableString as _
 from babel import Locale
 
 # ...
@@ -421,7 +421,7 @@ You can attach a help message to the specific message sent by a handler. This he
 ```python
 # From: app/telegram/study.py
 
-from core.i18n import TranslatableString as _
+from nachricht.i18n import TranslatableString as _
 
 # ...
 

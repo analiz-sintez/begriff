@@ -5,10 +5,10 @@ import math
 
 from telegram import Message
 
-from core.db import db
-from core.auth import User
-from core.bus import Signal
-from core.messenger import Context, Keyboard, Button, Emoji
+from nachricht.db import db
+from nachricht.auth import User
+from nachricht.bus import Signal
+from nachricht.messenger import Context, Keyboard, Button, Emoji
 
 from .. import bus, router
 from ..config import Config

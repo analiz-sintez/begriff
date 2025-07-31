@@ -1,7 +1,7 @@
 from babel import Locale
 from flag import flag
 
-from core.auth import User
+from nachricht.auth import User
 
 from ..notes import get_language
 from .. import Config

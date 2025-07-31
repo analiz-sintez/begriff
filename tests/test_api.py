@@ -1,6 +1,6 @@
 import pytest
-from core import create_app, db
-from core.auth import User
+from nachricht import create_app, db
+from nachricht.auth import User
 
 
 class Config:

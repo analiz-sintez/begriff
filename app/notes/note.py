@@ -11,9 +11,9 @@ from babel.localedata import locale_identifiers
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy.exc import IntegrityError
 
-from core.auth import User
-from core.db import Model, OptionsMixin
-from core import db
+from nachricht.auth import User
+from nachricht.db import Model, OptionsMixin
+from nachricht import db
 
 
 logger = logging.getLogger(__name__)

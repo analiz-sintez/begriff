@@ -3,6 +3,12 @@
 venv*
 **/__pycache__
 .env
+data/*
 data/images/*.jpg
 data/*.sql
 data/locale/**/*.mo
+logs/*
+notebooks/*
+*.org
+*.xopp
+*.egg-info

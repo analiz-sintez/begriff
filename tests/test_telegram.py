@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 from datetime import datetime, timezone
 import asyncio
 
-from core import create_app, db
-from core.auth import User, get_user
-from core.messenger.telegram import TelegramContext as Context
+from nachricht import create_app, db
+from nachricht.auth import User, get_user
+from nachricht.messenger.telegram import TelegramContext as Context
 
 from app.telegram.note import _parse_line
 from app.telegram.study import handle_study_answer, handle_study_grade
