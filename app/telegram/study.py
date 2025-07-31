@@ -169,7 +169,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
-        bus.emit(StudySessionFinished(user.id))
+        bus.emit(StudySessionFinished(user.id), ctx=ctx)
         image_path = await get_finish_image()
         return await ctx.send_message(
             _("All done for today."), image=image_path

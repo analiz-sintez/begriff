@@ -5,13 +5,12 @@ from typing import List
 
 from nachricht.bus import Signal
 from nachricht.auth import User
-from nachricht.messenger import Context
+from nachricht.messenger import Context, Emoji
 from nachricht.i18n import TranslatableString as _, resolve
 from nachricht.messenger import Button, Keyboard
 
 from .. import bus, router, Config
-from ..llm import translate
-from ..util import get_studied_language
+from ..util import get_flag, get_native_language, get_studied_language
 from .note import ExplanationNoteShown
 from .study import StudySessionRequested, StudySessionFinished
 
@@ -107,7 +106,7 @@ async def start_onboarding(ctx: Context, user: User) -> None:
             """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
 
-In a few steps we'll set up things and start.      
+In a few steps we'll set up things and start.
 """,
         )
     )
@@ -174,13 +173,13 @@ async def show_how_to_add_notes(ctx: Context):
     return await ctx.send_message(
         _(
             """
-Now that we've selected the language to study, we can start.
+Now that you've selected a language to study, we can begin.
 
-Let's assume you're reading a book. Here's a paragraph:
+Imagine you're reading a book. Here's a paragraph:
 
 > {text}
 
-Pick a word or two which you don't understand, write them down (each on a new line), and send them to me. See what happens.
+Pick one or two words you don't understand, write each on a new line, and send them to me. Watch what happens.
 """,
             text=text_in_studied_language,
         ),
@@ -199,48 +198,61 @@ async def tell_how_to_study_cards(ctx: Context):
     text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill."""
     image_path = await generate_image(text)
     # wait while notes are sent
-    # await asyncio.sleep(7)
+    await asyncio.sleep(15)
 
     message = await ctx.send_message(
         _(
             """
-So now you know what those words mean, and hopefully you understand the paragraph. But would you remember them in a week or two, or when you encounter them again in a new text?
+So now you know what those words mean — and hopefully you understand the paragraph better. But will you still remember them in a week or two, or when you see them again in another text?
 
-To make your memorization firm, devote several minutes a day to rehearse the words you searched. See how it works:
+To strengthen your memory, spend a few minutes each day reviewing the words you’ve looked up. Here's how it works:
 
-- I show you a word, and you try to recall its meaning.
-- If you succeed, you press "ANSWER" and check if you recalled correctly. Grade your memory, and I'll plan the next rehearsal accordingly.
-- If you couldn't recall it, press "ANSWER" anyway, read the meaning and try to remember it.
+☝️ I’ll show you a word, and you try to recall its meaning.
 
-There's the whole science behind how you rate your memorization and how often I show you the cards. You don't spend time on things you're remembered good, and don't miss the words you're almost forgot.
+✌️ If you remember it, press "ANSWER" to check. Then rate your recall — I’ll schedule your next review accordingly.
+
+🖐 If you can’t recall it, press "ANSWER" anyway, read the explanation, and try to memorize it again.
+
+There’s solid science behind how this works — the better you remember a word, the less often you’ll see it. But if you're starting to forget it, I’ll make sure it comes up again.
 """
         ),
         new=True,
         image=image_path,
     )
+    await asyncio.sleep(5)
     bus.emit(StudySessionRequested(ctx.user.id), ctx=ctx)
 
 
 @bus.on(StudySessionFinished, {"action": "onboarding"})
 async def tell_about_other_commands(ctx: Context):
+    native_language = get_native_language(ctx.user)
+    studied_language = get_studied_language(ctx.user)
     return await ctx.send_message(
         _(
             """
-You can call a study session any time you want with `/study`.  Study regularly, and your progress will come in no time.
+You can start a study session anytime with the /study command. Practice regularly, and progress will follow in no time.
 
-Other useful commands to explore:
-- `!!` translates a phrase from {native_flag} to {study_flag}
-- `??` clarifies tricky places in {study_flag}
-- send me a long enough text (>30 characters) and I'll check it for errors
-- send me an URL of an article and I'll make a recap for you, with the words you're currently studying (try wikipedia)
-- if you don't like the explanation I did for you, react with a finger down emoji and I'll redo it.
-- send me a long enough text (>30 characters) and I'll check it for errors
-- if you need a usage example, send :pray: emoji
+Other useful commands to try:
 
-You can the cheatsheet page any time with `/help` command.
+• `!!` — translates a phrase from {native_flag} to {studied_flag}.
 
+• `??` — clarifies tricky parts in {studied_flag}.
+
+• Send me a text longer than 30 characters — I’ll check it for mistakes.
+
+• Send me the URL of an article — I’ll summarize it for you, highlighting words you’re learning (try it on Wikipedia!).
+
+ • Didn’t like my explanation? React with 👎 and I’ll redo it.
+
+• Need a usage example? React with 🙏 and I’ll give you one.
+
+You can open the cheatsheet anytime with the /help command.
+            
 Good luck!
-"""
+""",
+            native_flag=native_language.flag,
+            studied_flag=studied_language.flag,
+            Emoji=Emoji,
         ),
         new=True,
         # image=image_path,
