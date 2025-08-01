@@ -46,6 +46,20 @@ class Language(Model):
     def __repr__(self) -> str:
         return f"<Language(id={self.id}, name={self.name})>"
 
+    @classmethod
+    def from_locale(cls, locale: Locale) -> "Language":
+        name = locale.get_language_name("en")
+        return get_language(name)
+
+    @classmethod
+    def from_name(cls, name: str) -> "Language":
+        return get_language(name)
+
+    @classmethod
+    def from_code(cls, code: str) -> "Language":
+        locale = Locale.parse(code)
+        return cls.from_locale(locale)
+
     @property
     def code(self) -> Optional[str]:
         return language_code_by_name(self.name)
@@ -56,11 +70,15 @@ class Language(Model):
             return
         return Locale(code)
 
+    def get_localized_name(self, locale: Locale) -> str:
+        return self.locale.get_language_name(locale.language)
+
     @property
     def flag(self) -> str:
+        """Return the language flag, or if we can't find it, the language name."""
         if terr := Config.LANGUAGE["territories"].get(self.locale.language):
             return flag(terr)
-        return ""
+        return self.name
 
 
 def _normalize_language_name(name: str) -> str:

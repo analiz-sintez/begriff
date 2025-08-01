@@ -2,7 +2,7 @@ import re
 import logging
 from dataclasses import dataclass
 
-from app.util import get_flag, get_studied_language, get_native_language
+from app.util import get_studied_language, get_native_language
 from nachricht.auth import User
 from nachricht.messenger import Context, Emoji
 from nachricht.bus import Signal
@@ -142,9 +142,7 @@ async def translate_phrase(
         src_language=src_language.name,
         dst_language=dst_language.name,
     )
-    src_flag = get_flag(src_language.locale) if src_language.locale else "?"
-    dst_flag = get_flag(dst_language.locale) if dst_language.locale else "?"
-    response = f"{src_flag} {dst_flag} {translation}"
+    response = f"{src_language.flag} {dst_language.flag} {translation}"
     message = await ctx.send_message(
         text=response,
         reply_to=ctx.message,
