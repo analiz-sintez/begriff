@@ -140,7 +140,7 @@ class Config:
         # Try to guess if a user asks a translation *from* their native language
         # or a translation *to* it (the regular flow).
         # This is far from perfect so it's disabled by default.
-        "guess_input_language": False,
+        "guess_input_language": True,
         "guess_input_language_threshold": 0.8,
         "simple_card_grades": True,
     }
