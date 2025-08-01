@@ -184,7 +184,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
     # If the card is reversed (explanation -> word), translate the explanation.
     note = card.note
     if isinstance(card, ReverseCard):
-        front = await get_explanation_in_native_language(ctx, note)
+        front = await get_word_note_display_text(ctx, note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
     return await ctx.send_message(
@@ -228,10 +228,10 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     # ... translate the explanation
     # ... if it is on the front
     if isinstance(card, ReverseCard):
-        front = await get_explanation_in_native_language(ctx, note)
+        front = await get_word_note_display_text(ctx, note)
     # ... if it is on the back
     elif isinstance(card, DirectCard):
-        back = await get_explanation_in_native_language(ctx, note)
+        back = await get_word_note_display_text(ctx, note)
     front = format_explanation(front)
     back = format_explanation(back)
 

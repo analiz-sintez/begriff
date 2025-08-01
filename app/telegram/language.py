@@ -18,7 +18,7 @@ from ..notes import (
     get_native_language,
 )
 from ..srs import get_notes
-from .note import get_explanation_in_native_language
+from .note import get_word_note_display_text
 
 
 logger = logging.getLogger(__name__)
@@ -292,9 +292,7 @@ async def generate_note_translations(
         f"Starting background translation tasks for user {user.login}, language {studied_language.name}"
     )
     for note in get_notes(user_id=user.id, language_id=studied_language.id):
-        task = asyncio.create_task(
-            get_explanation_in_native_language(ctx, note)
-        )
+        task = asyncio.create_task(get_word_note_display_text(ctx, note))
         task.add_done_callback(_handle_translation_task_error)
     logger.info(
         f"Finished creating background translation tasks for user {user.login}, language {studied_language.name}"

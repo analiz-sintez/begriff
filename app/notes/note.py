@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from nachricht.auth import User
 from nachricht.db import Model, OptionsMixin
+from nachricht.messenger import Context
 
 from .language import Language
 
@@ -35,6 +36,9 @@ class Note(Model, OptionsMixin):
     )
     user = relationship(User, backref="notes")
     language = relationship(Language, backref="notes")
+
+    async def get_display_text(self, ctx: Context) -> Optional[str]:
+        return self.field2 if self.field2 else ""
 
     def to_dict(self) -> dict:
         return {

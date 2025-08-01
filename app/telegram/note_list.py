@@ -25,7 +25,7 @@ from ..srs import (
     update_note as srs_update_note,
 )
 from .note import (
-    get_explanation_in_native_language,
+    get_word_note_display_text,
     format_explanation,
     NoteDeletionRequested,
     ExamplesRequested,
@@ -315,7 +315,7 @@ async def show_note_card(
     )
     studied_language_name = note.language.name
 
-    explanation_in_native_lang_raw = await get_explanation_in_native_language(
+    explanation_in_native_lang_raw = await get_word_note_display_text(
         ctx, note
     )
     explanation_in_native_lang_formatted = format_explanation(
