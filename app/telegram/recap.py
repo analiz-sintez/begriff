@@ -10,7 +10,9 @@ from nachricht.llm import query_llm
 from nachricht.i18n import TranslatableString as _
 
 from .. import router, bus
-from ..srs import get_language, get_notes_to_inject, format_explanation
+from ..notes import Language, get_language
+from ..srs import get_notes_to_inject, format_explanation
+from ..util import get_native_language, get_studied_language
 from ..config import Config
 from ..llm import get_recap, translate
 
@@ -39,11 +41,7 @@ class RecapSent(Signal):
 @router.message(re.compile(r"(?P<url>https?://\S+)$", re.MULTILINE))
 @router.authorize()
 async def recap_url(ctx: Context, user: User, url: str) -> None:
-    language = get_language(
-        user.get_option(
-            "studied_language", Config.LANGUAGE["defaults"]["study"]
-        )
-    )
+    language = get_studied_language(user)
     bus.emit(RecapRequested(user.id, language.id, url))
 
     notes_to_inject = []
@@ -134,8 +132,8 @@ async def translate_phrase(
     dst_language_id: int,
     text: str,
 ) -> None:
-    dst_language = get_language(dst_language_id)
-    src_language = get_language(src_language_id)
+    dst_language = Language.by_id(dst_language_id)
+    src_language = Language.by_id(src_language_id)
 
     translation = await translate(
         text,
@@ -209,17 +207,12 @@ Here, "zur" = "zu der" (to the), and "zu" triggers the dative case.
 @router.message("^\?\?(?P<text>.+)$")
 @router.authorize()
 async def _clarify_text(ctx: Context, user: User, text: str) -> None:
-    defaults = ctx.config.LANGUAGE["defaults"]
-    language = get_language(
-        user.get_option("studied_language", defaults["study"])
-    )
-    native_language = get_language(
-        user.get_option("native_language", defaults["native"])
-    )
+    studied_language = get_studied_language(user)
+    native_language = get_native_language(user)
     bus.emit(
         ClarificationRequested(
             user_id=user.id,
-            language_id=language.id,
+            language_id=studied_language.id,
             native_language_id=native_language.id,
             text=text,
         ),
@@ -249,8 +242,8 @@ async def clarify_text(
     native_language_id: int,
     text: str,
 ) -> None:
-    language = get_language(language_id)
-    native_language = get_language(native_language_id)
+    language = Language.by_id(language_id)
+    native_language = Language.by_id(native_language_id)
 
     try:
         translation = await get_clarification(

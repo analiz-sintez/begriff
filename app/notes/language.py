@@ -47,6 +47,10 @@ class Language(Model):
         return f"<Language(id={self.id}, name={self.name})>"
 
     @classmethod
+    def from_id(cls, id: int) -> "Language":
+        return get_language(id)
+
+    @classmethod
     def from_locale(cls, locale: Locale) -> "Language":
         name = locale.get_language_name("en")
         return get_language(name)

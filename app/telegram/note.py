@@ -18,7 +18,7 @@ from ..llm import (
     translate,
     detect_language,
 )
-from ..notes import language_code_by_name, get_language
+from ..notes import language_code_by_name, get_language, Language
 from ..util import get_native_language, get_studied_language
 from ..srs import (
     create_word_note,
@@ -561,7 +561,7 @@ class ExamplesDownvoted(Signal):
 
 
 async def get_usage_examples(note: Note, ctx: Context):
-    language = get_language(note.language_id)
+    language = Language.from_id(note.language_id)
     native_language = get_native_language(note.user)
     return await query_llm(
         f"""
