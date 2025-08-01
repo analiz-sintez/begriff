@@ -10,7 +10,17 @@ venv:
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(PYTHON_BIN) -m venv $(VENV_PATH); \
 	fi
+	# Install all the packages
 	. $(VENV_PATH)/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
+
+# Create or recreate virtual environment and install dependencies
+nachricht: 
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(PYTHON_BIN) -m venv $(VENV_PATH); \
+	fi
+	# Force-reinstall nachricht
+	# TODO make it expose its version and remove this ugly hack
+	. $(VENV_PATH)/bin/activate && pip install --force-reinstall "git+https://github.com/analiz-sintez/nachricht.git"
 
 poetry:
 	cat ./requirements.txt | grep -v "@" | xargs poetry add
