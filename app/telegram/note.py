@@ -536,25 +536,23 @@ class ExamplesDownvoted(Signal):
     note_id: int
 
 
-async def get_usage_examples(note: Note, ctx: Context):
+async def get_usage_example(note: Note, ctx: Context):
     language = get_language(note.language_id)
     native_language = get_native_language(note.user)
     return await query_llm(
         f"""
 You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
 
-Generate three usage examples for the given word or phrase.
+Generate a single usage example for the given word or phrase.
 
-- Examples should be full sentencts.
-- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.
+- This example should be a full sentence.
+- If a word has multiple different meanings, provide an example showing most common meaning. Indicate this meaning in square brackets in student's native language.
 
 The pattern: the student studies German and their native language is English, the word is: "Konto".
 
 Your response:
         
-"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.
-[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.
-[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen."
+"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten."
         """,
         note.field1,
     )
@@ -563,16 +561,16 @@ Your response:
 @bus.on(ExamplesRequested)
 @bus.on(ExamplesDownvoted)
 @router.authorize()
-async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
+async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
     if not (note := get_note(note_id)):
         return
 
     try:
-        examples = await get_usage_examples(note, ctx)
-        response = format_explanation(examples)
+        example = await get_usage_example(note)
+        response = format_explanation(example)
     except Exception as e:
-        logging.error(f"Got error while making examples: {e}")
-        response = _("Couldn't make examples, sorry.")
+        logging.error(f"Got error while making an example: {e}")
+        response = _("Couldn't make an example, sorry.")
 
     await ctx.send_message(
         text=response,
@@ -580,3 +578,35 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
         on_reaction={Emoji.THUMBSDOWN: ExamplesRequested(note.id)},
     )
     bus.emit(ExamplesSent(note.id))
+
+
+@dataclass
+class ExampleUpvoted(Signal):
+    note_id: int
+    text: str
+
+
+@dataclass
+class ExampleNoteAdded(Signal):
+    note_id: int
+
+
+# TODO: develop a way to link an example to the original note
+@bus.on(ExampleUpvoted)
+@router.authorize()
+async def add_example_to_deck(ctx: Context, user: User, note_id: int, text: str) -> None:
+    # if not (note := get_note(note_id)):
+    #     return
+
+    # try:
+    #     example = await get_usage_example(note)
+    #     response = format_explanation(example)
+    # except Exception as e:
+    #     logging.error(f"Got error while making an example: {e}")
+    #     response = _("Couldn't make an example, sorry.")
+
+    await ctx.send_message(
+        text="todo later",
+        reply_to=ctx.message,
+    )
+    bus.emit(ExampleNoteAdded(note.id))
