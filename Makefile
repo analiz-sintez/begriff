@@ -22,6 +22,15 @@ nachricht:
 	# TODO make it expose its version and remove this ugly hack
 	. $(VENV_PATH)/bin/activate && pip install --force-reinstall "git+https://github.com/analiz-sintez/nachricht.git"
 
+# Install nachrict as editable package
+nachricht-editable: 
+	@if [ ! -d "$(VENV_PATH)" ]; then \
+		$(PYTHON_BIN) -m venv $(VENV_PATH); \
+	fi
+	. $(VENV_PATH)/bin/activate && pip install -e ../nachricht/ --config-settings editable_mode=strict
+
+
+
 poetry:
 	cat ./requirements.txt | grep -v "@" | xargs poetry add
 
