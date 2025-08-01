@@ -12,3 +12,5 @@ notebooks/*
 *.org
 *.xopp
 *.egg-info
+app/userconfig.py
+google-*.json

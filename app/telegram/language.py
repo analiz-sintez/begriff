@@ -6,17 +6,15 @@ from typing import List
 from babel import Locale
 
 from nachricht.auth import User
-from nachricht.bus import Signal
+from nachricht.bus import Signal, TerminalSignal
 from nachricht.messenger import Context, Keyboard, Button
 from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
-from ..util import get_flag, get_studied_language, get_native_language
-from ..notes import get_language, language_code_by_name
+from ..util import get_studied_language, get_native_language
+from ..notes import language_code_by_name, Language
 from ..srs import get_notes
 from .note import get_explanation_in_native_language
-
-# from .onboarding import
 
 
 logger = logging.getLogger(__name__)
@@ -80,10 +78,7 @@ class NativeLanguageSaved(Signal):
 
 @router.authorize()
 async def ask_for_native_language(ctx: Context, user: User):
-    current_locale = ctx.locale
-    language_code = current_locale.language
-    language_name = current_locale.get_language_name(language_code)
-
+    language = Language.from_locale(ctx.locale)
     keyboard = Keyboard(
         [
             [
@@ -100,7 +95,7 @@ async def ask_for_native_language(ctx: Context, user: User):
             [
                 Button(
                     _("Continue"),
-                    NativeLanguageConfirmed(user.id, language_code),
+                    NativeLanguageConfirmed(user.id, language.code),
                 )
             ],
         ]
@@ -109,8 +104,8 @@ async def ask_for_native_language(ctx: Context, user: User):
     await ctx.send_message(
         _(
             "Your current interface language is {language_name}{flag}. You can change it or proceed.",
-            language_name=language_name,
-            flag=get_flag(current_locale),
+            language_name=language.get_localized_name(ctx.locale),
+            flag=language.flag,
         ),
         keyboard,
     )
@@ -120,16 +115,14 @@ async def ask_for_native_language(ctx: Context, user: User):
 @bus.on(NativeLanguageChangeRequested)
 @router.authorize()
 async def ask_native_language_selection(ctx: Context, user: User):
-    locales = [
-        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
-    ]
+    codes = ctx.config.LANGUAGE["study_languages"]
+    languages = [Language.from_code(code) for code in codes]
     buttons = [
         Button(
-            text=get_flag(locale)
-            + locale.get_language_name(ctx.locale.language),
-            callback=NativeLanguageSelected(user.id, locale.language),
+            text=language.flag + language.get_localized_name(ctx.locale),
+            callback=NativeLanguageSelected(user.id, language.code),
         )
-        for locale in locales
+        for language in languages
     ]
     keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
     return await ctx.send_message(
@@ -142,15 +135,14 @@ async def ask_native_language_selection(ctx: Context, user: User):
 @router.authorize()
 async def save_native_language(ctx: Context, user: User, language_code: str):
     user.set_option("locale", language_code)
-    locale = Locale.parse(language_code)
-    language = get_language(locale.get_language_name("en"))
+    language = Language.from_code(language_code)
     user.set_option("native_language", language.id)
 
     await ctx.send_message(
         _(
             "Interface language set to {language}{flag}.",
-            language=locale.get_language_name(ctx.locale.language),
-            flag=get_flag(locale),
+            language=language.get_localized_name(ctx.locale),
+            flag=language.flag,
         )
     )
 
@@ -184,7 +176,7 @@ class StudyLanguageSelected(Signal):
 
 
 @dataclass
-class StudyLanguageEntered(Signal):
+class StudyLanguageEntered(TerminalSignal):
     """A user manually entered study language name."""
 
     user_id: int
@@ -214,16 +206,14 @@ async def start_change_studied_language_scenario(ctx: Context, user: User):
 async def ask_studied_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
-    locales = [
-        Locale.parse(code) for code in ctx.config.LANGUAGE["study_languages"]
-    ]
+    codes = ctx.config.LANGUAGE["study_languages"]
+    languages = [Language.from_code(code) for code in codes]
     buttons = [
         Button(
-            text=get_flag(locale)
-            + locale.get_language_name(ctx.locale.language),
-            callback=StudyLanguageSelected(user.id, locale.language),
+            text=language.flag + language.get_localized_name(ctx.locale),
+            callback=StudyLanguageSelected(user.id, language.code),
         )
-        for locale in locales
+        for language in languages
     ]
     keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
     return await ctx.send_message(
@@ -253,14 +243,13 @@ async def parse_studied_language(ctx, user):
 @bus.on(StudyLanguageSelected)
 @router.authorize()
 async def save_studied_language(ctx: Context, user: User, language_code: str):
-    locale = Locale.parse(language_code)
-    language = get_language(locale.get_language_name("en"))
+    language = Language.from_code(language_code)
     user.set_option("studied_language", language.id)
     await ctx.send_message(
         _(
             "You now study {flag}{language}.",
-            flag=get_flag(locale),
-            language=locale.get_language_name(ctx.locale.language),
+            flag=language.flag,
+            language=language.get_localized_name(ctx.locale),
         )
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)

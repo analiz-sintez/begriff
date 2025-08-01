@@ -1,3 +1,4 @@
+from time import sleep
 import logging
 
 from telegram import Update
@@ -56,14 +57,20 @@ def main():
         logger.info("Starting a webhook.")
         secret_token = Config.TELEGRAM.get("webhook_secret_token")
         with app.app_context():
-            bot.run_webhook(
-                listen="127.0.0.1",
-                port=8000,
-                url_path="telegram",
-                secret_token=secret_token,
-                webhook_url=webhook_url,
-                allowed_updates=Update.ALL_TYPES,
-            )
+            for _ in range(3):
+                try:
+                    bot.run_webhook(
+                        listen="127.0.0.1",
+                        port=8000,
+                        url_path="telegram",
+                        secret_token=secret_token,
+                        webhook_url=webhook_url,
+                        allowed_updates=Update.ALL_TYPES,
+                    )
+                    break
+                except RuntimeError as e:
+                    logger.error("Error: %s, retrying...", e)
+                    sleep(1)
     else:
         # For testing, you can use polling
         logger.info("Starting polling.")

@@ -14,21 +14,129 @@ from sqlalchemy.orm import aliased
 
 from nachricht import db
 from nachricht.db import log_sql_query
-from nachricht.bus import Signal
 from nachricht.auth import User
 
 from .. import bus
 from ..config import Config
 from ..notes import Note, Language
-from .models import Card, View, Answer, DirectCard, ReverseCard
-
-
-@dataclass
-class CardAdded(Signal):
-    card_id: int
+from .view import View, Answer
+from .card import Card, Maturity, DirectCard, ReverseCard, CardAdded
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_cards(
+    user_id: int,
+    language_id: Optional[int] = None,
+    start_ts: Optional[datetime] = None,
+    end_ts: Optional[datetime] = None,
+    bury_siblings: bool = False,
+    maturity: Optional[List[Maturity]] = None,
+    randomize: bool = False,
+) -> List[Card]:
+    """
+    Retrieve cards for a specific user and language. Allows optional filtering by language, time, and other criteria.
+
+    Args:
+        user_id: The ID of the user.
+        language_id: Optional ID of the language.
+        start_ts: Optional start timestamp to filter cards by.
+        end_ts: Optional end timestamp to filter cards by.
+        bury_siblings: Optional flag to exclude sibling cards.
+        randomize: Optional flag to randomize the order of the cards.
+
+    Returns:
+        List[Card]: A list of Card objects matching the filter criteria.
+    """
+    logger.info(
+        "Getting cards for user_id: '%d', language_id: '%d', "
+        "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
+        user_id,
+        language_id,
+        start_ts,
+        end_ts,
+        bury_siblings,
+        randomize,
+    )
+    query = db.session.query(Card).join(Note)
+    query = query.filter(Note.user_id == user_id)
+
+    if language_id:
+        query = query.filter(Note.language_id == language_id)
+
+    if start_ts:
+        query = query.filter(Card.ts_scheduled > start_ts)
+
+    if end_ts:
+        query = query.filter(Card.ts_scheduled <= end_ts)
+
+    if bury_siblings:
+        # If a note has a card reviewed today, don't include its sibling cards,
+        # only allow to review the reviewed card again.
+        # ...step 1: Find all cards that were reviewed today
+        recently_viewed_cards = (
+            db.session.query(View.card_id.distinct().label("card_id"))
+            .filter(
+                View.ts_review_finished
+                > (datetime.now(timezone.utc) - timedelta(hours=12))
+            )
+            .cte("recently_viewed_cards")
+            .select()
+        )
+        # ...step 2: Find distinct note_ids associated with these cards
+        recent_notes = (
+            db.session.query(Card.note_id.distinct().label("note_id"))
+            .filter(Card.id.in_(recently_viewed_cards))
+            .cte("recent_notes")
+            .select()
+        )
+        # ...step 3: Allow only those cards which belong to notes found in step 2
+        #    For other notes, allow all cards
+        query = query.filter(
+            db.or_(
+                ~Card.note_id.in_(recent_notes),
+                Card.note_id.in_(recently_viewed_cards)
+                & Card.id.in_(recently_viewed_cards),
+            )
+        )
+
+    if maturity:
+        conditions = []
+        timetable_mature = datetime.now(timezone.utc) + timedelta(
+            days=Config.FSRS["mature_threshold"]
+        )
+        for m in maturity:
+            if m == Maturity.NEW:
+                conditions.append(Card.ts_last_review.is_(None))
+            elif m == Maturity.YOUNG:
+                conditions.append(
+                    and_(
+                        Card.ts_last_review.isnot(None),
+                        Card.ts_scheduled <= timetable_mature,
+                    )
+                )
+            elif m == Maturity.MATURE:
+                conditions.append(
+                    and_(
+                        Card.ts_last_review.isnot(None),
+                        Card.ts_scheduled > timetable_mature,
+                    )
+                )
+
+        query = query.filter(db.or_(*conditions))
+
+    if not randomize:
+        query = query.order_by(Card.ts_scheduled.asc())
+
+    log_sql_query(query)
+    results = query.all()
+    if randomize:
+        random.shuffle(results)
+
+    logger.info("Retrieved %i cards", len(results))
+    logger.debug("\n".join([str(card) for card in results]))
+    return results
 
 
 def create_word_note(
@@ -78,12 +186,13 @@ def create_word_note(
         front_card = DirectCard(note_id=note.id, ts_scheduled=now)
         back_card = ReverseCard(note_id=note.id, ts_scheduled=now)
         db.session.add_all([front_card, back_card])
+        db.session.flush()
         logger.info("Cards created: %s, %s", front_card, back_card)
 
         db.session.commit()
         bus.emit(CardAdded(front_card.id))
         bus.emit(CardAdded(back_card.id))
-        logger.info(
+        logger.debug(
             "Transaction committed successfully for word note creation."
         )
         return note
@@ -101,170 +210,6 @@ def update_note(note: Note) -> None:
         note: The note to update.
     """
     logger.info("Note update with id: %d skipped.", note.id)
-
-
-def get_view(view_id: int) -> Optional[View]:
-    """
-    Get a view by id.
-
-    Args:
-        view_id: The id of the view.
-
-    Returns:
-        View: The view object, or None if not found.
-    """
-    logger.info("Getting view by id '%d'", view_id)
-    return View.query.filter_by(id=view_id).first()
-
-
-def get_views(
-    user_id: int,
-    language_id: int,
-    answers: Optional[List[Answer]] = None,
-) -> List[View]:
-    """
-    Retrieve views for a specific user and language. Allows optional filtering by answers.
-
-    Args:
-        user_id: The ID of the user.
-        language_id: The ID of the language.
-        answers: Optional list of answers to filter views by.
-
-    Returns:
-        List[View]: A list of View objects matching the filter criteria.
-    """
-    logger.info(
-        "Getting views for user_id: '%d', language_id: '%d', answers: '%s'",
-        user_id,
-        language_id,
-        answers,
-    )
-    query = db.session.query(View).join(Card).join(Note)
-    query = query.filter(Note.user_id == user_id)
-    query = query.filter(Note.language_id == language_id)
-
-    if answers:
-        conditions = []
-        values_to_check = [
-            answer.value for answer in answers if answer is not None
-        ]
-        if None in answers:
-            conditions.append(View.answer.is_(None))
-        if values_to_check:
-            conditions.append(View.answer.in_(values_to_check))
-        if conditions:
-            query = query.filter(db.or_(*conditions))
-
-    results = query.all()
-    logger.info("Retrieved %i views", len(results))
-    logger.debug("\n".join([str(view) for view in results]))
-    return results
-
-
-def record_view_start(card_id: int) -> int:
-    """
-    Create a view and save the time it started.
-
-    Args:
-        card_id: ID of the card for which view is being created.
-
-    Returns:
-        int: The ID of the created view.
-    """
-    logger.info("Creating new view for card_id: %d", card_id)
-    view = View(card_id=card_id, ts_review_started=datetime.now(timezone.utc))
-    db.session.add(view)
-    db.session.commit()
-    logger.info("New view created and transaction committed: %s", view)
-    return view.id
-
-
-def record_answer(view_id: int, answer: Answer) -> None:
-    """
-    Record an answer for a given view and update card memory state.
-
-    Args:
-        view_id: The ID of the view.
-        answer: The answer given by the user.
-    """
-    logger.info(
-        "Recording answer for view_id: '%d', answer: '%s'", view_id, answer
-    )
-    view = db.session.query(View).filter_by(id=view_id).first()
-    if not view:
-        logger.error("Found no view: %s, can't update the card.", view_id)
-        return
-    card = Card.query.filter_by(id=view.card_id).first()
-
-    # Save answer and response time.
-    view.answer = answer.value
-    view.ts_review_finished = datetime.now(timezone.utc)
-
-    # Update card memory state based on the answer.
-    # ... stability and difficulty
-    if card.stability and card.difficulty:
-        memory = fsrs.MemoryState(card.stability, card.difficulty)
-    else:
-        memory = None
-    # ... days since last update
-    if card.ts_last_review:
-        interval = (datetime.now(timezone.utc) - card.ts_last_review).days
-    else:
-        interval = 0
-    # IDEA: use personal parameters, reevaluate them after every 1000 views.
-    planner = fsrs.FSRS(parameters=fsrs.DEFAULT_PARAMETERS)
-    next_states = planner.next_states(
-        memory, Config.FSRS["target_retention"], interval
-    )
-    next_state = getattr(next_states, answer.value)
-
-    logger.info(
-        "Card memory parameters updated for card_id '%d'. "
-        "Stability: %.1f -> %.1f, Difficulty: %.1f -> %.1f",
-        card.id,
-        card.stability if card.stability else 0.0,
-        next_state.memory.stability,
-        card.difficulty if card.difficulty else 0.0,
-        next_state.memory.difficulty,
-    )
-
-    card.stability = next_state.memory.stability
-    card.difficulty = next_state.memory.difficulty
-
-    # Reschedule the card.
-    card.ts_last_review = datetime.now(timezone.utc)
-    # Due to rounding, "again" grade often results in the immediate review.
-    # TODO: prioritize cards which were rescheduled/forgotten
-    #       to completely new cards.
-    next_interval = round(next_state.interval)
-    card.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-        days=next_interval
-    )
-    db.session.commit()
-    logger.info(
-        "Answer recorded and next review scheduled on %s.",
-        card.ts_scheduled.strftime("%Y-%m-%d"),
-    )
-
-
-def get_card(card_id: int) -> Optional[Card]:
-    """
-    Get a card by id.
-
-    Args:
-        card_id: The id of the card.
-
-    Returns:
-        Card: The card object, or None if not found.
-    """
-    logger.info("Getting card by id '%d'", card_id)
-    return Card.query.filter_by(id=card_id).first()
-
-
-class Maturity(Enum):
-    NEW = "new"
-    YOUNG = "young"
-    MATURE = "mature"
 
 
 def get_notes(
@@ -382,157 +327,6 @@ def get_notes(
     results = query.all()
     logger.info("Retrieved %i notes", len(results))
     logger.debug("\n".join([str(note) for note in results]))
-    return results
-
-
-def count_new_cards_studied(
-    user_id: int, language_id: int, hours_ago: int
-) -> int:
-    """
-    Calculate how many cards were studied for the first time during the last
-    specified hours.
-
-    A card is studied the first time if it has views with answers, and the earliest
-    such view was within the past specified hours.
-
-    Args:
-        user_id: The ID of the user.
-        language_id: The ID of the language.
-        hours_ago: The number of hours to look back.
-
-    Returns:
-        The number of cards studied for the first time in the last specified hours.
-    """
-    time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
-    cards = (
-        Card.query.join(Note)
-        .filter(Note.user_id == user_id, Note.language_id == language_id)
-        .all()
-    )
-    new_cards_studied = 0
-
-    for card in cards:
-        views_with_answers = [view for view in card.views if view.answer]
-        if views_with_answers:
-            earliest_view = min(
-                view.ts_review_started for view in views_with_answers
-            )
-            if earliest_view > time_threshold:
-                new_cards_studied += 1
-
-    return new_cards_studied
-
-
-def get_cards(
-    user_id: int,
-    language_id: Optional[int] = None,
-    start_ts: Optional[datetime] = None,
-    end_ts: Optional[datetime] = None,
-    bury_siblings: bool = False,
-    maturity: Optional[List[Maturity]] = None,
-    randomize: bool = False,
-) -> List[Card]:
-    """
-    Retrieve cards for a specific user and language. Allows optional filtering by language, time, and other criteria.
-
-    Args:
-        user_id: The ID of the user.
-        language_id: Optional ID of the language.
-        start_ts: Optional start timestamp to filter cards by.
-        end_ts: Optional end timestamp to filter cards by.
-        bury_siblings: Optional flag to exclude sibling cards.
-        randomize: Optional flag to randomize the order of the cards.
-
-    Returns:
-        List[Card]: A list of Card objects matching the filter criteria.
-    """
-    logger.info(
-        "Getting cards for user_id: '%d', language_id: '%d', "
-        "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
-        user_id,
-        language_id,
-        start_ts,
-        end_ts,
-        bury_siblings,
-        randomize,
-    )
-    query = db.session.query(Card).join(Note)
-    query = query.filter(Note.user_id == user_id)
-
-    if language_id:
-        query = query.filter(Note.language_id == language_id)
-
-    if start_ts:
-        query = query.filter(Card.ts_scheduled > start_ts)
-
-    if end_ts:
-        query = query.filter(Card.ts_scheduled <= end_ts)
-
-    if bury_siblings:
-        # If a note has a card reviewed today, don't include its sibling cards,
-        # only allow to review the reviewed card again.
-        # ...step 1: Find all cards that were reviewed today
-        recently_viewed_cards = (
-            db.session.query(View.card_id.distinct().label("card_id"))
-            .filter(
-                View.ts_review_finished
-                > (datetime.now(timezone.utc) - timedelta(hours=12))
-            )
-            .cte("recently_viewed_cards")
-            .select()
-        )
-        # ...step 2: Find distinct note_ids associated with these cards
-        recent_notes = (
-            db.session.query(Card.note_id.distinct().label("note_id"))
-            .filter(Card.id.in_(recently_viewed_cards))
-            .cte("recent_notes")
-            .select()
-        )
-        # ...step 3: Allow only those cards which belong to notes found in step 2
-        #    For other notes, allow all cards
-        query = query.filter(
-            db.or_(
-                ~Card.note_id.in_(recent_notes),
-                Card.note_id.in_(recently_viewed_cards)
-                & Card.id.in_(recently_viewed_cards),
-            )
-        )
-
-    if maturity:
-        conditions = []
-        timetable_mature = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"]
-        )
-        for m in maturity:
-            if m == Maturity.NEW:
-                conditions.append(Card.ts_last_review.is_(None))
-            elif m == Maturity.YOUNG:
-                conditions.append(
-                    and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled <= timetable_mature,
-                    )
-                )
-            elif m == Maturity.MATURE:
-                conditions.append(
-                    and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled > timetable_mature,
-                    )
-                )
-
-        query = query.filter(db.or_(*conditions))
-
-    if not randomize:
-        query = query.order_by(Card.ts_scheduled.asc())
-
-    log_sql_query(query)
-    results = query.all()
-    if randomize:
-        random.shuffle(results)
-
-    logger.info("Retrieved %i cards", len(results))
-    logger.debug("\n".join([str(card) for card in results]))
     return results
 
 

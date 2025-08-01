@@ -1,14 +1,23 @@
 import logging
+import asyncio
 from dataclasses import dataclass
-from typing import List
 
 from nachricht.bus import Signal
 from nachricht.auth import User
-from nachricht.messenger import Context
-from nachricht.i18n import TranslatableString as _
-from nachricht.messenger import Button, Keyboard
+from nachricht.messenger import Context, Emoji
+from nachricht.i18n import TranslatableString as _, resolve
 
-from .. import bus, router
+from .. import bus, router, Config
+from ..util import get_native_language, get_studied_language
+from .note import UserInputProcessed
+from .study import StudySessionRequested, StudySessionFinished, CardGraded
+
+if Config.IMAGE["enable"]:
+    from ..image import generate_image
+else:
+
+    async def generate_image(*args, **kwargs):
+        return None
 
 
 logger = logging.getLogger(__name__)
@@ -95,7 +104,7 @@ async def start_onboarding(ctx: Context, user: User) -> None:
             """
 Welcome to the Begriff Bot! I'll help you learn new words in a foreign language.
 
-In a few steps we'll set up things and start.      
+In a few steps we'll set up things and start.
 """,
         )
     )
@@ -142,6 +151,109 @@ bus.connect(
     NativeLanguageSaved, ask_studied_language, {"action": "onboarding"}
 )
 
+################################################################
+# Adding notes
+
+
+@dataclass
+class NotesAddedDuringOnboarding(Signal):
+    user_id: int
+
+
+@bus.on(StudyLanguageSaved, {"action": "onboarding"})
+@router.authorize()
+async def show_how_to_add_notes(ctx: Context):
+    text = """In a hole in the ground there lived a hobbit. Not a nasty, dirty, wet hole, filled with the ends of worms and an oozy smell, nor yet a dry, bare, sandy hole with nothing in it to sit down on or to eat: it was a hobbit-hole, and that means comfort."""
+    studied_language = get_studied_language(ctx.user)
+    text_in_studied_language = await resolve(_(text), studied_language.locale)
+    image_path = await generate_image(text)
+    return await ctx.send_message(
+        _(
+            """
+Now that you've selected a language to study, we can begin.
+
+Imagine you're reading a book. Here's a paragraph:
+
+> {text}
+
+Pick one or two words you don't understand, write each on a new line, and send them to me. Watch what happens.
+""",
+            text=text_in_studied_language,
+        ),
+        new=True,
+        image=image_path,
+        on_reply=NotesAddedDuringOnboarding(ctx.user.id),
+    )
+
+
+@bus.on(UserInputProcessed, {"action": "onboarding"})
+@router.authorize()
+async def tell_how_to_study_cards(ctx: Context):
+    text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill. (Hobbits don't wear shoes!)"""
+    image_path = await generate_image(text)
+
+    message = await ctx.send_message(
+        _(
+            """
+So now you know what those words mean — and hopefully you understand the paragraph better. But will you still remember them in a week or two, or when you see them again in another text?
+
+To strengthen your memory, spend a few minutes each day reviewing the words you’ve looked up. Here's how it works:
+
+☝️ I’ll show you a word, and you try to recall its meaning.
+
+✌️ If you remember it, press "ANSWER" to check. Then rate your recall — I’ll schedule your next review accordingly.
+
+🖐 If you can’t recall it, press "ANSWER" anyway, read the explanation, and try to memorize it again.
+
+There’s solid science behind how this works — the better you remember a word, the less often you’ll see it. But if you're starting to forget it, I’ll make sure it comes up again.
+"""
+        ),
+        new=True,
+        image=image_path,
+    )
+    await asyncio.sleep(2)
+    bus.emit(StudySessionRequested(ctx.user.id), ctx=ctx)
+
+
+@bus.on(CardGraded, {"action": "onboarding"})
+# @bus.on(StudySessionFinished, {"action": "onboarding"})
+async def tell_about_other_commands(ctx: Context):
+    del ctx.context(ctx.conversation)["action"]
+    native_language = get_native_language(ctx.user)
+    studied_language = get_studied_language(ctx.user)
+    message = await ctx.send_message(
+        _(
+            """
+You can start a study session anytime with the /study command. Practice regularly, and progress will follow in no time.
+
+Other useful commands to try:
+
+• `!!` — translates a phrase from {native_flag} to {studied_flag}.
+
+• `??` — clarifies tricky parts in {studied_flag}.
+
+• Send me a text longer than 30 characters — I’ll check it for mistakes.
+
+• Send me the URL of an article — I’ll summarize it for you, highlighting words you’re learning (try it on Wikipedia!).
+
+ • Didn’t like my explanation? React with 👎 and I’ll redo it.
+
+• Need a usage example? React with 🙏 and I’ll give you one.
+
+You can open the cheatsheet anytime with the /help command.
+            
+Good luck!
+""",
+            native_flag=native_language.flag,
+            studied_flag=studied_language.flag,
+            Emoji=Emoji,
+        ),
+        new=True,
+        # image=image_path,
+    )
+    bus.emit(OnboardingFinished(ctx.user.id), ctx=ctx)
+    return message
+
 
 ################################################################
 # Other parts
@@ -155,13 +267,3 @@ async def do_test(user: User):
     # Show the cards to a user, each card only once.
     # Get the views and results.
     pass
-
-
-@bus.on(OnboardingFinished)
-@bus.on(StudyLanguageSaved, {"action": "onboarding"})
-# @router.on(OnboardingFinished)
-# @router.on(StudyLanguageSaved, {"action": "onboarding"})
-@router.authorize()
-async def finish_onboarding(ctx: Context, user: User):
-    # Show a message with tips how to work with the bot.
-    await ctx.send_message(_("Here we go"), new=True)

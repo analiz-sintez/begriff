@@ -15,9 +15,3 @@ def get_native_language(user: User):
 def get_studied_language(user: User):
     default = Config.LANGUAGE["defaults"]["study"]
     return get_language(user.get_option("studied_language", default))
-
-
-def get_flag(locale: Locale) -> str:
-    if terr := Config.LANGUAGE["territories"].get(locale.language):
-        return flag(terr)
-    return ""

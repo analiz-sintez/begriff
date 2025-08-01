@@ -4,7 +4,6 @@ import logging
 from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
 
-from app.srs.service import get_card
 from nachricht.llm import query_llm
 from nachricht.auth import User
 from nachricht.bus import Signal
@@ -19,11 +18,11 @@ from ..llm import (
     translate,
     detect_language,
 )
-from ..notes import language_code_by_name
+from ..notes import language_code_by_name, get_language, Language
 from ..util import get_native_language, get_studied_language
 from ..srs import (
-    get_language,
     create_word_note,
+    get_card,
     get_notes,
     get_note,
     update_note,
@@ -101,18 +100,38 @@ class PhraseExplanationRequested(Signal):
 
 @dataclass
 class ExplanationNoteAdded(Signal):
+    """New note with an explanation of the word was created."""
+
+    note_id: int
+
+
+@dataclass
+class ExplanationNoteShown(Signal):
+    """New note with an explanation of the word was shown to the user."""
+
     note_id: int
 
 
 @dataclass
 class ExplanationNoteUpdated(Signal):
+    """A note was updated by teh user."""
+
     note_id: int
 
 
 @dataclass
 class NoteDeletionRequested(Signal):
+    """User requested to delete a note."""
+
     user_id: int
     note_id: int
+
+
+@dataclass
+class UserInputProcessed(Signal):
+    """All notes found in the user input were processed."""
+
+    user_id: int
 
 
 @dataclass
@@ -155,7 +174,7 @@ async def get_explanation_in_native_language(ctx: Context, note: Note) -> str:
     cached_translation = note.get_option(translation_option_key)
 
     if cached_translation is not None and isinstance(cached_translation, str):
-        logger.info(
+        logger.debug(
             f"Found cached translation for note {note.id} to native language {native_language.name}."
         )
         return cached_translation
@@ -262,7 +281,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             ):
                 if code := language_code_by_name(text_language_name):
                     text_language = get_language(text_language_name)
-                    bus.emit(
+                    await bus.emit_and_wait(
                         TranslationRequested(
                             user.id,
                             src_language_id=text_language.id,
@@ -274,15 +293,18 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
                 continue
 
         if len(text) <= 12:
-            bus.emit(
+            await bus.emit_and_wait(
                 WordExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         elif len(text) <= 30:
-            bus.emit(
+            await bus.emit_and_wait(
                 PhraseExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         else:
-            bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
+            await bus.emit_and_wait(
+                GrammarCheckRequested(user.id, text), ctx=ctx
+            )
+    await bus.emit_and_wait(UserInputProcessed(user.id), ctx=ctx)
 
 
 @bus.on(WordExplanationRequested)
@@ -373,7 +395,7 @@ async def add_note(
     display_explanation = format_explanation(
         await get_explanation_in_native_language(ctx, note)
     )
-    return await ctx.send_message(
+    message = await ctx.send_message(
         f"{icon} *{text}* — {display_explanation}",
         reply_to=None,
         on_reaction={
@@ -384,6 +406,8 @@ async def add_note(
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
     )
+    bus.emit(ExplanationNoteShown(note.id), ctx=ctx)
+    return message
 
 
 @bus.on(NoteDownvoted)
@@ -537,7 +561,7 @@ class ExamplesDownvoted(Signal):
 
 
 async def get_usage_examples(note: Note, ctx: Context):
-    language = get_language(note.language_id)
+    language = Language.from_id(note.language_id)
     native_language = get_native_language(note.user)
     return await query_llm(
         f"""
