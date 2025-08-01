@@ -1,4 +1,4 @@
-nachricht  @ git+https://github.com/analiz-sintez/nachricht.git
+nachricht @ git+https://github.com/analiz-sintez/nachricht.git
 Flask[async]
 SQLAlchemy
 SQLAlchemy-Utc

@@ -11,7 +11,6 @@ from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
 from ..srs import (
-    get_language,
     get_cards,
     get_card,
     get_view,
@@ -34,6 +33,10 @@ from .note import (
 
 if Config.IMAGE["enable"]:
     from ..image import generate_image
+else:
+
+    async def generate_image(*args, **kwargs):
+        return None
 
 
 # States: ASK -> ANSWER -> RECORD
@@ -166,7 +169,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
-        bus.emit(StudySessionFinished(user.id))
+        bus.emit(StudySessionFinished(user.id), ctx=ctx)
         image_path = await get_finish_image()
         return await ctx.send_message(
             _("All done for today."), image=image_path
@@ -180,7 +183,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
     front = card.front
     # If the card is reversed (explanation -> word), translate the explanation.
     note = card.note
-    if front == note.field2:
+    if isinstance(card, ReverseCard):
         front = await get_explanation_in_native_language(ctx, note)
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
@@ -220,16 +223,16 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     if not (card := get_card(card_id)):
         return
     note = card.note
+    front = card.front
+    back = card.back
     # ... translate the explanation
     # ... if it is on the front
-    front = card.front
-    if front == note.field2:
+    if isinstance(card, ReverseCard):
         front = await get_explanation_in_native_language(ctx, note)
-    front = format_explanation(front)
     # ... if it is on the back
-    back = card.back
-    if back == note.field2:
+    elif isinstance(card, DirectCard):
         back = await get_explanation_in_native_language(ctx, note)
+    front = format_explanation(front)
     back = format_explanation(back)
 
     bus.emit(CardAnswerShown(card.id))

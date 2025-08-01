@@ -6,7 +6,7 @@ from typing import List
 from babel import Locale
 
 from nachricht.auth import User
-from nachricht.bus import Signal
+from nachricht.bus import Signal, TerminalSignal
 from nachricht.messenger import Context, Keyboard, Button
 from nachricht.i18n import TranslatableString as _
 
@@ -184,7 +184,7 @@ class StudyLanguageSelected(Signal):
 
 
 @dataclass
-class StudyLanguageEntered(Signal):
+class StudyLanguageEntered(TerminalSignal):
     """A user manually entered study language name."""
 
     user_id: int
