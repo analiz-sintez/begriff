@@ -24,11 +24,11 @@ from ..srs import (
 )
 from ..llm import translate
 from ..config import Config
-from ..util import get_native_language, get_studied_language
 from .note import (
     format_explanation,
-    get_explanation_in_native_language,
+    get_word_note_display_text,
     ExamplesRequested,
+    get_studied_language,
 )
 
 if Config.IMAGE["enable"]:
@@ -157,7 +157,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
         language_id=language.id,
         end_ts=tomorrow,
         bury_siblings=user.get_option(
-            "fsrs/bury_siblings", Config.FSRS["bury_siblings"]
+            "fsrs/bury_siblings", ctx.config.FSRS["bury_siblings"]
         ),
         randomize=True,
         maturity=(

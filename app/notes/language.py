@@ -13,6 +13,7 @@ from flag import flag
 
 from nachricht import db
 from nachricht.db import Model
+from nachricht.auth import User
 
 from .. import Config
 
@@ -83,6 +84,16 @@ class Language(Model):
         if terr := Config.LANGUAGE["territories"].get(self.locale.language):
             return flag(terr)
         return self.name
+
+
+def get_native_language(user: User):
+    default = Config.LANGUAGE["defaults"]["native"]
+    return get_language(user.get_option("native_language", default))
+
+
+def get_studied_language(user: User):
+    default = Config.LANGUAGE["defaults"]["study"]
+    return get_language(user.get_option("studied_language", default))
 
 
 def _normalize_language_name(name: str) -> str:

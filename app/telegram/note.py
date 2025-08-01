@@ -18,8 +18,13 @@ from ..llm import (
     translate,
     detect_language,
 )
-from ..notes import language_code_by_name, get_language, Language
-from ..util import get_native_language, get_studied_language
+from ..notes import (
+    language_code_by_name,
+    get_language,
+    Language,
+    get_native_language,
+    get_studied_language,
+)
 from ..srs import (
     create_word_note,
     get_card,

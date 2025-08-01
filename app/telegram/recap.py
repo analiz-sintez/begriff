@@ -2,7 +2,6 @@ import re
 import logging
 from dataclasses import dataclass
 
-from app.util import get_studied_language, get_native_language
 from nachricht.auth import User
 from nachricht.messenger import Context, Emoji
 from nachricht.bus import Signal
@@ -10,9 +9,13 @@ from nachricht.llm import query_llm
 from nachricht.i18n import TranslatableString as _
 
 from .. import router, bus
-from ..notes import Language, get_language
+from ..notes import (
+    Language,
+    get_language,
+    get_native_language,
+    get_studied_language,
+)
 from ..srs import get_notes_to_inject, format_explanation
-from ..util import get_native_language, get_studied_language
 from ..config import Config
 from ..llm import get_recap, translate
 
@@ -132,8 +135,8 @@ async def translate_phrase(
     dst_language_id: int,
     text: str,
 ) -> None:
-    dst_language = Language.by_id(dst_language_id)
-    src_language = Language.by_id(src_language_id)
+    dst_language = Language.from_id(dst_language_id)
+    src_language = Language.from_id(src_language_id)
 
     translation = await translate(
         text,
@@ -242,8 +245,8 @@ async def clarify_text(
     native_language_id: int,
     text: str,
 ) -> None:
-    language = Language.by_id(language_id)
-    native_language = Language.by_id(native_language_id)
+    language = Language.from_id(language_id)
+    native_language = Language.from_id(native_language_id)
 
     try:
         translation = await get_clarification(

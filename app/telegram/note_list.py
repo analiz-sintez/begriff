@@ -14,10 +14,10 @@ from .. import bus, router
 from ..config import Config
 from ..notes import (
     Language,
-    get_language,
     get_note,
+    get_native_language,
+    get_studied_language,
 )
-from ..util import get_native_language, get_studied_language
 from ..srs import (
     Note,
     Maturity,
