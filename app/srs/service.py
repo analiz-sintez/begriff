@@ -186,12 +186,13 @@ def create_word_note(
         front_card = DirectCard(note_id=note.id, ts_scheduled=now)
         back_card = ReverseCard(note_id=note.id, ts_scheduled=now)
         db.session.add_all([front_card, back_card])
+        db.session.flush()
         logger.info("Cards created: %s, %s", front_card, back_card)
 
         db.session.commit()
         bus.emit(CardAdded(front_card.id))
         bus.emit(CardAdded(back_card.id))
-        logger.info(
+        logger.debug(
             "Transaction committed successfully for word note creation."
         )
         return note

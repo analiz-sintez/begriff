@@ -156,7 +156,7 @@ bus.connect(
 
 
 @dataclass
-class NotesAddedFirstTime(Signal):
+class NotesAddedDuringOnboarding(Signal):
     user_id: int
 
 
@@ -182,14 +182,14 @@ Pick one or two words you don't understand, write each on a new line, and send t
         ),
         new=True,
         image=image_path,
-        on_reply=NotesAddedFirstTime(ctx.user.id),
+        on_reply=NotesAddedDuringOnboarding(ctx.user.id),
     )
 
 
 @bus.on(UserInputProcessed, {"action": "onboarding"})
 @router.authorize()
 async def tell_how_to_study_cards(ctx: Context):
-    text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill."""
+    text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill. (Hobbits don't wear shoes!)"""
     image_path = await generate_image(text)
 
     message = await ctx.send_message(
@@ -221,7 +221,7 @@ async def tell_about_other_commands(ctx: Context):
     del ctx.context(ctx.conversation)["action"]
     native_language = get_native_language(ctx.user)
     studied_language = get_studied_language(ctx.user)
-    return await ctx.send_message(
+    message = await ctx.send_message(
         _(
             """
 You can start a study session anytime with the /study command. Practice regularly, and progress will follow in no time.
@@ -250,8 +250,9 @@ Good luck!
         ),
         new=True,
         # image=image_path,
-        # on_reply=NotesAddedFirstTime(ctx.user.id),
     )
+    bus.emit(OnboardingFinished(ctx.user.id), ctx=ctx)
+    return message
 
 
 ################################################################
@@ -266,10 +267,3 @@ async def do_test(user: User):
     # Show the cards to a user, each card only once.
     # Get the views and results.
     pass
-
-
-@bus.on(OnboardingFinished)
-@router.authorize()
-async def finish_onboarding(ctx: Context, user: User):
-    # Show a message with tips how to work with the bot.
-    await ctx.send_message(_("Here we go"), new=True)
