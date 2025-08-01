@@ -1,18 +1,16 @@
 import logging
 import asyncio
 from dataclasses import dataclass
-from typing import List
 
 from nachricht.bus import Signal
 from nachricht.auth import User
 from nachricht.messenger import Context, Emoji
 from nachricht.i18n import TranslatableString as _, resolve
-from nachricht.messenger import Button, Keyboard
 
 from .. import bus, router, Config
-from ..util import get_flag, get_native_language, get_studied_language
-from .note import ExplanationNoteShown
-from .study import StudySessionRequested, StudySessionFinished
+from ..util import get_native_language, get_studied_language
+from .note import UserInputProcessed
+from .study import StudySessionRequested, StudySessionFinished, CardGraded
 
 if Config.IMAGE["enable"]:
     from ..image import generate_image
@@ -165,7 +163,6 @@ class NotesAddedFirstTime(Signal):
 @bus.on(StudyLanguageSaved, {"action": "onboarding"})
 @router.authorize()
 async def show_how_to_add_notes(ctx: Context):
-    # ctx.context(ctx.conversation)["stage"] = "add_notes"
     text = """In a hole in the ground there lived a hobbit. Not a nasty, dirty, wet hole, filled with the ends of worms and an oozy smell, nor yet a dry, bare, sandy hole with nothing in it to sit down on or to eat: it was a hobbit-hole, and that means comfort."""
     studied_language = get_studied_language(ctx.user)
     text_in_studied_language = await resolve(_(text), studied_language.locale)
@@ -189,16 +186,11 @@ Pick one or two words you don't understand, write each on a new line, and send t
     )
 
 
-# @bus.on(ExplanationNoteShown, {"stage": "add_notes"})
-@bus.on(NotesAddedFirstTime, {"action": "onboarding"})
+@bus.on(UserInputProcessed, {"action": "onboarding"})
 @router.authorize()
 async def tell_how_to_study_cards(ctx: Context):
-    # ctx.context(ctx.conversation)["stage"] = "study_cards"
-
     text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill."""
     image_path = await generate_image(text)
-    # wait while notes are sent
-    await asyncio.sleep(15)
 
     message = await ctx.send_message(
         _(
@@ -219,15 +211,16 @@ There’s solid science behind how this works — the better you remember a word
         new=True,
         image=image_path,
     )
-    await asyncio.sleep(5)
+    await asyncio.sleep(2)
     bus.emit(StudySessionRequested(ctx.user.id), ctx=ctx)
 
 
-@bus.on(StudySessionFinished, {"action": "onboarding"})
+@bus.on(CardGraded, {"action": "onboarding"})
+# @bus.on(StudySessionFinished, {"action": "onboarding"})
 async def tell_about_other_commands(ctx: Context):
+    del ctx.context(ctx.conversation)["action"]
     native_language = get_native_language(ctx.user)
     studied_language = get_studied_language(ctx.user)
-    await asyncio.sleep(5)
     return await ctx.send_message(
         _(
             """

@@ -114,13 +114,24 @@ class ExplanationNoteShown(Signal):
 
 @dataclass
 class ExplanationNoteUpdated(Signal):
+    """A note was updated by teh user."""
+
     note_id: int
 
 
 @dataclass
 class NoteDeletionRequested(Signal):
+    """User requested to delete a note."""
+
     user_id: int
     note_id: int
+
+
+@dataclass
+class UserInputProcessed(Signal):
+    """All notes found in the user input were processed."""
+
+    user_id: int
 
 
 @dataclass
@@ -270,7 +281,7 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             ):
                 if code := language_code_by_name(text_language_name):
                     text_language = get_language(text_language_name)
-                    bus.emit(
+                    await bus.emit_and_wait(
                         TranslationRequested(
                             user.id,
                             src_language_id=text_language.id,
@@ -282,15 +293,18 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
                 continue
 
         if len(text) <= 12:
-            bus.emit(
+            await bus.emit_and_wait(
                 WordExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         elif len(text) <= 30:
-            bus.emit(
+            await bus.emit_and_wait(
                 PhraseExplanationRequested(user.id, text, explanation), ctx=ctx
             )
         else:
-            bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
+            await bus.emit_and_wait(
+                GrammarCheckRequested(user.id, text), ctx=ctx
+            )
+    await bus.emit_and_wait(UserInputProcessed(user.id), ctx=ctx)
 
 
 @bus.on(WordExplanationRequested)
