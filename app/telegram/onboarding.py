@@ -227,6 +227,7 @@ There’s solid science behind how this works — the better you remember a word
 async def tell_about_other_commands(ctx: Context):
     native_language = get_native_language(ctx.user)
     studied_language = get_studied_language(ctx.user)
+    await asyncio.sleep(5)
     return await ctx.send_message(
         _(
             """
