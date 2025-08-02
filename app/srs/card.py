@@ -2,7 +2,7 @@ from enum import Enum
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Literal, Dict
 
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy import Integer, String, ForeignKey, func
@@ -26,6 +26,10 @@ class Maturity(Enum):
 @dataclass
 class CardAdded(Signal):
     card_id: int
+
+
+OutputKey = Literal["text", "image"]
+OutputDict = Dict[OutputKey, Optional[str]]
 
 
 class Card(Model, OptionsMixin):
@@ -81,10 +85,10 @@ class Card(Model, OptionsMixin):
             and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
         )
 
-    async def get_front(self) -> dict:
+    async def get_front(self) -> OutputDict:
         raise NotImplementedError()
 
-    async def get_back(self) -> dict:
+    async def get_back(self) -> OutputDict:
         raise NotImplementedError()
 
 
@@ -93,11 +97,11 @@ class DirectCard(Card):
         "polymorphic_identity": "direct_card",
     }
 
-    async def get_front(self):
+    async def get_front(self) -> OutputDict:
         """Show only text, not the image."""
         return {"text": self.note.field1}
 
-    async def get_back(self):
+    async def get_back(self) -> OutputDict:
         """Show both the text and the image."""
         # if the image presents, show it, of not — don't
         front = await self.get_front()
@@ -113,13 +117,13 @@ class ReverseCard(Card):
         "polymorphic_identity": "reverse_card",
     }
 
-    async def get_front(self):
+    async def get_front(self) -> OutputDict:
         return {
             "text": await self.note.get_display_text(),
             "image": await self.note.get_image(),
         }
 
-    async def get_back(self):
+    async def get_back(self) -> OutputDict:
         front = await self.get_front()
         front["text"] = front["text"] + "\n\n" + self.note.field1
         return front
@@ -132,13 +136,13 @@ class ImageCard(Card):
         "polymorphic_identity": "image_card",
     }
 
-    async def get_front(self):
+    async def get_front(self) -> OutputDict:
         if not (image_path := await self.note.get_image()):
             raise RuntimeError("Image card required but no image found.")
 
         return {"text": None, "image": image_path}
 
-    async def get_back(self):
+    async def get_back(self) -> OutputDict:
         front = await self.get_front()
         front["text"] = (
             self.note.field1 + "\n\n" + (await self.note.get_display_text())
