@@ -6,8 +6,10 @@ from nachricht.auth import User, get_user
 
 from app.config import Config as DefaultConfig
 from app.notes import Note, Language
-from app.srs.models import Card, View, Answer
 from app.srs import (
+    Card,
+    View,
+    Answer,
     create_word_note,
     get_cards,
     get_notes,

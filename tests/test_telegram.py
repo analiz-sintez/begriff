@@ -80,10 +80,11 @@ def test_study_session(app):
         view_id = record_view_start(first_card.id)
 
         # Mocking the context for handle_study_session
-        mock_account = AsyncMock()
+        mock_account = MagicMock()
         mock_account.login = user.login
-        ctx = AsyncMock()
+        ctx = MagicMock()
         ctx.account = mock_account
+        ctx.send_message = AsyncMock()
 
         # 1. Emulate requesting card answer.
         # ... due to authorize magic, we must use only keyword arguments here
