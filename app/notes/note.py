@@ -1,15 +1,11 @@
 import logging
+from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import (
-    Integer,
-    String,
-    ForeignKey,
-)
+from sqlalchemy import Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from nachricht.auth import User
-from nachricht.db import Model, OptionsMixin
-from nachricht.messenger import Context
+from nachricht.db import Model, OptionsMixin, dttm_utc
 
 from .language import Language
 
@@ -20,6 +16,9 @@ logger = logging.getLogger(__name__)
 class Note(Model, OptionsMixin):
     __tablename__ = "notes"
     id = mapped_column(Integer, primary_key=True)
+    ts_created: Mapped[dttm_utc] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=func.now()
+    )
     type: Mapped[str] = mapped_column(String(50))
     __mapper_args__ = {
         "polymorphic_on": "type",

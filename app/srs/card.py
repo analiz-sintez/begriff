@@ -5,11 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import relationship, mapped_column, Mapped
-from sqlalchemy import (
-    Integer,
-    String,
-    ForeignKey,
-)
+from sqlalchemy import Integer, String, ForeignKey, func
 
 from nachricht.db import Model, OptionsMixin, dttm_utc
 from nachricht.bus import Signal
@@ -35,6 +31,9 @@ class CardAdded(Signal):
 class Card(Model, OptionsMixin):
     __tablename__ = "cards"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts_created: Mapped[dttm_utc] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=func.now()
+    )
     type: Mapped[str] = mapped_column(String(50))
     __mapper_args__ = {
         "polymorphic_on": "type",
