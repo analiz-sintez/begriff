@@ -24,6 +24,8 @@ from ..srs import (
 )
 from ..llm import translate
 from ..config import Config
+from ..notes import get_note
+from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
     ExamplesRequested,
@@ -85,7 +87,7 @@ class StudySessionFinished(Signal):
 
 @dataclass
 class ImageGenerated(Signal):
-    view_id: int
+    note_id: int
 
 
 logger = logging.getLogger(__name__)
@@ -296,20 +298,37 @@ async def maybe_generate_image(view_id: int):
     # Don't generate new image if an old one is in place.
     image_path = note.get_option("image/path")
     if image_path and os.path.exists(image_path):
+        # ...but create an image card if none exists
+        logger.info("Creating missing image card for note %s", note.id)
+        if not any([isinstance(c, ImageCard) for c in note.cards]):
+            await add_image_card(note.id)
         return
 
     # Translate any language to English since models understand it.
-    explanation = note.field2
-    if not note.language.name == "English":
+    option_key = "explanations/en"
+    if note.language.name == "English":
+        explanation = note.field2
+    elif not (explanation := note.get_option(option_key)):
         explanation = await translate(explanation, note.language.name)
-        note.set_option("explanation/en", explanation)
+        note.set_option(option_key, explanation)
 
     # Generate an image.
     try:
         image_path = await generate_image(explanation)
         note.set_option("image/path", image_path)
-        bus.emit(ImageGenerated(view_id))
+        bus.emit(ImageGenerated(note.id))
     except Exception as e:
         logger.warning(
             "Couldn't generate image for note: %s. Error: %s", note, e
         )
+
+
+@bus.on(ImageGenerated)
+async def add_image_card(note_id: int):
+    if not (note := get_note(note_id)):
+        return
+    logger.info("Creating an image card for note %s", note.id)
+    now = datetime.now(timezone.utc)
+    card = ImageCard(note_id=note.id, ts_scheduled=now)
+    bus.emit(CardAdded(card.id))
+    return card
