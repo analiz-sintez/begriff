@@ -106,17 +106,6 @@ async def get_finish_image():
     return image_path
 
 
-async def _get_image_for_show(card, previous_card=None):
-    note = card.note
-    image_path = note.get_option("image/path")
-    # Note has image: use it.
-    if image_path and os.path.exists(image_path):
-        return image_path
-    # Note shouldn't have image but previous one has: set default one.
-    if not previous_card or previous_card.note.get_option("image/path"):
-        return await get_default_image()
-
-
 @router.command("study", description=_("Start a study session"))
 @router.authorize()
 async def start_study_session(ctx: Context, user: User) -> None:
@@ -177,7 +166,6 @@ async def study_next_card(ctx: Context, user: User) -> None:
         )
 
     card = cards[0]
-    image_path = await _get_image_for_show(card)
 
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     front = await card.get_front()
