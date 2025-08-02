@@ -146,53 +146,6 @@ class NoteDownvoted(Signal):
     note_id: int
 
 
-async def get_word_note_display_text(ctx: Context, note: Note) -> str:
-    """
-    Get the explanation of a note translated into the user's selected native language
-    for the note's studied language. Caches the translation in note options.
-
-    Args:
-        note: The Note object.
-
-    Returns:
-        The explanation string, translated if necessary.
-    """
-    studied_language = note.language
-    native_language = get_native_language(note.user)
-
-    # If studied language is the native language, no translation needed.
-    if native_language.id == studied_language.id:
-        return note.field2
-
-    # Check cache in note options
-    translation_key = f"translations/{native_language.code}"
-    if translation := note.get_option(translation_key):
-        logger.debug(
-            f"Found cached translation for note {note.id} to native language {native_language.name}."
-        )
-        return translation
-
-    logger.info(
-        f"Translating note {note.id} from {studied_language.name} to {native_language.name}."
-    )
-    try:
-        translation = await translate(
-            note.field1,
-            src_language=studied_language.name,
-            dst_language=native_language.name,
-        )
-        note.set_option(translation_key, translation)
-        logger.info(
-            f"Saved new translation for note {note.id} to native language {native_language.name}."
-        )
-        return translation
-    except Exception as e:
-        logger.error(
-            f"Error translating note {note.id}: {e}. Returning an explanation."
-        )
-        return note.field2
-
-
 def _parse_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     """Parse a line of text into a word and its explanation, if present.
 
@@ -392,9 +345,7 @@ async def add_note(
         )
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
-    display_text = format_explanation(
-        await get_word_note_display_text(ctx, note)
-    )
+    display_text = format_explanation(await note.get_display_text())
     message = await ctx.send_message(
         f"{icon} *{word}* — {display_text}",
         reply_to=None,
@@ -450,9 +401,7 @@ async def handle_negative_reaction(
 
     # Send the new explanation to the user as a new message
     icon = "🟡"  # Regenerated note: yellow ball
-    display_explanation = format_explanation(
-        await get_word_note_display_text(ctx, note)
-    )
+    display_explanation = format_explanation(await note.get_display_text())
     new_message = await ctx.send_message(
         f"{icon} *{note.field1}* — {display_explanation}",
         new=True,  # Ensure it's a new message

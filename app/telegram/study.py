@@ -26,7 +26,6 @@ from ..llm import translate
 from ..config import Config
 from .note import (
     format_explanation,
-    get_word_note_display_text,
     ExamplesRequested,
     get_studied_language,
 )
@@ -184,7 +183,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
     # If the card is reversed (explanation -> word), translate the explanation.
     note = card.note
     if isinstance(card, ReverseCard):
-        front = await get_word_note_display_text(ctx, note)
+        front = await note.get_display_text()
     front = format_explanation(front)
     bus.emit(CardQuestionShown(card.id))
     return await ctx.send_message(
@@ -228,10 +227,10 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     # ... translate the explanation
     # ... if it is on the front
     if isinstance(card, ReverseCard):
-        front = await get_word_note_display_text(ctx, note)
+        front = await note.get_display_text()
     # ... if it is on the back
     elif isinstance(card, DirectCard):
-        back = await get_word_note_display_text(ctx, note)
+        back = await note.get_display_text()
     front = format_explanation(front)
     back = format_explanation(back)
 
