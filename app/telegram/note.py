@@ -560,7 +560,7 @@ class ExamplesDownvoted(Signal):
     note_id: int
 
 
-async def get_usage_examples(note: Note, ctx: Context):
+async def get_usage_example(note: Note, ctx: Context):
     language = Language.from_id(note.language_id)
     native_language = get_native_language(note.user)
     return await query_llm(
