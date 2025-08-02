@@ -2,12 +2,9 @@ import re
 import time
 import random
 import logging
-from enum import Enum
-from dataclasses import dataclass
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
-import fsrs_rs_python as fsrs
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from sqlalchemy.orm import aliased
@@ -18,8 +15,8 @@ from nachricht.auth import User
 
 from .. import bus
 from ..config import Config
-from ..notes import Note, Language
-from .view import View, Answer
+from ..notes import Note, Language, WordNote
+from .view import View
 from .card import Card, Maturity, DirectCard, ReverseCard, CardAdded
 
 
@@ -171,7 +168,7 @@ def create_word_note(
 
     try:
         # Create a note.
-        note = Note(
+        note = WordNote(
             field1=text,
             field2=explanation,
             user_id=user_id,

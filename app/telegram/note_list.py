@@ -372,143 +372,143 @@ async def show_note_card(
     )
 
 
-@bus.on(NoteTitleEditRequested)
-@router.authorize()
-async def handle_note_title_edit_requested(
-    ctx: Context, user: User, note_id: int
-):
-    logger.info(
-        f"User {user.login} requested to edit title for note {note_id}"
-    )
-    note_to_edit = get_note(note_id)
-    if not note_to_edit or note_to_edit.user_id != user.id:
-        await ctx.send_message("Error: Note not found or not yours.")
-        return
+# @bus.on(NoteTitleEditRequested)
+# @router.authorize()
+# async def handle_note_title_edit_requested(
+#     ctx: Context, user: User, note_id: int
+# ):
+#     logger.info(
+#         f"User {user.login} requested to edit title for note {note_id}"
+#     )
+#     note_to_edit = get_note(note_id)
+#     if not note_to_edit or note_to_edit.user_id != user.id:
+#         await ctx.send_message("Error: Note not found or not yours.")
+#         return
 
-    ctx.context(user)["active_edit"] = {
-        "note_id": note_id,
-        "field_to_edit": "field1",
-        "original_message_id": (
-            ctx._update.callback_query.message.message_id
-            if ctx._update.callback_query
-            else None
-        ),
-    }
-    await ctx.send_message("Please send the new title for the note.")
-    if ctx._update.callback_query:
-        await ctx._update.callback_query.answer()
+#     ctx.context(user)["active_edit"] = {
+#         "note_id": note_id,
+#         "field_to_edit": "field1",
+#         "original_message_id": (
+#             ctx._update.callback_query.message.message_id
+#             if ctx._update.callback_query
+#             else None
+#         ),
+#     }
+#     await ctx.send_message("Please send the new title for the note.")
+#     if ctx._update.callback_query:
+#         await ctx._update.callback_query.answer()
 
 
-@bus.on(NoteExplanationEditRequested)
-@router.authorize()
-async def handle_note_explanation_edit_requested(
-    ctx: Context, user: User, note_id: int
-):
-    logger.info(
-        f"User {user.login} requested to edit explanation for note {note_id}"
-    )
-    note_to_edit = get_note(note_id)
-    if not note_to_edit or note_to_edit.user_id != user.id:
-        await ctx.send_message("Error: Note not found or not yours.")
-        return
+# @bus.on(NoteExplanationEditRequested)
+# @router.authorize()
+# async def handle_note_explanation_edit_requested(
+#     ctx: Context, user: User, note_id: int
+# ):
+#     logger.info(
+#         f"User {user.login} requested to edit explanation for note {note_id}"
+#     )
+#     note_to_edit = get_note(note_id)
+#     if not note_to_edit or note_to_edit.user_id != user.id:
+#         await ctx.send_message("Error: Note not found or not yours.")
+#         return
 
-    ctx.context(user)["active_edit"] = {
-        "note_id": note_id,
-        "field_to_edit": "field2",
-        "original_message_id": (
-            ctx._update.callback_query.message.message_id
-            if ctx._update.callback_query
-            else None
-        ),
-    }
-    await ctx.send_message("Please send the new explanation for the note.")
-    if ctx._update.callback_query:
-        await ctx._update.callback_query.answer()
+#     ctx.context(user)["active_edit"] = {
+#         "note_id": note_id,
+#         "field_to_edit": "field2",
+#         "original_message_id": (
+#             ctx._update.callback_query.message.message_id
+#             if ctx._update.callback_query
+#             else None
+#         ),
+#     }
+#     await ctx.send_message("Please send the new explanation for the note.")
+#     if ctx._update.callback_query:
+#         await ctx._update.callback_query.answer()
 
 
 # @router.message(".*")
-@router.authorize()
-async def handle_note_edit_input(ctx: Context, user: User):
-    if not ctx.context(user) or "active_edit" not in ctx.context(user):
-        # This message is not part of an active edit session.
-        # It should be handled by other message handlers (e.g., adding new notes).
-        # The router will try other handlers if this one doesn't "consume" the update.
-        # For now, we simply return, assuming other handlers might pick it up.
-        # If no other handler picks it up, PTB might log an "unhandled update" warning.
-        # A more robust solution might involve ConversationHandler or checking if other handlers exist.
-        logger.debug(
-            "handle_note_edit_input: No active_edit in user_data, passing."
-        )
-        return True  # Indicate that this handler did not fully process the message if it's not an edit.
+# @router.authorize()
+# async def handle_note_edit_input(ctx: Context, user: User):
+#     if not ctx.context(user) or "active_edit" not in ctx.context(user):
+#         # This message is not part of an active edit session.
+#         # It should be handled by other message handlers (e.g., adding new notes).
+#         # The router will try other handlers if this one doesn't "consume" the update.
+#         # For now, we simply return, assuming other handlers might pick it up.
+#         # If no other handler picks it up, PTB might log an "unhandled update" warning.
+#         # A more robust solution might involve ConversationHandler or checking if other handlers exist.
+#         logger.debug(
+#             "handle_note_edit_input: No active_edit in user_data, passing."
+#         )
+#         return True  # Indicate that this handler did not fully process the message if it's not an edit.
 
-    active_edit_info = ctx.context(user)["active_edit"]
-    note_id = active_edit_info["note_id"]
-    field_to_edit = active_edit_info["field_to_edit"]
+#     active_edit_info = ctx.context(user)["active_edit"]
+#     note_id = active_edit_info["note_id"]
+#     field_to_edit = active_edit_info["field_to_edit"]
 
-    note_to_edit = get_note(note_id)
+#     note_to_edit = get_note(note_id)
 
-    if not note_to_edit:
-        await ctx.send_message("Error: Note not found. Edit cancelled.")
-        del ctx.context(user)["active_edit"]
-        return
+#     if not note_to_edit:
+#         await ctx.send_message("Error: Note not found. Edit cancelled.")
+#         del ctx.context(user)["active_edit"]
+#         return
 
-    if note_to_edit.user_id != user.id:
-        await ctx.send_message(
-            "Error: You can only edit your own notes. Edit cancelled.",
-        )
-        del ctx.context(user)["active_edit"]
-        return
+#     if note_to_edit.user_id != user.id:
+#         await ctx.send_message(
+#             "Error: You can only edit your own notes. Edit cancelled.",
+#         )
+#         del ctx.context(user)["active_edit"]
+#         return
 
-    new_value = ctx.message.text.strip()
-    if not new_value:
-        await ctx.send_message(
-            "The new value cannot be empty. Please try again or send /cancel to abort.",
-        )
-        # Do not clear active_edit, let user try again.
-        return
+#     new_value = ctx.message.text.strip()
+#     if not new_value:
+#         await ctx.send_message(
+#             "The new value cannot be empty. Please try again or send /cancel to abort.",
+#         )
+#         # Do not clear active_edit, let user try again.
+#         return
 
-    confirmation_message = ""
-    try:
-        if field_to_edit == "field1":
-            old_field1_value = note_to_edit.field1
-            note_to_edit.field1 = new_value
-            # Manually update associated cards' front/back if they used the old field1
-            for card in note_to_edit.cards:
-                if card.front == old_field1_value:
-                    card.front = new_value
-                if (
-                    card.back == old_field1_value
-                ):  # Handles cards where field1 was on the back
-                    card.back = new_value
-            db.session.add(note_to_edit)  # Mark note as dirty
-            db.session.commit()  # Commit note and card changes
-            confirmation_message = f"Note title updated to: '{new_value}'"
-            logger.info(
-                f"Note {note_id} field1 updated to '{new_value}' by user {user.login}."
-            )
+#     confirmation_message = ""
+#     try:
+#         if field_to_edit == "field1":
+#             old_field1_value = note_to_edit.field1
+#             note_to_edit.field1 = new_value
+#             # Manually update associated cards' front/back if they used the old field1
+#             for card in note_to_edit.cards:
+#                 if card.front == old_field1_value:
+#                     card.front = new_value
+#                 if (
+#                     card.back == old_field1_value
+#                 ):  # Handles cards where field1 was on the back
+#                     card.back = new_value
+#             db.session.add(note_to_edit)  # Mark note as dirty
+#             db.session.commit()  # Commit note and card changes
+#             confirmation_message = f"Note title updated to: '{new_value}'"
+#             logger.info(
+#                 f"Note {note_id} field1 updated to '{new_value}' by user {user.login}."
+#             )
 
-        elif field_to_edit == "field2":
-            note_to_edit.field2 = new_value
-            # srs_update_note handles card updates well for field2 changes and commits.
-            srs_update_note(note_to_edit)
-            confirmation_message = f"Note explanation updated."
-            logger.info(f"Note {note_id} field2 updated by user {user.login}.")
+#         elif field_to_edit == "field2":
+#             note_to_edit.field2 = new_value
+#             # srs_update_note handles card updates well for field2 changes and commits.
+#             srs_update_note(note_to_edit)
+#             confirmation_message = f"Note explanation updated."
+#             logger.info(f"Note {note_id} field2 updated by user {user.login}.")
 
-        await ctx.send_message(confirmation_message)
-    except Exception as e:
-        db.session.rollback()
-        logger.error(
-            f"Error updating note {note_id} for user {user.login}: {e}",
-            exc_info=True,
-        )
-        await ctx.send_message(
-            "An error occurred while updating the note. Please try again.",
-        )
-    finally:
-        del ctx.context(user)["active_edit"]
-        # To prevent other handlers from processing this message after it's been handled as an edit input:
-        # raise DispatcherHandlerStop(MessageHandler) # This would require importing DispatcherHandlerStop
-        # For simplicity with current router, we assume this is the end of handling for this message.
+#         await ctx.send_message(confirmation_message)
+#     except Exception as e:
+#         db.session.rollback()
+#         logger.error(
+#             f"Error updating note {note_id} for user {user.login}: {e}",
+#             exc_info=True,
+#         )
+#         await ctx.send_message(
+#             "An error occurred while updating the note. Please try again.",
+#         )
+#     finally:
+#         del ctx.context(user)["active_edit"]
+#         # To prevent other handlers from processing this message after it's been handled as an edit input:
+#         # raise DispatcherHandlerStop(MessageHandler) # This would require importing DispatcherHandlerStop
+#         # For simplicity with current router, we assume this is the end of handling for this message.
 
 
 @bus.on(NoteDeletionRequested)

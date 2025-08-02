@@ -60,8 +60,6 @@ class Card(Model, OptionsMixin):
         return {
             "id": self.id,
             "note_id": self.note_id,
-            "front": self.front,
-            "back": self.back,
             "stability": self.stability,
             "difficulty": self.difficulty,
             "ts_scheduled": self.ts_scheduled,
@@ -73,7 +71,6 @@ class Card(Model, OptionsMixin):
             f"note_id={self.note_id}, "
             f"stability={self.stability}, "
             f"difficulty={self.difficulty}, "
-            f"front={self.front}, back={self.back}, "
             f"ts_scheduled={self.ts_scheduled})>"
         )
 
@@ -84,12 +81,10 @@ class Card(Model, OptionsMixin):
             and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
         )
 
-    @property
-    def front(self):
+    async def get_front(self) -> dict:
         raise NotImplementedError()
 
-    @property
-    def back(self):
+    async def get_back(self) -> dict:
         raise NotImplementedError()
 
 
@@ -98,13 +93,19 @@ class DirectCard(Card):
         "polymorphic_identity": "direct_card",
     }
 
-    @property
-    def front(self):
-        return self.note.field1
+    async def get_front(self):
+        """Show only text, not the image."""
+        return {"text": self.note.field1}
 
-    @property
-    def back(self):
-        return self.note.field2
+    async def get_back(self):
+        """Show both the text and the image."""
+        # if the image presents, show it, of not — don't
+        front = await self.get_front()
+        front["text"] = (
+            front["text"] + "\n\n" + (await self.note.get_display_text())
+        )
+        front["image"] = await self.note.get_image()
+        return front
 
 
 class ReverseCard(Card):
@@ -112,13 +113,38 @@ class ReverseCard(Card):
         "polymorphic_identity": "reverse_card",
     }
 
-    @property
-    def front(self):
-        return self.note.field2
+    async def get_front(self):
+        return {
+            "text": await self.note.get_display_text(),
+            "image": await self.note.get_image(),
+        }
 
-    @property
-    def back(self):
-        return self.note.field1
+    async def get_back(self):
+        front = await self.get_front()
+        front["text"] = front["text"] + "\n\n" + self.note.field1
+        return front
+
+
+class ImageCard(Card):
+    """Show image, guess the word and the explanation."""
+
+    __mapper_args__ = {
+        "polymorphic_identity": "image_card",
+    }
+
+    async def get_front(self):
+        if not (image_path := await self.note.get_image()):
+            raise RuntimeError("Image card required but no image found.")
+
+        return {"text": None, "image": image_path}
+
+    async def get_back(self):
+        front = await self.get_front()
+        front["text"] = (
+            self.note.field1 + "\n\n" + (await self.note.get_display_text())
+        )
+
+        return front
 
 
 def get_card(card_id: int) -> Optional[Card]:

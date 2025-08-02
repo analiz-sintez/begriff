@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Optional
 from nachricht.messenger import Context
@@ -12,6 +13,15 @@ class WordNote(Note):
     __mapper_args__ = {
         "polymorphic_identity": "word_note",
     }
+
+    async def get_image(self) -> Optional[str]:
+        if not (image_path := self.get_option("image/path")):
+            return None
+        if not isinstance(image_path, str):
+            return None
+        if not os.path.exists(image_path):
+            return None
+        return image_path
 
     async def get_display_text(self) -> Optional[str]:
         studied_language = self.language

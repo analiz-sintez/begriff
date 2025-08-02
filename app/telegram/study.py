@@ -178,18 +178,18 @@ async def study_next_card(ctx: Context, user: User) -> None:
     image_path = await _get_image_for_show(card)
 
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
-    logger.info("Display card front for user %s: %s", user.login, card.front)
-    front = card.front
+    front = await card.get_front()
+    logger.info("Display card front for user %s: %s", user.login, front)
     # If the card is reversed (explanation -> word), translate the explanation.
     note = card.note
-    if isinstance(card, ReverseCard):
-        front = await note.get_display_text()
-    front = format_explanation(front)
+    front["text"] = format_explanation(front["text"])
+    if not front.get("image"):
+        front["image"] = await get_default_image()
     bus.emit(CardQuestionShown(card.id))
     return await ctx.send_message(
-        front,
+        front["text"],
         keyboard,
-        image_path,
+        front.get("image"),
         reply_to=None,
         context={"note_id": note.id, "card_id": card.id},
         on_reaction=(
@@ -222,17 +222,8 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     if not (card := get_card(card_id)):
         return
     note = card.note
-    front = card.front
-    back = card.back
-    # ... translate the explanation
-    # ... if it is on the front
-    if isinstance(card, ReverseCard):
-        front = await note.get_display_text()
-    # ... if it is on the back
-    elif isinstance(card, DirectCard):
-        back = await note.get_display_text()
-    front = format_explanation(front)
-    back = format_explanation(back)
+    back = await card.get_back()
+    back["text"] = format_explanation(back["text"])
 
     bus.emit(CardAnswerShown(card.id))
     logger.info(
@@ -254,8 +245,9 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
         ]
     )
     return await ctx.send_message(
-        f"{front}\n\n{back}",
+        back["text"],
         keyboard,
+        back.get("image"),
         on_reaction={
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
