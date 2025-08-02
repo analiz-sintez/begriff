@@ -400,7 +400,7 @@ async def add_note(
         reply_to=None,
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.PRAY: ExampleRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -458,7 +458,7 @@ async def handle_negative_reaction(
         new=True,  # Ensure it's a new message
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.PRAY: ExampleRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -540,7 +540,7 @@ async def check_sentence_for_mistakes(
 ################################################################
 # Examples
 @dataclass
-class ExamplesRequested(Signal):
+class ExampleRequested(Signal):
     """User requested usage examples for a note."""
 
     note_id: int
@@ -554,8 +554,8 @@ class ExamplesSent(Signal):
 
 
 @dataclass
-class ExamplesDownvoted(Signal):
-    """The user downvoted usage examples we sent to them."""
+class ExampleDownvoted(Signal):
+    """The user downvoted usage example we sent to them."""
 
     note_id: int
 
@@ -582,8 +582,8 @@ Your response:
     )
 
 
-@bus.on(ExamplesRequested)
-@bus.on(ExamplesDownvoted)
+@bus.on(ExampleRequested)
+@bus.on(ExampleDownvoted)
 @router.authorize()
 async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
     if not (note := get_note(note_id)):
@@ -599,7 +599,10 @@ async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
     await ctx.send_message(
         text=response,
         reply_to=ctx.message,
-        on_reaction={Emoji.THUMBSDOWN: ExamplesRequested(note.id)},
+        on_reaction={
+            Emoji.THUMBSDOWN: ExampleDownvoted(note.id),
+            Emoji.THUMBSUP: ExampleUpvoted(note.id)
+        },
     )
     bus.emit(ExamplesSent(note.id))
 
@@ -607,7 +610,7 @@ async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
 @dataclass
 class ExampleUpvoted(Signal):
     note_id: int
-    text: str
+    # text: str
 
 
 @dataclass

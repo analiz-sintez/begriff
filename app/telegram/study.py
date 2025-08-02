@@ -27,7 +27,7 @@ from ..config import Config
 from .note import (
     format_explanation,
     get_word_note_display_text,
-    ExamplesRequested,
+    ExampleRequested,
     get_studied_language,
 )
 
@@ -196,7 +196,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
         on_reaction=(
             {
                 Emoji.PRAY: (
-                    ExamplesRequested(note_id=note.id)
+                    ExampleRequested(note_id=note.id)
                     if isinstance(card, DirectCard)
                     else []
                 ),
@@ -258,7 +258,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
         f"{front}\n\n{back}",
         keyboard,
         on_reaction={
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.PRAY: ExampleRequested(note_id=note.id),
         },
     )
 

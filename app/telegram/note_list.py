@@ -28,7 +28,7 @@ from .note import (
     get_word_note_display_text,
     format_explanation,
     NoteDeletionRequested,
-    ExamplesRequested,
+    ExampleRequested,
 )
 
 
@@ -370,7 +370,7 @@ async def show_note_card(
         new=True,  # Always send a new message for note details
         reply_to=reply_to_message,
         on_reaction={
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.PRAY: ExampleRequested(note_id=note.id),
         },
     )
 
