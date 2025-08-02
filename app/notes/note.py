@@ -37,7 +37,7 @@ class Note(Model, OptionsMixin):
     user = relationship(User, backref="notes")
     language = relationship(Language, backref="notes")
 
-    async def get_display_text(self, ctx: Context) -> Optional[str]:
+    async def get_display_text(self) -> Optional[str]:
         return self.field2 if self.field2 else ""
 
     def to_dict(self) -> dict:
