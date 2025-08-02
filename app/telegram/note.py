@@ -576,7 +576,7 @@ async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
         return
 
     try:
-        example = await get_usage_example(note)
+        example = await get_usage_example(note, ctx)
         response = format_explanation(example)
     except Exception as e:
         logging.error(f"Got error while making an example: {e}")
@@ -609,7 +609,7 @@ async def add_example_to_deck(ctx: Context, user: User, note_id: int, text: str)
     #     return
 
     # try:
-    #     example = await get_usage_example(note)
+    #     example = await get_usage_example(note, ctx)
     #     response = format_explanation(example)
     # except Exception as e:
     #     logging.error(f"Got error while making an example: {e}")
