@@ -1,3 +1,4 @@
+from time import sleep
 import logging
 
 from telegram import Update
@@ -72,4 +73,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    for _ in range(3):
+        try:
+            main()
+            break
+        except RuntimeError as e:
+            logger.error("Error: %s, retrying...", e)
+            sleep(3)

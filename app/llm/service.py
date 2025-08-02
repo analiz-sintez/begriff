@@ -74,7 +74,7 @@ async def get_explanation(
     )
 
     instructions = f"""
-You are an expert linguist tasked with explaining words in simple terms. You must explain the given {src_language} word or phrase in {dst_language} using the following guidelines:
+You are an expert linguist tasked with explaining words in simple terms. Your task is to explain the given {src_language} word or phrase in {dst_language} using the following guidelines:
 
 - Avoid using the exact word or phrase in the explanation.
 - Only treat the word as a verb if preceded by 'to'.
@@ -178,11 +178,15 @@ async def get_base_form(input: str, language: str) -> str:
     )
 
     instructions = f"""
-Please convert the following {language} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).
+Convert the following {language} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).
 
 Instructions:
-- Return the word in its base form.
+- Return only the word in its base form: no markup, comments or explanations.
 - If the word is already in its base form, return it as is.
+
+Examples:
+- English: trees — tree, cogitated — to cogitate (always use "to" with the verbs!)
+- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch (always use articles!)
 """
 
     logger.debug(

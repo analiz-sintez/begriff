@@ -13,6 +13,7 @@ from flag import flag
 
 from nachricht import db
 from nachricht.db import Model
+from nachricht.auth import User
 
 from .. import Config
 
@@ -46,6 +47,24 @@ class Language(Model):
     def __repr__(self) -> str:
         return f"<Language(id={self.id}, name={self.name})>"
 
+    @classmethod
+    def from_id(cls, id: int) -> "Language":
+        return get_language(id)
+
+    @classmethod
+    def from_locale(cls, locale: Locale) -> "Language":
+        name = locale.get_language_name("en")
+        return get_language(name)
+
+    @classmethod
+    def from_name(cls, name: str) -> "Language":
+        return get_language(name)
+
+    @classmethod
+    def from_code(cls, code: str) -> "Language":
+        locale = Locale.parse(code)
+        return cls.from_locale(locale)
+
     @property
     def code(self) -> Optional[str]:
         return language_code_by_name(self.name)
@@ -56,11 +75,25 @@ class Language(Model):
             return
         return Locale(code)
 
+    def get_localized_name(self, locale: Locale) -> str:
+        return self.locale.get_language_name(locale.language)
+
     @property
     def flag(self) -> str:
+        """Return the language flag, or if we can't find it, the language name."""
         if terr := Config.LANGUAGE["territories"].get(self.locale.language):
             return flag(terr)
-        return ""
+        return self.name
+
+
+def get_native_language(user: User):
+    default = Config.LANGUAGE["defaults"]["native"]
+    return get_language(user.get_option("native_language", default))
+
+
+def get_studied_language(user: User):
+    default = Config.LANGUAGE["defaults"]["study"]
+    return get_language(user.get_option("studied_language", default))
 
 
 def _normalize_language_name(name: str) -> str:

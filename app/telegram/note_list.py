@@ -12,17 +12,20 @@ from nachricht.messenger import Context, Keyboard, Button, Emoji
 
 from .. import bus, router
 from ..config import Config
+from ..notes import (
+    Language,
+    get_note,
+    get_native_language,
+    get_studied_language,
+)
 from ..srs import (
-    get_language,
     Note,
     Maturity,
     get_notes,
-    Language,
-    get_note,
     update_note as srs_update_note,
 )
 from .note import (
-    get_explanation_in_native_language,
+    get_word_note_display_text,
     format_explanation,
     NoteDeletionRequested,
     ExamplesRequested,
@@ -235,11 +238,7 @@ async def list_cards_command(ctx: Context, user: User) -> None:
     """
     Initial handler for the /list command. Displays 'Young' notes by default, page 1.
     """
-    language = get_language(
-        user.get_option(
-            "studied_language", Config.LANGUAGE["defaults"]["study"]
-        )
-    )
+    language = get_studied_language(user)
     if not language:
         await ctx.send_message(
             "Error: Studied language not set or found. Please set a language using /language.",
@@ -269,7 +268,7 @@ async def handle_list_notes_by_maturity_request(
     """
     Handles button presses from the maturity or pagination keyboard to display notes.
     """
-    language = get_language(language_id)
+    language = Language.from_id(language_id)
     if not language:
         logger.error(
             f"Language not found for id {language_id} for user {user.login} in ListNotesByMaturityRequested."
@@ -316,7 +315,7 @@ async def show_note_card(
     )
     studied_language_name = note.language.name
 
-    explanation_in_native_lang_raw = await get_explanation_in_native_language(
+    explanation_in_native_lang_raw = await get_word_note_display_text(
         ctx, note
     )
     explanation_in_native_lang_formatted = format_explanation(
@@ -329,16 +328,10 @@ async def show_note_card(
     )
 
     if original_explanation_raw != explanation_in_native_lang_raw:
-        native_language_id = user.get_option("native_language")
-        if native_language_id and native_language_id != note.language_id:
-            if native_language := get_language(native_language_id):
-                message_text_parts.append(
-                    f"\n\n_{native_language.name}_:\n{explanation_in_native_lang_formatted}"
-                )
-            else:
-                logger.warning(
-                    f"Could not find native language object for ID {native_language_id}"
-                )
+        if native_language := get_native_language(user):
+            message_text_parts.append(
+                f"\n\n_{native_language.name}_:\n{explanation_in_native_lang_formatted}"
+            )
     message_text = "".join(message_text_parts)
 
     keyboard_buttons = [

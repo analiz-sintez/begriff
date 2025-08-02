@@ -18,8 +18,13 @@ from ..llm import (
     translate,
     detect_language,
 )
-from ..notes import language_code_by_name, get_language
-from ..util import get_native_language, get_studied_language
+from ..notes import (
+    language_code_by_name,
+    get_language,
+    Language,
+    get_native_language,
+    get_studied_language,
+)
 from ..srs import (
     create_word_note,
     get_card,
@@ -87,15 +92,8 @@ async def debug_card(ctx: Context, card_id: int):
 @dataclass
 class WordExplanationRequested(Signal):
     user_id: int
-    text: str
-    explanation: Optional[str] = None
-
-
-@dataclass
-class PhraseExplanationRequested(Signal):
-    user_id: int
-    text: str
-    explanation: Optional[str] = None
+    field1: str
+    field2: Optional[str] = None
 
 
 @dataclass
@@ -114,13 +112,24 @@ class ExplanationNoteShown(Signal):
 
 @dataclass
 class ExplanationNoteUpdated(Signal):
+    """A note was updated by teh user."""
+
     note_id: int
 
 
 @dataclass
 class NoteDeletionRequested(Signal):
+    """User requested to delete a note."""
+
     user_id: int
     note_id: int
+
+
+@dataclass
+class UserInputProcessed(Signal):
+    """All notes found in the user input were processed."""
+
+    user_id: int
 
 
 @dataclass
@@ -137,7 +146,7 @@ class NoteDownvoted(Signal):
     note_id: int
 
 
-async def get_explanation_in_native_language(ctx: Context, note: Note) -> str:
+async def get_word_note_display_text(ctx: Context, note: Note) -> str:
     """
     Get the explanation of a note translated into the user's selected native language
     for the note's studied language. Caches the translation in note options.
@@ -148,51 +157,40 @@ async def get_explanation_in_native_language(ctx: Context, note: Note) -> str:
     Returns:
         The explanation string, translated if necessary.
     """
-    user = note.user
     studied_language = note.language
-
-    # Determine the native language ID for this studied language
-    native_language = get_native_language(user)
+    native_language = get_native_language(note.user)
 
     # If studied language is the native language, no translation needed.
     if native_language.id == studied_language.id:
         return note.field2
 
     # Check cache in note options
-    translation_option_key = f"explanations/{native_language.code}"
-    cached_translation = note.get_option(translation_option_key)
-
-    if cached_translation is not None and isinstance(cached_translation, str):
+    translation_key = f"translations/{native_language.code}"
+    if translation := note.get_option(translation_key):
         logger.debug(
             f"Found cached translation for note {note.id} to native language {native_language.name}."
         )
-        return cached_translation
-
-    # If no cached translation, translate and save
-    original_explanation = note.field2
-    if not original_explanation:  # Handle empty original explanation
-        return ""
+        return translation
 
     logger.info(
-        f"Translating explanation for note {note.id} from {studied_language.name} to {native_language.name}."
+        f"Translating note {note.id} from {studied_language.name} to {native_language.name}."
     )
     try:
-        translated_explanation = await translate(
-            original_explanation,
+        translation = await translate(
+            note.field1,
             src_language=studied_language.name,
             dst_language=native_language.name,
         )
-        # Save to note options
-        note.set_option(translation_option_key, translated_explanation)
+        note.set_option(translation_key, translation)
         logger.info(
             f"Saved new translation for note {note.id} to native language {native_language.name}."
         )
-        return translated_explanation
+        return translation
     except Exception as e:
         logger.error(
-            f"Error translating explanation for note {note.id}: {e}. Returning original."
+            f"Error translating note {note.id}: {e}. Returning an explanation."
         )
-        return original_explanation
+        return note.field2
 
 
 def _parse_line(line: str) -> Tuple[Optional[str], Optional[str]]:
@@ -252,15 +250,15 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
     native_language = get_native_language(user)
 
     for _, line in enumerate(notes):
-        text, explanation = _parse_line(line)
-        if not text:
+        field1, field2 = _parse_line(line)
+        if not field1:
             await ctx.send_message(f"Couldn't parse the text: {line.strip()}")
             continue
 
         if ctx.config.UX["guess_input_language"]:
             # Try to guess if a user wants to translate from their native language.
             guess = detect_language(
-                text, [studied_language.name, native_language.name]
+                field1, [studied_language.name, native_language.name]
             )
             text_language_name = guess.language.name.lower()
             if (
@@ -270,119 +268,135 @@ async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
             ):
                 if code := language_code_by_name(text_language_name):
                     text_language = get_language(text_language_name)
-                    bus.emit(
+                    await bus.emit_and_wait(
                         TranslationRequested(
                             user.id,
                             src_language_id=text_language.id,
                             dst_language_id=studied_language.id,
-                            text=text,
+                            text=field1,
                         ),
                         ctx=ctx,
                     )
                 continue
 
-        if len(text) <= 12:
-            bus.emit(
-                WordExplanationRequested(user.id, text, explanation), ctx=ctx
-            )
-        elif len(text) <= 30:
-            bus.emit(
-                PhraseExplanationRequested(user.id, text, explanation), ctx=ctx
+        if len(field1) <= 30:
+            await bus.emit_and_wait(
+                WordExplanationRequested(user.id, field1, field2), ctx=ctx
             )
         else:
-            bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
+            await bus.emit_and_wait(
+                GrammarCheckRequested(user.id, field1), ctx=ctx
+            )
+    await bus.emit_and_wait(UserInputProcessed(user.id), ctx=ctx)
 
 
 @bus.on(WordExplanationRequested)
-@bus.on(PhraseExplanationRequested)
 @router.authorize()
 async def add_note(
     ctx: Context,
     user: User,
-    text: str,
-    explanation: Optional[str] = None,
+    field1: str,
+    field2: Optional[str] = None,
 ) -> None:
     """
     Add a note for a user and language. If the note already exists,
     it will update the explanation if provided.
     """
-    language = get_studied_language(user)
+    studied_language = get_studied_language(user)
     native_language = get_native_language(user)
 
     # Convert to base form.
     # TODO: Instead of magic constant, use info about which signal
     # triggered this slot. This requires to pass some context
     # from `bus.emit()` to slots.
-    if ctx.config.LLM["convert_to_base_form"] and len(text) <= 12:
-        text_base_form = await get_base_form(text, language.name)
-        logger.info("Converted %s to base form: %s", text, text_base_form)
-        text = text_base_form
+    word = field1
+    if ctx.config.LLM["convert_to_base_form"] and len(field1) <= 12:
+        field1_base_form = await get_base_form(field1, studied_language.name)
+        logger.info("Converted %s to base form: %s", field1, field1_base_form)
+        word = field1_base_form
 
-    # Check if a note already exists.
+    needs_update = False
+    explanation = None
+    translation = None
+
+    translation_key = f"translations/{native_language.code}"
+
+    note = None
     existing_notes = get_notes(
-        user_id=user.id, language_id=language.id, text=text
+        user_id=user.id, language_id=studied_language.id, text=word
     )
     if existing_notes:
         note = existing_notes[0]
-        if explanation:
-            note.field2 = explanation
-            update_note(note)
-            bus.emit(ExplanationNoteUpdated(note.id))
-            logger.info(
-                "Updated explanation for text '%s': '%s'",
-                text,
-                explanation,
-            )
+        explanation = note.field1
+        translation = note.get_option(translation_key)
+
+    # If the user provided field2, then treat if according to how
+    # the languages are set up:
+    if field2:
+        needs_update = True
+        # ... if studying language is the same as the native one — it is explanation
+        if studied_language == native_language:
+            explanation = field2
+        # ... if not — it is translation
         else:
-            logger.info(
-                "Fetched existing explanation for text '%s': '%s'",
-                text,
-                note.field2,
-            )
-    else:
-        if not explanation:
-            # Get random notes to inject into an explanation.
-            # TODO: move it to `get_explanation`, it belongs to its
-            # area of responsiblity
-            notes_to_inject = None
-            if "explanation" in ctx.config.LLM["inject_notes"]:
-                notes_to_inject = get_notes_to_inject(user, language)
-            # Check if the message is a reply to another message.
-            context_message = None
-            if ctx.message.parent:
-                context_message = ctx.message.parent.text
-            # Ask LLM to explain the word in user's studied language.
-            explanation = await get_explanation(
-                text,
-                language.name,
-                notes=notes_to_inject,
-                context=context_message,
-            )
-            logger.info(
-                "Fetched explanation for text '%s': '%s'", text, explanation
-            )
-        note = create_word_note(text, explanation, language.id, user.id)
-        bus.emit(ExplanationNoteAdded(note.id))
-        logger.info(
-            "User %s added a new note with text '%s': '%s'",
-            user.login,
-            text,
-            explanation,
+            translation = field2
+
+    # Generate what's missing
+    if not explanation:
+        notes_to_inject = None
+        if "explanation" in ctx.config.LLM["inject_notes"]:
+            notes_to_inject = get_notes_to_inject(user, studied_language)
+        # Check if the message is a reply to another message.
+        context_message = None
+        if ctx.message.parent:
+            context_message = ctx.message.parent.text
+        # Ask LLM to explain the word in user's studied language.
+        explanation = await get_explanation(
+            word,
+            studied_language.name,
+            notes=notes_to_inject,
+            context=context_message,
         )
-        # Ask LLM to translate the word into user's native language.
+        logger.info(
+            "Generated an explanation for text '%s': '%s'", word, explanation
+        )
+        needs_update = True
+
+    if not translation:
         translation = await translate(
-            text,
-            src_language=language.name,
+            word,
+            src_language=studied_language.name,
             dst_language=native_language.name,
         )
-        note.set_option(f"translations/{native_language.code}", translation)
+        logger.info(
+            "Generated a translation for text '%s': '%s'", word, translation
+        )
+        needs_update = True
+
+    if note:
+        if needs_update:
+            note.field2 = explanation
+            note.set_option(translation_key, translation)
+    else:
+        note = create_word_note(
+            word, explanation, studied_language.id, user.id
+        )
+        note.set_option(translation_key, translation)
+        bus.emit(ExplanationNoteAdded(note.id))
+        logger.info(
+            "User %s added a new note: '%s', translation='%s', explanation='%s'",
+            user.login,
+            word,
+            translation,
+            explanation,
+        )
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
-    display_explanation = format_explanation(
-        await get_explanation_in_native_language(ctx, note)
+    display_text = format_explanation(
+        await get_word_note_display_text(ctx, note)
     )
     message = await ctx.send_message(
-        f"{icon} *{text}* — {display_explanation}",
+        f"{icon} *{word}* — {display_text}",
         reply_to=None,
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
@@ -437,7 +451,7 @@ async def handle_negative_reaction(
     # Send the new explanation to the user as a new message
     icon = "🟡"  # Regenerated note: yellow ball
     display_explanation = format_explanation(
-        await get_explanation_in_native_language(ctx, note)
+        await get_word_note_display_text(ctx, note)
     )
     new_message = await ctx.send_message(
         f"{icon} *{note.field1}* — {display_explanation}",
@@ -546,8 +560,8 @@ class ExamplesDownvoted(Signal):
     note_id: int
 
 
-async def get_usage_example(note: Note, ctx: Context):
-    language = get_language(note.language_id)
+async def get_usage_examples(note: Note, ctx: Context):
+    language = Language.from_id(note.language_id)
     native_language = get_native_language(note.user)
     return await query_llm(
         f"""
