@@ -23,7 +23,9 @@ from ..srs import get_notes
 logger = logging.getLogger(__name__)
 
 
-def _pack_buttons(buttons: List[Button], row_size: int) -> List[List[Button]]:
+def _pack_buttons(
+    buttons: List[Button], row_size: int = 4
+) -> List[List[Button]]:
     """
     Pack buttons into button rows, with `row_size` items in a row.
     """

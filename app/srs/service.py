@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def get_cards(
     user_id: int,
-    language_id: Optional[int] = None,
+    language: Optional[Language] = None,
     start_ts: Optional[datetime] = None,
     end_ts: Optional[datetime] = None,
     bury_siblings: bool = False,
@@ -50,7 +50,7 @@ def get_cards(
         "Getting cards for user_id: '%d', language_id: '%d', "
         "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
         user_id,
-        language_id,
+        language,
         start_ts,
         end_ts,
         bury_siblings,
@@ -59,8 +59,8 @@ def get_cards(
     query = db.session.query(Card).join(Note)
     query = query.filter(Note.user_id == user_id)
 
-    if language_id:
-        query = query.filter(Note.language_id == language_id)
+    if language:
+        query = query.filter(Note.language_id == language.id)
 
     if start_ts:
         query = query.filter(Card.ts_scheduled > start_ts)

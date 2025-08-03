@@ -8,10 +8,11 @@ from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy import Integer, String, ForeignKey, func
 
 from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.auth import User
 from nachricht.bus import Signal
 
 from ..config import Config
-from ..notes import Note
+from ..notes import Note, Language
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +167,7 @@ def get_card(card_id: int) -> Optional[Card]:
 
 
 def count_new_cards_studied(
-    user_id: int, language_id: int, hours_ago: int
+    user: User, language: Optional[Language] = None, hours_ago: int = 12
 ) -> int:
     """
     Calculate how many cards were studied for the first time during the last
@@ -184,11 +185,10 @@ def count_new_cards_studied(
         The number of cards studied for the first time in the last specified hours.
     """
     time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
-    cards = (
-        Card.query.join(Note)
-        .filter(Note.user_id == user_id, Note.language_id == language_id)
-        .all()
-    )
+    query = Card.query.join(Note).filter(Note.user_id == user.id)
+    if language:
+        query = query.filter(Note.language_id == language.id)
+    cards = query.all()
     new_cards_studied = 0
 
     for card in cards:

@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from nachricht.auth import User
 from nachricht.messenger import Button, Keyboard, Context, Emoji
@@ -24,13 +24,14 @@ from ..srs import (
 )
 from ..llm import translate
 from ..config import Config
-from ..notes import get_note
+from ..notes import get_note, Language
 from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
     ExamplesRequested,
     get_studied_language,
 )
+from .language import _pack_buttons, StudyLanguageSelected
 
 if Config.IMAGE["enable"]:
     from ..image import generate_image
@@ -113,6 +114,44 @@ async def start_study_session(ctx: Context, user: User) -> None:
     bus.emit(StudySessionRequested(user.id), ctx=ctx)
 
 
+def get_remaining_cards(
+    ctx: Context, user: User, language: Optional[Language] = None
+):
+    now = datetime.now(timezone.utc)
+    tomorrow = (
+        now
+        - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)
+        + timedelta(days=1)
+    )
+    new_cards_remaining = Config.FSRS[
+        "new_cards_per_session"
+    ] - count_new_cards_studied(user, language, hours_ago=12)
+    logger.info("%d new cards remaining.", new_cards_remaining)
+    cards = get_cards(
+        user_id=user.id,
+        language=language,
+        end_ts=tomorrow,
+        bury_siblings=user.get_option(
+            "fsrs/bury_siblings", ctx.config.FSRS["bury_siblings"]
+        ),
+        randomize=True,
+        maturity=(
+            None
+            if new_cards_remaining > 0
+            else [Maturity.YOUNG, Maturity.MATURE]
+        ),
+    )
+    return cards
+
+
+@dataclass
+class NextStudyLanguageSelected(Signal):
+    """User finished current language's deck and switched to the next language where planned cards remain."""
+
+    user_id: int
+    language_id: int
+
+
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @router.authorize()
@@ -131,38 +170,38 @@ async def study_next_card(ctx: Context, user: User) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
-    language = get_studied_language(user)
-    now = datetime.now(timezone.utc)
-    tomorrow = (
-        now
-        - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)
-        + timedelta(days=1)
-    )
-    new_cards_remaining = Config.FSRS[
-        "new_cards_per_session"
-    ] - count_new_cards_studied(user.id, language.id, 12)
-    logger.info("%d new cards remaining.", new_cards_remaining)
-    cards = get_cards(
-        user_id=user.id,
-        language_id=language.id,
-        end_ts=tomorrow,
-        bury_siblings=user.get_option(
-            "fsrs/bury_siblings", ctx.config.FSRS["bury_siblings"]
-        ),
-        randomize=True,
-        maturity=(
-            None
-            if new_cards_remaining > 0
-            else [Maturity.YOUNG, Maturity.MATURE]
-        ),
-    )
+
+    cards = get_remaining_cards(ctx, user, get_studied_language(user))
 
     if not cards:
         logger.info("User %s has no cards to study.", user.login)
         bus.emit(StudySessionFinished(user.id), ctx=ctx)
         image_path = await get_finish_image()
+        # If the user has cards to study in other languages, ask if they want
+        # to switch to other languages.
+        keyboard = None
+        text = "All done for today."
+        cards = get_remaining_cards(ctx, user)
+        if cards:
+            text = "All done for today. Switch to the next language?"
+            language_ids = {card.note.language_id for card in cards}
+            logger.warning(language_ids)
+            languages = [Language.from_id(id) for id in language_ids]
+            keyboard = Keyboard(
+                _pack_buttons(
+                    [
+                        Button(
+                            language.flag
+                            + language.get_localized_name(ctx.locale),
+                            NextStudyLanguageSelected(user.id, language.id),
+                        )
+                        for language in languages
+                        if language and language.code
+                    ]
+                )
+            )
         return await ctx.send_message(
-            _("All done for today."), image=image_path
+            _(text), image=image_path, markup=keyboard
         )
 
     card = cards[0]
@@ -170,28 +209,36 @@ async def study_next_card(ctx: Context, user: User) -> None:
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     front = await card.get_front()
     logger.info("Display card front for user %s: %s", user.login, front)
-    # If the card is reversed (explanation -> word), translate the explanation.
-    note = card.note
-    front["text"] = format_explanation(front["text"])
-    if not front.get("image"):
-        front["image"] = await get_default_image()
     bus.emit(CardQuestionShown(card.id))
     return await ctx.send_message(
-        front["text"],
+        format_explanation(front["text"]),
         keyboard,
-        front.get("image"),
+        front.get("image") or (await get_default_image()),
         reply_to=None,
-        context={"note_id": note.id, "card_id": card.id},
+        context={"note_id": card.note.id, "card_id": card.id},
         on_reaction=(
             {
                 Emoji.PRAY: (
-                    ExamplesRequested(note_id=note.id)
+                    ExamplesRequested(note_id=card.note.id)
                     if isinstance(card, DirectCard)
                     else []
                 ),
             }
         ),
     )
+
+
+@bus.on(NextStudyLanguageSelected)
+@router.authorize()
+async def switch_language_and_continue_studying(
+    ctx: Context, language_id: int
+):
+    if not (language := Language.from_id(language_id)):
+        return
+    await bus.emit_and_wait(
+        StudyLanguageSelected(ctx.user.id, language.code), ctx=ctx
+    )
+    bus.emit(StudySessionRequested(ctx.user.id), ctx=ctx)
 
 
 @bus.on(CardAnswerRequested)

@@ -287,7 +287,8 @@ async def add_note(
     # the languages are set up:
     if field2:
         needs_update = True
-        # ... if studying language is the same as the native one — it is explanation
+        # ... if studying language is the same as the native one —
+        #     it is an explanation
         if studied_language == native_language:
             explanation = field2
         # ... if not — it is translation
@@ -315,7 +316,7 @@ async def add_note(
         )
         needs_update = True
 
-    if not translation:
+    if studied_language != native_language and not translation:
         translation = await translate(
             word,
             src_language=studied_language.name,
