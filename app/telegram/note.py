@@ -36,7 +36,7 @@ from ..srs import (
     format_explanation,
 )
 
-from .recap import TranslationRequested
+from .translate import TranslationRequested
 
 
 logger = logging.getLogger(__name__)
