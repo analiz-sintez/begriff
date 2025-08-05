@@ -42,49 +42,6 @@ from .translate import TranslationRequested
 logger = logging.getLogger(__name__)
 
 
-@router.command("delete", description="Delete object (use via reply)")
-async def _delete_obj(ctx: Context):
-    """Show general help for the command."""
-    # BUG: if there's no direct handler for "delete" command,
-    # the signals for the command with this name won't be emitted
-    # since there will be no handler for such a command.
-    return await ctx.send_message(
-        _(
-            """
-Use this command to delete a note or other object shown in a message.
-
-As an example:
-1. you asked me for a word translation
-2. I send it to you and add a note to study
-3. you don't want to study it: send /delete as a reply to my message.
-        """
-        )
-    )
-
-
-@router.command("debug", conditions={"note_id": Any})
-@router.authorize()
-async def debug_note(ctx: Context, note_id: int):
-    note = get_note(note_id)
-    debug_info = {
-        "note_id": note_id,
-        "note": note,
-        "cards": note.cards,
-    }
-    await ctx.send_message(f"```{debug_info}```")
-
-
-@router.command("debug", conditions={"card_id": Any})
-@router.authorize()
-async def debug_card(ctx: Context, card_id: int):
-    card = get_card(card_id)
-    debug_info = {
-        "card_id": card_id,
-        "card": card,
-    }
-    await ctx.send_message(f"```{debug_info}```")
-
-
 ################################################################
 # Handling User Input & Creating New Notes
 
@@ -187,7 +144,9 @@ def _is_note_format(text: str) -> Optional[Dict]:
 
 @router.message(_is_note_format)
 @router.authorize()
-async def add_notes(ctx: Context, user: User, notes: List[str]) -> None:
+async def dispatch_user_input(
+    ctx: Context, user: User, notes: List[str]
+) -> None:
     """Add new word notes or process the input as words with the provided text, explanations, and language.
 
     Args:

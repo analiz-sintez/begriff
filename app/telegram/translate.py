@@ -37,6 +37,13 @@ class TranslationSent(Signal):
     text: str
 
 
+@dataclass
+class NoteFromTranslationRequested(Signal):
+    user_id: int
+    language_id: int
+    text: str
+
+
 @router.message("^!!$")
 @router.authorize()
 async def _help_on_translate_phrase(ctx: Context, user: User) -> None:

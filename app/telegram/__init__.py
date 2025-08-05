@@ -7,4 +7,5 @@ from . import (
     onboarding,
     translate,
     clarify,
+    common,
 )
