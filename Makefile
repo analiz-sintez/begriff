@@ -1,5 +1,6 @@
 VENV_PATH := venv
 PYTHON_BIN := python3.13
+DATE := $(shell date +%Y-%m-%d)
 
 .PHONY: all venv run clean db-init migrate
 
@@ -10,10 +11,10 @@ venv:
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(PYTHON_BIN) -m venv $(VENV_PATH); \
 	fi
+	# Install all the packages
 	. $(VENV_PATH)/bin/activate && \
-        pip install --upgrade pip && \
-        pip install -r requirements.txt && \
-        pip install -e ../nachricht/ --config-settings editable_mode=strict
+      pip install --upgrade pip && \
+      pip install -r requirements.txt
 
 # Create or recreate virtual environment and install dependencies
 nachricht: 
@@ -22,16 +23,16 @@ nachricht:
 	fi
 	# Force-reinstall nachricht
 	# TODO make it expose its version and remove this ugly hack
-	. $(VENV_PATH)/bin/activate && pip install --force-reinstall "git+https://github.com/analiz-sintez/nachricht.git"
+	. $(VENV_PATH)/bin/activate && \
+      pip install --force-reinstall "git+https://github.com/analiz-sintez/nachricht.git"
 
 # Install nachrict as editable package
 nachricht-editable: 
 	@if [ ! -d "$(VENV_PATH)" ]; then \
 		$(PYTHON_BIN) -m venv $(VENV_PATH); \
 	fi
-	. $(VENV_PATH)/bin/activate && pip install -e ../nachricht/ --config-settings editable_mode=strict
-
-
+	. $(VENV_PATH)/bin/activate && \
+	  pip install -e ../nachricht/ --config-settings editable_mode=strict
 
 poetry:
 	cat ./requirements.txt | grep -v "@" | xargs poetry add
@@ -69,6 +70,9 @@ db-migrate:
 # `flask db stamp <>`, e.g. `HEAD` — assign a version to the current database
 # The version is stored in the `alembic_migrations` table.
 db-upgrade:
+	@if [ -f data/database.sqlite ]; then \
+		cp data/database.sqlite data/database.$(DATE).sqlite; \
+	fi
 	. $(VENV_PATH)/bin/activate && flask db upgrade
 
 # Clean the virtual environment and remove the existing database

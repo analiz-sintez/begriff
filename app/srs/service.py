@@ -2,12 +2,9 @@ import re
 import time
 import random
 import logging
-from enum import Enum
-from dataclasses import dataclass
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
-import fsrs_rs_python as fsrs
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 from sqlalchemy.orm import aliased
@@ -18,8 +15,8 @@ from nachricht.auth import User
 
 from .. import bus
 from ..config import Config
-from ..notes import Note, Language
-from .view import View, Answer
+from ..notes import Note, Language, WordNote
+from .view import View
 from .card import Card, Maturity, DirectCard, ReverseCard, CardAdded
 
 
@@ -28,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def get_cards(
     user_id: int,
-    language_id: Optional[int] = None,
+    language: Optional[Language] = None,
     start_ts: Optional[datetime] = None,
     end_ts: Optional[datetime] = None,
     bury_siblings: bool = False,
@@ -53,7 +50,7 @@ def get_cards(
         "Getting cards for user_id: '%d', language_id: '%d', "
         "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
         user_id,
-        language_id,
+        language,
         start_ts,
         end_ts,
         bury_siblings,
@@ -62,8 +59,8 @@ def get_cards(
     query = db.session.query(Card).join(Note)
     query = query.filter(Note.user_id == user_id)
 
-    if language_id:
-        query = query.filter(Note.language_id == language_id)
+    if language:
+        query = query.filter(Note.language_id == language.id)
 
     if start_ts:
         query = query.filter(Card.ts_scheduled > start_ts)
@@ -171,7 +168,7 @@ def create_word_note(
 
     try:
         # Create a note.
-        note = Note(
+        note = WordNote(
             field1=text,
             field2=explanation,
             user_id=user_id,

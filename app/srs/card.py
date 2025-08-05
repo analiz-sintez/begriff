@@ -2,20 +2,17 @@ from enum import Enum
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Literal, Dict
 
 from sqlalchemy.orm import relationship, mapped_column, Mapped
-from sqlalchemy import (
-    Integer,
-    String,
-    ForeignKey,
-)
+from sqlalchemy import Integer, String, ForeignKey, func
 
 from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.auth import User
 from nachricht.bus import Signal
 
 from ..config import Config
-from ..notes import Note
+from ..notes import Note, Language
 
 
 logger = logging.getLogger(__name__)
@@ -32,9 +29,16 @@ class CardAdded(Signal):
     card_id: int
 
 
+OutputKey = Literal["text", "image"]
+OutputDict = Dict[OutputKey, Optional[str]]
+
+
 class Card(Model, OptionsMixin):
     __tablename__ = "cards"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts_created: Mapped[dttm_utc] = mapped_column(
+        default=lambda: datetime.now(timezone.utc), server_default=func.now()
+    )
     type: Mapped[str] = mapped_column(String(50))
     __mapper_args__ = {
         "polymorphic_on": "type",
@@ -61,8 +65,6 @@ class Card(Model, OptionsMixin):
         return {
             "id": self.id,
             "note_id": self.note_id,
-            "front": self.front,
-            "back": self.back,
             "stability": self.stability,
             "difficulty": self.difficulty,
             "ts_scheduled": self.ts_scheduled,
@@ -74,7 +76,6 @@ class Card(Model, OptionsMixin):
             f"note_id={self.note_id}, "
             f"stability={self.stability}, "
             f"difficulty={self.difficulty}, "
-            f"front={self.front}, back={self.back}, "
             f"ts_scheduled={self.ts_scheduled})>"
         )
 
@@ -85,12 +86,10 @@ class Card(Model, OptionsMixin):
             and len(self.views) >= Config.FSRS["card_is_leech"]["view_cnt"]
         )
 
-    @property
-    def front(self):
+    async def get_front(self) -> OutputDict:
         raise NotImplementedError()
 
-    @property
-    def back(self):
+    async def get_back(self) -> OutputDict:
         raise NotImplementedError()
 
 
@@ -99,13 +98,19 @@ class DirectCard(Card):
         "polymorphic_identity": "direct_card",
     }
 
-    @property
-    def front(self):
-        return self.note.field1
+    async def get_front(self) -> OutputDict:
+        """Show only text, not the image."""
+        return {"text": self.note.field1}
 
-    @property
-    def back(self):
-        return self.note.field2
+    async def get_back(self) -> OutputDict:
+        """Show both the text and the image."""
+        # if the image presents, show it, of not — don't
+        front = await self.get_front()
+        front["text"] = (
+            front["text"] + "\n\n" + (await self.note.get_display_text())
+        )
+        front["image"] = await self.note.get_image()
+        return front
 
 
 class ReverseCard(Card):
@@ -113,13 +118,38 @@ class ReverseCard(Card):
         "polymorphic_identity": "reverse_card",
     }
 
-    @property
-    def front(self):
-        return self.note.field2
+    async def get_front(self) -> OutputDict:
+        return {
+            "text": await self.note.get_display_text(),
+            "image": await self.note.get_image(),
+        }
 
-    @property
-    def back(self):
-        return self.note.field1
+    async def get_back(self) -> OutputDict:
+        front = await self.get_front()
+        front["text"] = front["text"] + "\n\n" + self.note.field1
+        return front
+
+
+class ImageCard(Card):
+    """Show image, guess the word and the explanation."""
+
+    __mapper_args__ = {
+        "polymorphic_identity": "image_card",
+    }
+
+    async def get_front(self) -> OutputDict:
+        if not (image_path := await self.note.get_image()):
+            raise RuntimeError("Image card required but no image found.")
+
+        return {"text": None, "image": image_path}
+
+    async def get_back(self) -> OutputDict:
+        front = await self.get_front()
+        front["text"] = (
+            self.note.field1 + "\n\n" + (await self.note.get_display_text())
+        )
+
+        return front
 
 
 def get_card(card_id: int) -> Optional[Card]:
@@ -137,7 +167,7 @@ def get_card(card_id: int) -> Optional[Card]:
 
 
 def count_new_cards_studied(
-    user_id: int, language_id: int, hours_ago: int
+    user: User, language: Optional[Language] = None, hours_ago: int = 12
 ) -> int:
     """
     Calculate how many cards were studied for the first time during the last
@@ -155,11 +185,10 @@ def count_new_cards_studied(
         The number of cards studied for the first time in the last specified hours.
     """
     time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
-    cards = (
-        Card.query.join(Note)
-        .filter(Note.user_id == user_id, Note.language_id == language_id)
-        .all()
-    )
+    query = Card.query.join(Note).filter(Note.user_id == user.id)
+    if language:
+        query = query.filter(Note.language_id == language.id)
+    cards = query.all()
     new_cards_studied = 0
 
     for card in cards:
