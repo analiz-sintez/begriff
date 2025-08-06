@@ -6,4 +6,5 @@ from .language import (
     get_studied_language,
 )
 from .note import Note, get_note
+from .example_note import ExampleNote
 from .word_note import WordNote

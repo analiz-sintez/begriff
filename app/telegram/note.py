@@ -35,6 +35,9 @@ from ..srs import (
     get_notes_to_inject,
     format_explanation,
 )
+from .example import (
+    ExampleRequested,
+    )
 
 from .recap import TranslationRequested
 
@@ -485,105 +488,3 @@ async def check_sentence_for_mistakes(
     )
     bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
     return message
-
-
-################################################################
-# Examples
-@dataclass
-class ExampleRequested(Signal):
-    """User requested usage examples for a note."""
-
-    note_id: int
-
-
-@dataclass
-class ExamplesSent(Signal):
-    """Usage examples for a note sent to the user."""
-
-    note_id: int
-
-
-@dataclass
-class ExampleDownvoted(Signal):
-    """The user downvoted usage example we sent to them."""
-
-    note_id: int
-
-
-async def get_usage_example(note: Note, ctx: Context):
-    language = Language.from_id(note.language_id)
-    native_language = get_native_language(note.user)
-    return await query_llm(
-        f"""
-You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
-
-Generate a single usage example for the given word or phrase.
-
-- This example should be a full sentence.
-- If a word has multiple different meanings, provide an example showing most common meaning. Indicate this meaning in square brackets in student's native language.
-
-The pattern: the student studies German and their native language is English, the word is: "Konto".
-
-Your response:
-        
-"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten."
-        """,
-        note.field1,
-    )
-
-
-@bus.on(ExampleRequested)
-@bus.on(ExampleDownvoted)
-@router.authorize()
-async def give_usage_example(ctx: Context, user: User, note_id: int) -> None:
-    if not (note := get_note(note_id)):
-        return
-
-    try:
-        example = await get_usage_example(note, ctx)
-        response = format_explanation(example)
-    except Exception as e:
-        logging.error(f"Got error while making an example: {e}")
-        response = _("Couldn't make an example, sorry.")
-
-    await ctx.send_message(
-        text=response,
-        reply_to=ctx.message,
-        on_reaction={
-            Emoji.THUMBSDOWN: ExampleDownvoted(note.id),
-            Emoji.THUMBSUP: ExampleUpvoted(note.id)
-        },
-    )
-    bus.emit(ExamplesSent(note.id))
-
-
-@dataclass
-class ExampleUpvoted(Signal):
-    note_id: int
-    # text: str
-
-
-@dataclass
-class ExampleNoteAdded(Signal):
-    note_id: int
-
-
-# TODO: develop a way to link an example to the original note
-@bus.on(ExampleUpvoted)
-@router.authorize()
-async def add_example_to_deck(ctx: Context, user: User, note_id: int, text: str) -> None:
-    # if not (note := get_note(note_id)):
-    #     return
-
-    # try:
-    #     example = await get_usage_example(note, ctx)
-    #     response = format_explanation(example)
-    # except Exception as e:
-    #     logging.error(f"Got error while making an example: {e}")
-    #     response = _("Couldn't make an example, sorry.")
-
-    await ctx.send_message(
-        text="todo later",
-        reply_to=ctx.message,
-    )
-    bus.emit(ExampleNoteAdded(note.id))

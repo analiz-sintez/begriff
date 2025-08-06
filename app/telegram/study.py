@@ -28,7 +28,7 @@ from ..notes import get_note, Language
 from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
-    ExamplesRequested,
+    ExampleRequested,
     get_studied_language,
 )
 from .language import _pack_buttons, StudyLanguageSelected
@@ -219,7 +219,7 @@ async def study_next_card(ctx: Context, user: User) -> None:
         on_reaction=(
             {
                 Emoji.PRAY: (
-                    ExamplesRequested(note_id=card.note.id)
+                    ExampleRequested(note_id=card.note.id)
                     if isinstance(card, DirectCard)
                     else []
                 ),
