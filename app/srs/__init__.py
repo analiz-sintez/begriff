@@ -9,6 +9,8 @@ from .card import (
     Card,
     DirectCard,
     ReverseCard,
+    ImageCard,
+    CardAdded,
     get_card,
     count_new_cards_studied,
     Maturity,

@@ -38,13 +38,11 @@ class RestartEventHandler(PatternMatchingEventHandler):
     def should_ignore(self, path):
         if any(x in path for x in ["venv", ".git", "__pycache__"]):
             return True
-        if os.path.basename(path).startswith(".") or os.path.basename(
-            path
-        ).endswith("~"):
-            return True
-        if os.path.basename(path).startswith("#") and os.path.basename(
-            path
-        ).endswith("#"):
+        if (
+            os.path.basename(path).startswith(".")
+            or os.path.basename(path).endswith("~")
+            or os.path.basename(path).endswith("#")
+        ):
             return True
         return False
 

@@ -11,16 +11,21 @@ from nachricht.messenger import Context, Keyboard, Button
 from nachricht.i18n import TranslatableString as _
 
 from .. import bus, router
-from ..util import get_studied_language, get_native_language
-from ..notes import language_code_by_name, Language
+from ..notes import (
+    language_code_by_name,
+    Language,
+    get_studied_language,
+    get_native_language,
+)
 from ..srs import get_notes
-from .note import get_explanation_in_native_language
 
 
 logger = logging.getLogger(__name__)
 
 
-def _pack_buttons(buttons: List[Button], row_size: int) -> List[List[Button]]:
+def _pack_buttons(
+    buttons: List[Button], row_size: int = 4
+) -> List[List[Button]]:
     """
     Pack buttons into button rows, with `row_size` items in a row.
     """
@@ -288,9 +293,7 @@ async def generate_note_translations(
         f"Starting background translation tasks for user {user.login}, language {studied_language.name}"
     )
     for note in get_notes(user_id=user.id, language_id=studied_language.id):
-        task = asyncio.create_task(
-            get_explanation_in_native_language(ctx, note)
-        )
+        task = asyncio.create_task(note.get_display_text())
         task.add_done_callback(_handle_translation_task_error)
     logger.info(
         f"Finished creating background translation tasks for user {user.login}, language {studied_language.name}"

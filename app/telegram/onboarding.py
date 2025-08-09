@@ -8,7 +8,7 @@ from nachricht.messenger import Context, Emoji
 from nachricht.i18n import TranslatableString as _, resolve
 
 from .. import bus, router, Config
-from ..util import get_native_language, get_studied_language
+from ..notes import get_native_language, get_studied_language
 from .note import UserInputProcessed
 from .study import StudySessionRequested, StudySessionFinished, CardGraded
 
