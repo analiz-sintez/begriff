@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from nachricht.db import db
 from nachricht.auth import User
 from nachricht.messenger import Button, Keyboard, Context, Emoji
 from nachricht.bus import Signal
@@ -317,17 +318,17 @@ async def handle_study_grade(
     bus.emit(CardGraded(view.id, answer), ctx=ctx)
 
 
+@dataclass
+class MissingImageCardFound(Signal):
+    note_id: int
+
+
 @bus.on(CardGraded)
 async def maybe_generate_image(view_id: int):
     if not (view := get_view(view_id)):
         return
 
     card = view.card
-
-    # Generate images only for leech cards
-    if not card.is_leech():
-        return
-
     note = card.note
 
     # Don't generate new image if an old one is in place.
@@ -336,7 +337,11 @@ async def maybe_generate_image(view_id: int):
         # ...but create an image card if none exists
         logger.info("Creating missing image card for note %s", note.id)
         if not any([isinstance(c, ImageCard) for c in note.cards]):
-            await add_image_card(note.id)
+            bus.emit(MissingImageCardFound(note.id))
+        return
+
+    # Generate images only for leech cards
+    if not card.is_leech():
         return
 
     # Translate any language to English since models understand it.
@@ -359,11 +364,14 @@ async def maybe_generate_image(view_id: int):
 
 
 @bus.on(ImageGenerated)
+@bus.on(MissingImageCardFound)
 async def add_image_card(note_id: int):
     if not (note := get_note(note_id)):
         return
     logger.info("Creating an image card for note %s", note.id)
     now = datetime.now(timezone.utc)
     card = ImageCard(note_id=note.id, ts_scheduled=now)
+    db.session.add(card)
+    db.session.commit()
     bus.emit(CardAdded(card.id))
     return card

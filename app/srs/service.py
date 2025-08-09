@@ -47,7 +47,7 @@ def get_cards(
         List[Card]: A list of Card objects matching the filter criteria.
     """
     logger.info(
-        "Getting cards for user_id: '%d', language_id: '%d', "
+        "Getting cards for user_id: '%d', language: '%s', "
         "start_ts: '%s', end_ts: '%s', bury_siblings: '%s', randomize: '%s'",
         user_id,
         language,

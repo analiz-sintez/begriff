@@ -7,6 +7,9 @@ basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 class Config:
+    ################################################################
+    # Nachricht part
+
     AUTHENTICATION = {
         # If `allowed_logins` is not empty, use it as a whitelist:
         # allow only users from it.
@@ -24,6 +27,17 @@ class Config:
         # db — save them to the app database into `emitted_events` table
         "logging_backend": "db",
     }
+
+    # Database configuration
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "DATABASE_URL"
+    ) or "sqlite:///" + os.path.join(basedir, "data/database.sqlite")
+
+    # Swagger configuration
+    SWAGGER = {"title": "Begriff Bot API", "uiversion": 3, "openapi": "3.0.0"}
+
+    ################################################################
+    # Begriff-specific part
 
     LANGUAGE = {
         "defaults": {"study": "en", "native": "ru"},
@@ -85,14 +99,6 @@ class Config:
             "ka": "GE",
         },
     }
-
-    # Database configuration
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL"
-    ) or "sqlite:///" + os.path.join(basedir, "data/database.sqlite")
-
-    # Swagger configuration
-    SWAGGER = {"title": "Begriff Bot API", "uiversion": 3, "openapi": "3.0.0"}
 
     LLM = {
         # # Ollama config
