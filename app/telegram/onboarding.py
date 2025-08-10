@@ -217,6 +217,7 @@ There’s solid science behind how this works — the better you remember a word
 
 @bus.on(CardGraded, {"action": "onboarding"})
 # @bus.on(StudySessionFinished, {"action": "onboarding"})
+@router.authorize()
 async def tell_about_other_commands(ctx: Context):
     del ctx.context(ctx.conversation)["action"]
     native_language = get_native_language(ctx.user)
@@ -236,7 +237,7 @@ Other useful commands to try:
 
 • Send me the URL of an article — I’ll summarize it for you, highlighting words you’re learning (try it on Wikipedia!).
 
- • Didn’t like my explanation? React with 👎 and I’ll redo it.
+• Didn’t like my explanation? React with 👎 and I’ll redo it.
 
 • Need a usage example? React with 🙏 and I’ll give you one.
 
