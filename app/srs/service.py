@@ -327,7 +327,7 @@ def get_notes(
     return results
 
 
-def format_explanation(explanation: str) -> str:
+def format_explanation(text: Optional[str]) -> str:
     """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
 
     Args:
@@ -336,10 +336,12 @@ def format_explanation(explanation: str) -> str:
     Returns:
         The formatted explanation string.
     """
+    if text is None:
+        return ""
     return re.sub(
         r"\[([^\]]+)\]",
         lambda match: f"\n_{match.group(1).lower()}_",
-        explanation,
+        text,
     )
 
 
