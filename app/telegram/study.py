@@ -349,7 +349,7 @@ async def maybe_generate_image(view_id: int):
     if note.language.name == "English":
         explanation = note.field2
     elif not (explanation := note.get_option(option_key)):
-        explanation = await translate(explanation, note.language.name)
+        explanation = await translate(note.field2, note.language.name)
         note.set_option(option_key, explanation)
 
     # Generate an image.
