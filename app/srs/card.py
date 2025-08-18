@@ -2,7 +2,8 @@ from enum import Enum
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Literal, Dict
+from typing import Optional, Literal, Dict, List, Tuple
+import re
 
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy import Integer, String, ForeignKey, func
@@ -128,6 +129,126 @@ class ReverseCard(Card):
         front = await self.get_front()
         front["text"] = front["text"] + "\n\n" + self.note.field1
         return front
+
+
+class ClozeCard(Card):
+    __mapper_args__ = {
+        "polymorphic_identity": "cloze_card",
+    }
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._validate_cloze_syntax()
+
+    def _validate_cloze_syntax(self) -> None:
+        """Validate that the note contains valid cloze deletion syntax."""
+        if not self.note or not self.note.field1:
+            raise ValueError("Note field1 is required for cloze cards")
+
+        cloze_pattern = r'{{c(\d+)::([^}]+)(?:::([^}]+))?}}'
+        matches = re.findall(cloze_pattern, self.note.field1)
+
+        if not matches:
+            raise ValueError(f"No valid cloze deletions found in note field1: {self.note.field1}")
+
+        # Check that cloze numbers are sequential starting from 1
+        cloze_numbers = sorted(set(int(match[0]) for match in matches))
+        expected = list(range(1, len(cloze_numbers) + 1))
+        if cloze_numbers != expected:
+            raise ValueError(f"Cloze numbers must be sequential starting from 1. Found: {cloze_numbers}")
+
+    def _extract_cloze_deletions(self) -> List[Tuple[int, str, Optional[str]]]:
+        """Extract all cloze deletions from the note text.
+
+        Returns:
+            List of tuples: (cloze_number, answer, hint)
+        """
+        cloze_pattern = r'{{c(\d+)::([^}]+)(?:::([^}]+))?}}'
+        matches = re.findall(cloze_pattern, self.note.field1)
+        return [(int(num), answer, hint or None) for num, answer, hint in matches]
+
+    def _get_cloze_number(self) -> int:
+        """Get the cloze number for this specific card instance."""
+        # Extract cloze number from card options or default to 1
+        return self.get_option("cloze_number", 1)
+
+    def _process_cloze_text(self, show_answer: bool = False) -> str:
+        """Process the cloze text, showing or hiding the answer for the current cloze number.
+
+        Args:
+            show_answer: If True, show the answer; if False, show [...] or hint
+
+        Returns:
+            Processed text with appropriate cloze replacements
+        """
+        text = self.note.field1
+        cloze_number = self._get_cloze_number()
+
+        def replace_cloze(match):
+            num = int(match.group(1))
+            answer = match.group(2)
+            hint = match.group(3)
+
+            if num == cloze_number:
+                if show_answer:
+                    return f"**{answer}**"
+                else:
+                    return f"[{hint}]" if hint else "[...]"
+            else:
+                # Show other cloze deletions as plain text
+                return answer
+
+        cloze_pattern = r'{{c(\d+)::([^}]+)(?:::([^}]+))?}}'
+        return re.sub(cloze_pattern, replace_cloze, text)
+
+    async def get_front(self) -> OutputDict:
+        """Show the text with the current cloze deletion hidden."""
+        self._validate_cloze_syntax()
+        front_text = self._process_cloze_text(show_answer=False)
+        return {"text": front_text}
+
+    async def get_back(self) -> OutputDict:
+        """Show the text with the current cloze deletion revealed."""
+        self._validate_cloze_syntax()
+        back_text = self._process_cloze_text(show_answer=True)
+
+        # Add explanation if available
+        if await self.note.get_display_text():
+            back_text += "\n\n" + (await self.note.get_display_text())
+
+        return {
+            "text": back_text,
+            "image": await self.note.get_image()
+        }
+
+    @classmethod
+    def create_cloze_cards_for_note(cls, note_id: int) -> List['ClozeCard']:
+        """Create multiple cloze cards for a note, one for each cloze deletion.
+
+        Args:
+            note_id: The ID of the note containing cloze deletions
+
+        Returns:
+            List of ClozeCard instances
+        """
+        from datetime import datetime, timezone
+        from nachricht.db import db
+
+        # Create a temporary card to validate and extract cloze info
+        temp_card = cls(note_id=note_id, ts_scheduled=datetime.now(timezone.utc))
+        cloze_deletions = temp_card._extract_cloze_deletions()
+
+        cards = []
+        for cloze_num, _, _ in cloze_deletions:
+            card = cls(
+                note_id=note_id,
+                ts_scheduled=datetime.now(timezone.utc)
+            )
+            card.set_option("cloze_number", cloze_num)
+            db.session.add(card)
+            cards.append(card)
+
+        return cards
 
 
 class ImageCard(Card):
