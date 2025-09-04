@@ -1,0 +1,734 @@
+[2025-09-04 14:34:12,975] Krasovskiis-MacBook-Pro/INFO/locust.main: Starting Locust 2.39.1
+[2025-09-04 14:34:12,976] Krasovskiis-MacBook-Pro/INFO/locust.main: Run time limit set to 30 seconds
+[2025-09-04 14:34:12,977] Krasovskiis-MacBook-Pro/WARNING/root: TelegramBotUser had no tasks left after filtering, instantiating it will fail!
+[2025-09-04 14:34:12,977] Krasovskiis-MacBook-Pro/INFO/locust.runners: Ramping to 10 users at a rate of 2.00 per second
+[2025-09-04 14:34:14,012] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:14,230] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:14,357] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:15,123] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:15,905] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:16,564] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:16,990] Krasovskiis-MacBook-Pro/INFO/locust.runners: All users spawned: {"CasualUser": 2, "NoteTakingUser": 3, "StudySessionUser": 4, "TelegramBotUser": 1} (10 total users)
+[2025-09-04 14:34:17,489] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:18,197] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:18,539] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:18,876] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:19,819] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:19,865] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:20,148] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:20,690] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:20,824] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:21,566] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:21,997] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:22,673] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:23,425] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:23,458] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:23,935] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:24,393] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:24,758] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:25,363] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:26,102] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:26,295] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:26,366] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:27,068] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:27,259] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:27,927] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:28,303] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:28,779] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:29,419] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:29,733] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:30,093] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:30,368] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:31,305] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:31,920] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:32,456] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:33,260] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:33,305] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:34,055] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:34,455] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:35,214] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:35,314] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:35,633] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,051] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,091] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,207] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,360] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,380] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:36,585] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:37,437] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:38,099] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:38,332] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:38,780] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:38,960] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:39,297] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:39,481] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:40,045] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:40,299] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:40,804] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:41,354] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:41,404] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:41,929] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:42,748] Krasovskiis-MacBook-Pro/ERROR/locust.user.task: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+Traceback (most recent call last):
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 346, in run
+    self.schedule_task(self.get_next_task())
+                       ~~~~~~~~~~~~~~~~~~^^
+  File "/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py", line 490, in get_next_task
+    raise Exception(
+        f"No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)"
+    )
+Exception: No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)
+
+[2025-09-04 14:34:42,884] Krasovskiis-MacBook-Pro/INFO/locust.main: --run-time limit reached, shutting down
+[2025-09-04 14:34:42,946] Krasovskiis-MacBook-Pro/INFO/locust.main: writing html report to file: /Users/ivkrasovskii/begriff/stress_testing/results/20250904_143412_01_baseline_10users/report.html
+[2025-09-04 14:34:42,947] Krasovskiis-MacBook-Pro/INFO/locust.main: Shutting down (exit code 1)
