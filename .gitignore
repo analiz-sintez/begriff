@@ -14,3 +14,4 @@ notebooks/*
 *.egg-info
 app/userconfig.py
 google-*.json
+/stress_testing/results/

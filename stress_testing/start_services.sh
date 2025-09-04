@@ -92,9 +92,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Start simple webhook server (just accepts requests)
-echo "Starting Simple Webhook Server on port 8000..."
-python "$SCRIPT_DIR/simple_webhook.py" &
+# Start real webhook server with bot logic and mock services
+echo "Starting Real Webhook Server with Bot Logic on port 8000..."
+python "$SCRIPT_DIR/real_webhook.py" &
 BOT_PID=$!
 sleep 3
 
