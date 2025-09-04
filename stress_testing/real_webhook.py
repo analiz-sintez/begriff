@@ -78,10 +78,15 @@ def create_real_webhook_app():
                     context = MockContext(update)
                     
                     # Route the update through nachricht framework
+                    logger.debug(f"Starting processing for update {update.update_id}")
                     process_result = process_update_with_nachricht(update, context)
                     
                     processing_time = (time.time() - request_start_time) * 1000
                     logger.info(f"Request #{request_count}: Update {update.update_id} processed in {processing_time:.0f}ms")
+                    
+                    # Log what responses were generated
+                    if hasattr(context, 'responses') and context.responses:
+                        logger.debug(f"Generated {len(context.responses)} responses")
                     
                     return jsonify({"ok": True, "processing_time_ms": round(processing_time, 2)})
                     
@@ -176,44 +181,42 @@ def process_update_with_nachricht(update, context):
 def process_message_text(text, context):
     """Process text message through appropriate handlers."""
     
-    # Use nachricht router to find and execute handlers
-    # This simulates what the real bot does
+    logger.info(f"Processing message text: '{text[:50]}...'")
     
-    if text.startswith('/'):
-        # Handle commands
-        command = text.split()[0][1:]  # Remove '/'
-        args = ' '.join(text.split()[1:]) if len(text.split()) > 1 else ''
-        
-        logger.info(f"Processing command: /{command} with args: '{args}'")
-        
-        # Route through the actual command handlers
-        if hasattr(router, 'handle_command'):
-            router.handle_command(command, args, context)
-        else:
-            # Fallback: simulate command processing
+    try:
+        if text.startswith('/'):
+            # Handle commands
+            command = text.split()[0][1:]  # Remove '/'
+            args = ' '.join(text.split()[1:]) if len(text.split()) > 1 else ''
+            
+            logger.info(f"Processing command: /{command} with args: '{args}'")
             simulate_command_processing(command, args, context)
     
-    elif text.startswith('??'):
-        # Translation request
-        word = text[2:].strip()
-        logger.info(f"Processing translation request: '{word}'")
-        simulate_translation_processing(word, context)
-    
-    elif text.startswith('!!'):
-        # Grammar check request
-        sentence = text[2:].strip()
-        logger.info(f"Processing grammar check: '{sentence}'")
-        simulate_grammar_check_processing(sentence, context)
-    
-    elif text.startswith('http'):
-        # URL recap request
-        logger.info(f"Processing URL recap: '{text}'")
-        simulate_url_recap_processing(text, context)
-    
-    else:
-        # Regular explanation request
-        logger.info(f"Processing explanation request: '{text}'")
-        simulate_explanation_processing(text, context)
+        elif text.startswith('??'):
+            # Translation request
+            word = text[2:].strip()
+            logger.info(f"Processing translation request: '{word}'")
+            simulate_translation_processing(word, context)
+        
+        elif text.startswith('!!'):
+            # Grammar check request
+            sentence = text[2:].strip()
+            logger.info(f"Processing grammar check: '{sentence}'")
+            simulate_grammar_check_processing(sentence, context)
+        
+        elif text.startswith('http'):
+            # URL recap request
+            logger.info(f"Processing URL recap: '{text}'")
+            simulate_url_recap_processing(text, context)
+        
+        else:
+            # Regular explanation request
+            logger.info(f"Processing explanation request: '{text}'")
+            simulate_explanation_processing(text, context)
+            
+    except Exception as e:
+        logger.error(f"Error processing message text '{text[:30]}...': {e}")
+        context.send_message("Sorry, there was an error processing your request.")
 
 
 def process_callback_query(data, context):

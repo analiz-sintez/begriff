@@ -18,7 +18,19 @@ cleanup() {
     pkill -f "mock_llm_service.py" || true
     pkill -f "mock_image_service.py" || true
     pkill -f "run_bot_webhook.py" || true
+    pkill -f "real_webhook.py" || true
+    pkill -f "simple_webhook.py" || true
+    pkill -f "minimal_webhook.py" || true
     sleep 2
+    
+    # Force kill anything still using our ports
+    for port in 8001 8002 8000; do
+        pid=$(lsof -t -i :$port 2>/dev/null || true)
+        if [ ! -z "$pid" ]; then
+            echo "Force killing process $pid using port $port"
+            kill -9 $pid || true
+        fi
+    done
 }
 
 # Handle cleanup on exit

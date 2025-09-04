@@ -128,6 +128,7 @@ class TelegramUpdateGenerator:
                     "date": int(time.time()) - 10,
                     "text": "Mock bot message with buttons"
                 },
+                "chat_instance": str(random.randint(1000000000, 9999999999)),  # Required field
                 "data": callback_data
             }
         }
