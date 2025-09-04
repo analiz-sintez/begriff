@@ -1,2 +1,0 @@
-Method,Name,Error,Occurrences
-POST,telegram_webhook,"ConnectionRefusedError(61, 'Connection refused')",204

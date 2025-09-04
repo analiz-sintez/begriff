@@ -1,9 +1,0 @@
-Count,Message,Traceback,Nodes
-59,No tasks defined on TelegramBotUser. Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it),"  File ""/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py"", line 346, in run
-    self.schedule_task(self.get_next_task())
-                       ~~~~~~~~~~~~~~~~~~^^
-  File ""/Users/ivkrasovskii/begriff/venv/lib/python3.13/site-packages/locust/user/task.py"", line 490, in get_next_task
-    raise Exception(
-        f""No tasks defined on {self.user.__class__.__name__}{extra_message} Use the @task decorator or set the 'tasks' attribute of the User (or mark it as abstract = True if you only intend to subclass it)""
-    )
-",local
