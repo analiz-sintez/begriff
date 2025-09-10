@@ -250,12 +250,20 @@ async def parse_studied_language(ctx, user):
 async def save_studied_language(ctx: Context, user: User, language_code: str):
     language = Language.from_code(language_code)
     user.set_option("studied_language", language.id)
+    buttons = [
+        Button(
+            _("Study cards"),
+            callback=bus.signal("StudySessionRequested", user_id=user.id),
+        )
+    ]
+    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
     await ctx.send_message(
         _(
             "You now study {flag}{language}.",
             flag=language.flag,
             language=language.get_localized_name(ctx.locale),
-        )
+        ),
+        keyboard,
     )
     bus.emit(StudyLanguageSaved(user.id, language.id), ctx=ctx)
     # ctx.emit(StudyLanguageSaved(user.id, language.id))
