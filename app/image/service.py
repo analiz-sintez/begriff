@@ -9,7 +9,7 @@ import vertexai
 from vertexai.preview.vision_models import ImageGenerationModel
 
 from ..config import Config
-from ..srs import Note
+from ..notes import Note, Language
 
 
 logger = logging.getLogger(__name__)
@@ -19,12 +19,15 @@ vertexai.init(
 )
 
 
-async def generate_image(description: str, force: bool = False) -> str:
+async def generate_image(
+    description: str, language: Language, force: bool = False
+) -> str:
     """
     Generate an image based on the Note's field2 content using Vertex AI, and save it to the ./data/images directory.
 
     Args:
         description: text content used for image generation.
+        language: the language of the description.
         force: regenerate image even if it already exists.
     """
     logger.info(
@@ -59,7 +62,8 @@ async def generate_image(description: str, force: bool = False) -> str:
     logger.info("Loaded image generation model: %s", model_name)
 
     # Generate the image
-    prompt = Config.IMAGE["prompt"] % description
+    prompt_template = language.get_config("prompts.image")
+    prompt = prompt_template % description
     logger.info("Generating image with prompt: %s", prompt)
     response = await to_thread(
         image_model.generate_images,

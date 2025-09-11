@@ -100,17 +100,18 @@ class DirectCard(Card):
 
     async def get_front(self) -> OutputDict:
         """Show only text, not the image."""
-        return {"text": self.note.field1}
+        template = self.note.language.get_config("card_templates.direct_front")
+        return {"text": template.format(field1=self.note.field1)}
 
     async def get_back(self) -> OutputDict:
         """Show both the text and the image."""
-        # if the image presents, show it, of not — don't
-        front = await self.get_front()
-        front["text"] = (
-            front["text"] + "\n\n" + (await self.note.get_display_text())
+        template = self.note.language.get_config("card_templates.direct_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            field1=self.note.field1, display_text=display_text
         )
-        front["image"] = await self.note.get_image()
-        return front
+        image = await self.note.get_image()
+        return {"text": text, "image": image}
 
 
 class ReverseCard(Card):
@@ -119,15 +120,22 @@ class ReverseCard(Card):
     }
 
     async def get_front(self) -> OutputDict:
+        template = self.note.language.get_config(
+            "card_templates.reverse_front"
+        )
+        display_text = await self.note.get_display_text()
         return {
-            "text": await self.note.get_display_text(),
+            "text": template.format(display_text=display_text),
             "image": await self.note.get_image(),
         }
 
     async def get_back(self) -> OutputDict:
-        front = await self.get_front()
-        front["text"] = front["text"] + "\n\n" + self.note.field1
-        return front
+        template = self.note.language.get_config("card_templates.reverse_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            display_text=display_text, field1=self.note.field1
+        )
+        return {"text": text, "image": await self.note.get_image()}
 
 
 class ImageCard(Card):

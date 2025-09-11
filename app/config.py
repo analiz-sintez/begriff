@@ -36,70 +36,6 @@ class Config:
     # Swagger configuration
     SWAGGER = {"title": "Begriff Bot API", "uiversion": 3, "openapi": "3.0.0"}
 
-    ################################################################
-    # Begriff-specific part
-
-    LANGUAGE = {
-        "defaults": {"study": "en", "native": "ru"},
-        "study_languages": [
-            # ... languages ordered by speakers count:
-            "en",  # 1.7b — English
-            # "zh",  # 1.3b — (Simplifed) Chinese
-            # "hi",  # 0.6b — Hindi
-            "es",  # 0.5b — Spanish
-            # "ar",  # 0.4b — Arabic (Egyptian kind)
-            # "ur",  # 0.3b — Urdu (Pakistan)
-            "fr",  # 0.3b — French
-            # "bn",  # 0.3b — Bangla (Bangladesh)
-            "pt",  # 250m — Portuguese (Portugal kind, but there's Brazil etc)
-            "ru",  # 200m — Russian
-            "de",  # 150m — German
-            # "ja",  # 130m — Japanese
-            # ... here go various dialects from Indna, for now we'll skip them.
-            # ... those are tens of mlns each:
-            # "fa",
-            # "vi",
-            "tr",
-            # "ko",
-            # "fil",
-            "it",
-            # "th",
-            "pl",
-            # ... from here the list goes opinionated.
-            "uk",
-            "sr",
-            "hy",
-            # "ka",
-        ],
-        # this is completely cosmetic, just to draw flags properly
-        "territories": {
-            "en": "GB",
-            "zh": "CN",
-            "hi": "IN",
-            "es": "ES",
-            "ar": "EG",
-            "ur": "PK",
-            "fr": "FR",
-            "bn": "BD",
-            "pt": "PT",
-            "ru": "RU",
-            "de": "DE",
-            "ja": "JP",
-            "fa": "IR",
-            "vi": "VN",
-            "tr": "TR",
-            "ko": "KR",
-            "fil": "PH",
-            "it": "IT",
-            "th": "TH",
-            "pl": "PL",
-            "uk": "UA",
-            "sr": "RS",
-            "hy": "AM",
-            "ka": "GE",
-        },
-    }
-
     LLM = {
         # # Ollama config
         # "host": "http://localhost:11434/v1",
@@ -115,25 +51,143 @@ class Config:
         "api_key": os.getenv("OPENAI_API_KEY") or "dummy",
         "models": {
             "default": "gpt-4.1-mini",
-            "base_form": "gpt-4.1-mini",
-            "explanation": "gpt-4.1-mini",
-            "recap": "gpt-4o",
         },
-        # General settings
-        "inject_notes": [
-            # "explanation",
-            "recap",
-        ],
-        "inject_maturity": ["young"],
-        "inject_count": 10,
-        "convert_to_base_form": True,
     }
 
     IMAGE = {
         "enable": True,
         "model": "imagen-4.0-generate-preview-06-06",
-        "prompt": "%s (sketchy, colorful)",
         "vertexai_project_id": "begriff",
+    }
+
+    ################################################################
+    # Begriff-specific part
+
+    DEFAULTS = {
+        "study_language": "en",
+        "native_language": "ru",
+    }
+
+    LANGUAGES = {
+        "_defaults": {
+            "features": {
+                "recap": True,
+                "base_form": True,
+                "image_generation": True,
+                "inject_notes": [
+                    "recap",
+                    # "explanation",
+                    "example",
+                ],
+            },
+            "models": {
+                "default": "gpt-4.1-mini",
+                "base_form": "gpt-4.1-mini",
+                "explanation": "gpt-4.1-mini",
+                "recap": "gpt-4o",
+                "clarification": "gpt-4.1-mini",
+                "examples": "gpt-4.1-mini",
+            },
+            "prompts": {
+                "base_form": """Convert the following {language} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).\n\nInstructions:\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n\nExamples:\n- English: trees — tree, cogitated — to cogitate\n- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",
+                "explanation": """You are an expert linguist tasked with explaining words in simple terms. Your task is to explain the given {src_language} word or phrase in {dst_language} using the following guidelines:\n\n- Avoid using the exact word or phrase in the explanation.\n- Only treat the word as a verb if preceded by 'to'.\n- Keep the explanation concise, fitting it on one line without using empty lines or the ';' symbol, using '.' instead.\n- Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets.\n- If a word has multiple significant meanings, provide explanations for the two most common contexts.\n- The explanation should be entirely in {dst_language}.\n\nExample 1 (for English).\nPrompt: to gorge\nReply: To eat a large amount quickly.\n\nExample 2 (for English).\nPrompt: fixer\nReply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes, """,
+                "recap": """You are {language} tutor helping a student to learn new language. The student studies new words using flashcards, so it would be beneficial for them to see the words in use in real text.\n\nPlease summarize the following text into one paragraph using simple {language}.\n\nInstructions:\n- Create one concise paragraph of 100-150 words.\n- Use simple language, and write only in {language}.\n- Keep the summary simple and clear.""",
+                "image": "%s (sketchy, colorful)",
+                "clarification": """You are {language} tutor helping a student to learn new language. Their native language is {native_language}.\n\nYou will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.\n\nKeep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.""",
+                "examples": """You are {language} tutor helping a student to learn new language. Their native language is {native_language}.\n\nGenerate three usage examples for the given word or phrase.\n\n- Examples should be full sentencts.\n- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.\n\nThe pattern: the student studies German and their native language is English, the word is: "Konto".\n\nYour response:\n        \n"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.\n[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.\n[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen." """,
+            },
+            "card_templates": {
+                "direct_front": "{field1}",
+                "direct_back": "{field1}\n\n{display_text}",
+                "reverse_front": "{display_text}",
+                "reverse_back": "{display_text}\n\n{field1}",
+            },
+        },
+        # 1.7b — English
+        "en": {
+            "territory": "GB",
+            "prompts": {
+                "base_form": """Convert the following English word to its base form.\n\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n- For verbs, always use 'to'.\n\nExamples:\ntrees — tree\ncogitated — to cogitate""",
+            },
+        },
+        # 1.3b — (Simplifed) Chinese
+        # "zh": {'territory': 'CN'},
+        # 0.6b — Hindi
+        # "hi": {'territory': 'IN'},
+        # 0.5b — Spanish
+        "es": {
+            "territory": "ES",
+        },
+        # 0.4b — Arabic (Egyptian kind)
+        # "ar": {'territory': 'EG'},
+        # 0.3b — Urdu (Pakistan)
+        # "ur": {'territory': 'PK'},
+        # 0.3b — French
+        "fr": {
+            "territory": "FR",
+        },
+        # 0.3b — Bangla (Bangladesh)
+        # "bn": {'territory': 'BD'},
+        # 250m — Portuguese (Portugal kind, but there's Brazil etc)
+        "pt": {
+            "territory": "PT",
+        },
+        # 200m — Russian
+        "ru": {
+            "territory": "RU",
+        },
+        # 150m — German
+        "de": {
+            "territory": "DE",
+            "prompts": {
+                "base_form": """Convert the following German word to its base form.\n\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n- For nouns, always include the article.\n\nExamples:\nHäuse — das Haus\nBäume — der Baum""",
+            },
+        },
+        # 130m — Japanese
+        # "ja": {'territory': 'JP'},
+        # ... here go various dialects from Indna, for now we'll skip them.
+        # ... those are tens of mlns each:
+        # Farsi (Iran)
+        # "fa": {'territory': 'IR'},
+        # Vietnamese
+        # "vi": {'territory': 'VN'},
+        # Turkish
+        "tr": {
+            "territory": "TR",
+        },
+        # Korean
+        # "ko": {'territory': 'KR'},
+        # Philippinese
+        # "fil": {'territory': 'PH'},
+        # Italian
+        "it": {
+            "territory": "IT",
+        },
+        # Thai
+        # "th": {'territory': 'TH'},
+        # Polish
+        "pl": {
+            "territory": "PL",
+        },
+        # ... from here the list goes opinionated.
+        # Ukrainian
+        "uk": {
+            "territory": "UA",
+        },
+        # Serbian
+        "sr": {
+            "territory": "RS",
+        },
+        # Armenian
+        "hy": {
+            "territory": "AM",
+            "features": {
+                "recap": False,
+                "base_form": False,
+            },
+        },
+        # Georgian
+        # "ka": {'territory': 'GE'},
     }
 
     TELEGRAM = {
@@ -160,4 +214,6 @@ class Config:
             "difficulty": 8.5,
             "view_cnt": 5,
         },
+        "inject_maturity": ["young"],
+        "inject_count": 10,
     }

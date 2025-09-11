@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from nachricht import create_app, db
 from nachricht.auth import User
-from app.notes import Note, Language
+from app.notes import WordNote, Language
 from app.srs import Card, View, DirectCard, ReverseCard
 
 
@@ -19,7 +19,7 @@ def app():
         # Set up initial test data
         language = Language(name="English")
         user = User(login="test_user")
-        note = Note(
+        note = WordNote(
             field1="Hello", field2="World", user=user, language=language
         )
         db.session.add(language)
@@ -59,12 +59,14 @@ def test_note_creation(app):
     with app.app_context():
         user = User.query.filter_by(login="test_user").first()
         language = Language.query.filter_by(name="English").first()
-        note = Note(field1="Test", field2="Note", user=user, language=language)
+        note = WordNote(
+            field1="Test", field2="Note", user=user, language=language
+        )
 
         db.session.add(note)
         db.session.commit()
 
-        fetched_note = Note.query.filter_by(
+        fetched_note = WordNote.query.filter_by(
             field1="Test", field2="Note"
         ).first()
         assert fetched_note is not None
@@ -83,11 +85,14 @@ def test_view_relationship(app):
         assert view.card == card
 
 
-def test_card_creation(app):
+@pytest.mark.asyncio
+async def test_card_creation(app):
     with app.app_context():
         user = User.query.filter_by(login="test_user").first()
         language = Language.query.filter_by(name="English").first()
-        note = Note(field1="Test", field2="Note", user=user, language=language)
+        note = WordNote(
+            field1="Test", field2="Note", user=user, language=language
+        )
 
         db.session.add(note)
         db.session.commit()
@@ -106,8 +111,12 @@ def test_card_creation(app):
         assert fetched_card is not None
         assert fetched_card.note == note
         assert isinstance(fetched_card, ReverseCard)
-        assert fetched_card.front == note.field2
-        assert fetched_card.back == note.field1
+        front = await fetched_card.get_front()
+        assert "text" in front
+        assert note.field2 in front["text"]
+        back = await fetched_card.get_back()
+        assert "text" in back
+        assert note.field1 in back["text"]
         assert fetched_card.stability == 0.75
         assert fetched_card.difficulty == 0.25
 

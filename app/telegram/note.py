@@ -17,6 +17,7 @@ from ..llm import (
     find_mistakes,
     translate,
     detect_language,
+    get_usage_examples,
 )
 from ..notes import (
     language_code_by_name,
@@ -222,8 +223,8 @@ async def add_note(
     # triggered this slot. This requires to pass some context
     # from `bus.emit()` to slots.
     word = field1
-    if ctx.config.LLM["convert_to_base_form"] and len(field1) <= 12:
-        field1_base_form = await get_base_form(field1, studied_language.name)
+    if studied_language.get_config("features.base_form") and len(field1) <= 12:
+        field1_base_form = await get_base_form(field1, studied_language)
         logger.info("Converted %s to base form: %s", field1, field1_base_form)
         word = field1_base_form
 
@@ -257,7 +258,9 @@ async def add_note(
     # Generate what's missing
     if not explanation:
         notes_to_inject = None
-        if "explanation" in ctx.config.LLM["inject_notes"]:
+        if "explanation" in studied_language.get_config(
+            "features.inject_notes"
+        ):
             notes_to_inject = get_notes_to_inject(user, studied_language)
         # Check if the message is a reply to another message.
         context_message = None
@@ -266,7 +269,7 @@ async def add_note(
         # Ask LLM to explain the word in user's studied language.
         explanation = await get_explanation(
             word,
-            studied_language.name,
+            studied_language,
             notes=notes_to_inject,
             context=context_message,
         )
@@ -278,8 +281,8 @@ async def add_note(
     if studied_language != native_language and not translation:
         translation = await translate(
             word,
-            src_language=studied_language.name,
-            dst_language=native_language.name,
+            src_language=studied_language,
+            dst_language=native_language,
         )
         logger.info(
             "Generated a translation for text '%s': '%s'", word, translation
@@ -346,7 +349,7 @@ async def handle_negative_reaction(
 
     # We don't have the original message context (like a reply-to) on reaction, so pass None
     new_explanation = await get_explanation(
-        note.field1, note.language.name, notes=notes_to_inject, context=None
+        note.field1, note.language, notes=notes_to_inject, context=None
     )
 
     # Update the note with the new explanation.
@@ -434,7 +437,7 @@ async def check_sentence_for_mistakes(
     language = get_studied_language(user)
     native_language = get_native_language(user)
 
-    reply = await find_mistakes(text, language.name, native_language.name)
+    reply = await find_mistakes(text, language, native_language)
     message = await ctx.send_message(
         reply,
         on_reaction={
@@ -469,30 +472,6 @@ class ExamplesDownvoted(Signal):
     note_id: int
 
 
-async def get_usage_examples(note: Note, ctx: Context):
-    language = Language.from_id(note.language_id)
-    native_language = get_native_language(note.user)
-    return await query_llm(
-        f"""
-You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
-
-Generate three usage examples for the given word or phrase.
-
-- Examples should be full sentencts.
-- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.
-
-The pattern: the student studies German and their native language is English, the word is: "Konto".
-
-Your response:
-        
-"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.
-[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.
-[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen."
-        """,
-        note.field1,
-    )
-
-
 @bus.on(ExamplesRequested)
 @bus.on(ExamplesDownvoted)
 @router.authorize()
@@ -501,7 +480,8 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
         return
 
     try:
-        examples = await get_usage_examples(note, ctx)
+        native_language = get_native_language(user)
+        examples = await get_usage_examples(note, native_language)
         response = format_explanation(examples)
     except Exception as e:
         logging.error(f"Got error while making examples: {e}")

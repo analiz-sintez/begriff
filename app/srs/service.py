@@ -374,7 +374,7 @@ def get_notes_to_inject(user: User, language: Language) -> list:
             language.id,
             maturity=[
                 getattr(Maturity, m.upper())
-                for m in Config.LLM["inject_maturity"]
+                for m in Config.FSRS["inject_maturity"]
             ],
         )
         # Randomly select inject_count notes
@@ -383,6 +383,6 @@ def get_notes_to_inject(user: User, language: Language) -> list:
 
     notes = _notes_to_inject_cache[cache_key]
     random_notes = random.sample(
-        notes, min(Config.LLM["inject_count"], len(notes))
+        notes, min(Config.FSRS["inject_count"], len(notes))
     )
     return random_notes

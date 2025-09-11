@@ -6,7 +6,8 @@ import asyncio
 from nachricht import create_app, db
 from nachricht.auth import User, get_user
 
-from app.srs import Note, Card
+from app.notes import Note
+from app.srs import Card
 from app.config import Config as DefaultConfig
 
 

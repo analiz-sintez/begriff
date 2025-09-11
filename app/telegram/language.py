@@ -10,7 +10,7 @@ from nachricht.bus import Signal, TerminalSignal
 from nachricht.messenger import Context, Keyboard, Button
 from nachricht.i18n import TranslatableString as _
 
-from .. import bus, router
+from .. import bus, router, Config
 from ..notes import (
     language_code_by_name,
     Language,
@@ -120,7 +120,9 @@ async def ask_for_native_language(ctx: Context, user: User):
 @bus.on(NativeLanguageChangeRequested)
 @router.authorize()
 async def ask_native_language_selection(ctx: Context, user: User):
-    codes = ctx.config.LANGUAGE["study_languages"]
+    codes = [
+        code for code in Config.LANGUAGES.keys() if not code.startswith("_")
+    ]
     languages = [Language.from_code(code) for code in codes]
     buttons = [
         Button(
@@ -211,7 +213,9 @@ async def start_change_studied_language_scenario(ctx: Context, user: User):
 async def ask_studied_language(ctx: Context, user: User):
     # Show a keyboard with available languages to study.
     # Or read the language name from the next message from the user.
-    codes = ctx.config.LANGUAGE["study_languages"]
+    codes = [
+        code for code in Config.LANGUAGES.keys() if not code.startswith("_")
+    ]
     languages = [Language.from_code(code) for code in codes]
     buttons = [
         Button(
@@ -250,13 +254,15 @@ async def parse_studied_language(ctx, user):
 async def save_studied_language(ctx: Context, user: User, language_code: str):
     language = Language.from_code(language_code)
     user.set_option("studied_language", language.id)
-    buttons = [
-        Button(
-            _("Study cards"),
-            callback=bus.signal("StudySessionRequested", user_id=user.id),
-        )
-    ]
-    keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
+    keyboard = None
+    if not ctx.conversation or not ctx.context(ctx.conversation)["action"]:
+        buttons = [
+            Button(
+                _("Study cards"),
+                callback=bus.signal("StudySessionRequested", user_id=user.id),
+            )
+        ]
+        keyboard = Keyboard(_pack_buttons(buttons, row_size=4))
     await ctx.send_message(
         _(
             "You now study {flag}{language}.",

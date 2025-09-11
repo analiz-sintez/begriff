@@ -41,14 +41,20 @@ class RecapSent(Signal):
 @router.authorize()
 async def recap_url(ctx: Context, user: User, url: str) -> None:
     language = get_studied_language(user)
+    if not language.get_config("features.recap", default=True):
+        await ctx.send_message(
+            _("Sorry, recaps are not supported for this language.")
+        )
+        return
+
     bus.emit(RecapRequested(user.id, language.id, url))
 
     notes_to_inject = []
-    if "recap" in Config.LLM["inject_notes"]:
+    if "recap" in language.get_config("features.inject_notes"):
         notes_to_inject = get_notes_to_inject(user, language)
 
     try:
-        recap = await get_recap(url, language.name, notes=notes_to_inject)
+        recap = await get_recap(url, language, notes=notes_to_inject)
         response = f"{recap} [(source)]({url})"
     except Exception as e:
         logging.error(f"Got error while recapping: {e}")

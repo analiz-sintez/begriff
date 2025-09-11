@@ -42,6 +42,9 @@ else:
         return None
 
 
+from ..notes import get_language
+
+
 # States: ASK -> ANSWER -> RECORD
 # - ASK: show the front side of the card, wait when user requests
 #   the back side;
@@ -96,19 +99,22 @@ logger = logging.getLogger(__name__)
 
 
 async def get_default_image():
-    image_path = await generate_image("Stars in the deep night sky.")
+    lang = get_language("English")
+    image_path = await generate_image("Stars in the deep night sky.", lang)
     return image_path
 
 
 async def get_finish_image():
+    lang = get_language("English")
     image_path = await generate_image(
         "A cat teacher in round glasses and his young"
-        " cat students celebrate the end of the lection."
+        " cat students celebrate the end of the lection.",
+        lang,
     )
     return image_path
 
 
-@router.command("study", description=_("Start a study session"))
+@router.command("study", description=_("📖 Study cards"))
 @router.authorize()
 async def start_study_session(ctx: Context, user: User) -> None:
     logger.info("User %s requested to study.", user.login)
@@ -330,6 +336,9 @@ async def maybe_generate_image(view_id: int):
 
     card = view.card
     note = card.note
+    language = note.language
+    if not language.get_config("features.image_generation", default=True):
+        return
 
     # Don't generate new image if an old one is in place.
     image_path = note.get_option("image/path")
@@ -346,15 +355,16 @@ async def maybe_generate_image(view_id: int):
 
     # Translate any language to English since models understand it.
     option_key = "explanations/en"
-    if note.language.name == "English":
+    if language.name == "English":
         explanation = note.field2
     elif not (explanation := note.get_option(option_key)):
-        explanation = await translate(note.field2, note.language.name)
+        english = get_language("English")
+        explanation = await translate(note.field2, language, english)
         note.set_option(option_key, explanation)
 
     # Generate an image.
     try:
-        image_path = await generate_image(explanation)
+        image_path = await generate_image(explanation, language)
         note.set_option("image/path", image_path)
         bus.emit(ImageGenerated(note.id))
     except Exception as e:

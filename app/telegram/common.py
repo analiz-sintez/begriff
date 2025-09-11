@@ -3,6 +3,7 @@ from typing import Any
 from dataclasses import dataclass
 from nachricht.bus import Signal
 from nachricht.messenger import Context
+from nachricht.i18n import TranslatableString as _
 
 from .. import router
 from ..notes import get_note
