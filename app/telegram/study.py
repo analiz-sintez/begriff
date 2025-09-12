@@ -178,7 +178,7 @@ def get_card_from_cache(ctx: Context, user: User):
 
     if (
         not user_cache
-        or len(user_cache) == 0
+        or len(user_cache.get("card_ids")) == 0
         or ((time.time() - user_cache["timestamp"]) > _CARD_CACHE_TTL)
         or not (card := get_card(user_cache["card_ids"].popleft()))
     ):
@@ -186,6 +186,8 @@ def get_card_from_cache(ctx: Context, user: User):
             f"Filling up cards cache for user {user.login} for {language.name}."
         )
         cards = get_remaining_cards(ctx, user, language)
+        if not cards:
+            return None
         card = cards[0]
         card_ids = [card.id for card in cards[1:]]
         cache_cards(user.id, language.id, card_ids)
