@@ -153,10 +153,12 @@ class ImageCard(Card):
 
     async def get_back(self) -> OutputDict:
         front = await self.get_front()
-        front["text"] = (
-            self.note.field1 + "\n\n" + (await self.note.get_display_text())
+        template = self.note.language.get_config("card_templates.direct_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            field1=self.note.field1, display_text=display_text
         )
-
+        front["text"] = text
         return front
 
 
