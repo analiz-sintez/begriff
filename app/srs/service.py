@@ -89,12 +89,27 @@ def get_cards(
             .select()
         )
         # ...step 3: Allow only those cards which belong to notes found in step 2
-        #    For other notes, allow all cards
+        #    For other notes, allow only one card
         query = query.filter(
             db.or_(
                 ~Card.note_id.in_(recent_notes),
-                Card.note_id.in_(recently_viewed_cards)
-                & Card.id.in_(recently_viewed_cards),
+                Card.id.in_(recently_viewed_cards),
+            )
+        )
+        # ...step 4: Ensure only one card from each note not reviewed today is included
+        cards_subquery = (
+            db.session.query(
+                Card.note_id.label("note_id"),
+                db.func.min(Card.id).label("min_card_id"),
+            )
+            .group_by(Card.note_id)
+            .subquery()
+        )
+
+        query = query.filter(
+            db.or_(
+                Card.id.in_(db.session.query(cards_subquery.c.min_card_id)),
+                Card.id.in_(recently_viewed_cards),
             )
         )
 

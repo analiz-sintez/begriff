@@ -162,7 +162,7 @@ class NextStudyLanguageSelected(Signal):
 
 
 _card_cache = {}
-_CARD_CACHE_TTL = 120
+_CARD_CACHE_TTL = 600
 
 
 def cache_cards(user_id, language_id, cards_ids):
