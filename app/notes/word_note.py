@@ -45,8 +45,8 @@ class WordNote(Note):
         try:
             translation = await translate(
                 self.field1,
-                src_language=studied_language.name,
-                dst_language=native_language.name,
+                src_language=studied_language,
+                dst_language=native_language,
             )
             self.set_option(translation_key, translation)
             logger.info(

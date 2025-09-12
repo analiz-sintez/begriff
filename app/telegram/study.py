@@ -3,6 +3,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any, Optional
+import time
+from collections import deque
 
 from nachricht.db import db
 from nachricht.auth import User
@@ -159,6 +161,41 @@ class NextStudyLanguageSelected(Signal):
     language_id: int
 
 
+_card_cache = {}
+_CARD_CACHE_TTL = 120
+
+
+def cache_cards(user_id, language_id, cards_ids):
+    _card_cache[(user_id, language_id)] = {
+        "card_ids": deque(cards_ids),
+        "timestamp": time.time(),
+    }
+
+
+def get_card_from_cache(ctx: Context, user: User):
+    language = get_studied_language(user)
+    user_cache = _card_cache.get((user.id, language.id))
+
+    if (
+        not user_cache
+        or len(user_cache) == 0
+        or ((time.time() - user_cache["timestamp"]) > _CARD_CACHE_TTL)
+        or not (card := get_card(user_cache["card_ids"].popleft()))
+    ):
+        logger.debug(
+            f"Filling up cards cache for user {user.login} for {language.name}."
+        )
+        cards = get_remaining_cards(ctx, user, language)
+        card = cards[0]
+        card_ids = [card.id for card in cards[1:]]
+        cache_cards(user.id, language.id, card_ids)
+        logger.debug(
+            f"{len(card_ids)} cards were added to cards cache for user {user.login} for {language.name} with ttl={_CARD_CACHE_TTL}s."
+        )
+
+    return card
+
+
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @router.authorize()
@@ -177,22 +214,17 @@ async def study_next_card(ctx: Context, user: User) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
+    card = get_card_from_cache(ctx, user)
 
-    cards = get_remaining_cards(ctx, user, get_studied_language(user))
-
-    if not cards:
+    if not card:
         logger.info("User %s has no cards to study.", user.login)
         bus.emit(StudySessionFinished(user.id), ctx=ctx)
         image_path = await get_finish_image()
-        # If the user has cards to study in other languages, ask if they want
-        # to switch to other languages.
         keyboard = None
         text = "All done for today."
         cards = get_remaining_cards(ctx, user)
         if cards:
             text = "All done for today. Switch to the next language?"
-            language_ids = {card.note.language_id for card in cards}
-            logger.warning(language_ids)
             languages = [Language.from_id(id) for id in language_ids]
             keyboard = Keyboard(
                 _pack_buttons(
@@ -210,8 +242,6 @@ async def study_next_card(ctx: Context, user: User) -> None:
         return await ctx.send_message(
             _(text), image=image_path, markup=keyboard
         )
-
-    card = cards[0]
 
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     front = await card.get_front()
