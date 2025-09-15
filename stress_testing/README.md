@@ -77,7 +77,7 @@ curl -X POST http://localhost:8002/config -H "Content-Type: application/json" -d
 ```
 
 ### User Scenarios
-The test includes 3 user types with different behaviors:
+The test includes 4 user types with different behaviors:
 
 1. **StudySessionUser** (weight=3): Focuses on study sessions
    - Starts study sessions with `/study`
@@ -94,6 +94,12 @@ The test includes 3 user types with different behaviors:
    - Random word lookups
    - Help commands
    - Language management
+
+4. **WikipediaUser** (weight=1): Heavy network load testing (~20% of users)
+   - Frequently sends Wikipedia URLs for recap processing
+   - Creates real network load with Wikipedia API calls
+   - Tests end-to-end performance including external API latency
+   - Simulates users who heavily use URL recap features
 
 ## Files
 

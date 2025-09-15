@@ -202,6 +202,25 @@ SAMPLE_URLS = [
     "https://realpython.com/python-basics/"
 ]
 
+# Wikipedia-focused URLs for heavy network testing (20% of users will use these)
+WIKIPEDIA_URLS = [
+    "https://en.wikipedia.org/wiki/Machine_learning", 
+    "https://en.wikipedia.org/wiki/Artificial_intelligence",
+    "https://en.wikipedia.org/wiki/Natural_language_processing",
+    "https://en.wikipedia.org/wiki/Deep_learning",
+    "https://en.wikipedia.org/wiki/Computer_science",
+    "https://en.wikipedia.org/wiki/Software_engineering", 
+    "https://en.wikipedia.org/wiki/Data_science",
+    "https://en.wikipedia.org/wiki/Programming_language",
+    "https://en.wikipedia.org/wiki/Algorithm",
+    "https://en.wikipedia.org/wiki/Database",
+    "https://en.wikipedia.org/wiki/Web_development",
+    "https://en.wikipedia.org/wiki/Cryptography",
+    "https://en.wikipedia.org/wiki/Operating_system",
+    "https://en.wikipedia.org/wiki/Network_programming",
+    "https://en.wikipedia.org/wiki/Cloud_computing"
+]
+
 SAMPLE_WORDS = [
     "hello", "world", "python", "programming", "computer",
     "language", "learning", "study", "memory", "vocabulary",

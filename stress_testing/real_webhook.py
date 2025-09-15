@@ -123,10 +123,17 @@ def selective_mock_post(url, *args, **kwargs):
 
 def selective_mock_get(url, *args, **kwargs):
     logger = logging.getLogger(__name__)
-    if ("localhost" in url or 
-        "wikipedia.org" in url or 
-        "wikimedia.org" in url):
-        # Allow calls to local services AND Wikipedia (for realistic load testing)
+    if "localhost" in url:
+        # Allow calls to local services
+        return original_get(url, *args, **kwargs)
+    elif "wikipedia.org" in url or "wikimedia.org" in url:
+        # Allow Wikipedia calls but add proper headers to avoid 403 errors
+        headers = kwargs.get('headers', {})
+        headers.update({
+            'User-Agent': 'Begriff Language Learning Bot/1.0 (Educational Use; Stress Testing)'
+        })
+        kwargs['headers'] = headers
+        logger.debug(f"Making Wikipedia request to: {url}")
         return original_get(url, *args, **kwargs)
     else:
         logger.debug(f"Mocking external GET request to: {url}")

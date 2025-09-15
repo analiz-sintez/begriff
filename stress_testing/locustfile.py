@@ -16,6 +16,7 @@ from telegram_utils import (
     get_random_sample,
     create_realistic_user_id,
     SAMPLE_URLS,
+    WIKIPEDIA_URLS,
     SAMPLE_WORDS,
     SAMPLE_EXPLANATIONS,
     CALLBACK_DATA_PATTERNS
@@ -181,6 +182,33 @@ class CasualUser(TelegramBotUser):
             language = get_random_sample(CALLBACK_DATA_PATTERNS["language_select"])
             self._send_callback_query(language)
             time.sleep(random.uniform(0.3, 0.8))
+
+
+class WikipediaUser(TelegramBotUser):
+    """User that frequently requests Wikipedia URL recaps - creates heavy network load."""
+    
+    weight = 1  # 20% of users (1 out of 5 user types)
+    
+    @task(5)
+    def request_wikipedia_recap(self):
+        """Send Wikipedia URLs for recap - creates real network load."""
+        url = get_random_sample(WIKIPEDIA_URLS)
+        self._send_url_message(url)
+        # Wikipedia processing takes longer due to network + LLM + parsing
+        time.sleep(random.uniform(3.0, 8.0))  # Wait for recap processing
+        
+    @task(2) 
+    def ask_for_explanation(self):
+        """Ask for explanations of complex terms."""
+        explanation_request = get_random_sample(SAMPLE_EXPLANATIONS)
+        self._send_message(explanation_request)
+        time.sleep(random.uniform(1.0, 3.0))
+        
+    @task(1)
+    def check_notes(self):
+        """Check notes created from Wikipedia content."""
+        self._send_command("list")
+        time.sleep(random.uniform(0.5, 1.5))
 
 
 # Additional configuration
