@@ -17,6 +17,7 @@ cleanup() {
     echo "Cleaning up processes..."
     pkill -f "mock_llm_service.py" || true
     pkill -f "mock_image_service.py" || true
+    pkill -f "mock_telegram_api.py" || true
     pkill -f "run_bot_webhook.py" || true
     pkill -f "real_webhook.py" || true
     pkill -f "simple_webhook.py" || true
@@ -24,7 +25,7 @@ cleanup() {
     sleep 2
     
     # Force kill anything still using our ports
-    for port in 8001 8002 8000; do
+    for port in 8001 8002 8000 8003; do
         pid=$(lsof -t -i :$port 2>/dev/null || true)
         if [ ! -z "$pid" ]; then
             echo "Force killing process $pid using port $port"
@@ -91,6 +92,20 @@ if ! curl -s http://localhost:8002/health > /dev/null; then
 fi
 echo "✓ Mock Image service started (PID: $IMAGE_PID)"
 
+# Start mock Telegram API service
+echo "Starting Mock Telegram API Service on port 8003..."
+python "$SCRIPT_DIR/mock_telegram_api.py" &
+TELEGRAM_API_PID=$!
+sleep 2
+
+# Check if Telegram API service started
+if ! curl -s http://localhost:8003/health > /dev/null; then
+    echo "ERROR: Mock Telegram API service failed to start"
+    kill $LLM_PID $IMAGE_PID $TELEGRAM_API_PID || true
+    exit 1
+fi
+echo "✓ Mock Telegram API service started (PID: $TELEGRAM_API_PID)"
+
 # Ensure data directory exists
 mkdir -p data
 
@@ -115,14 +130,15 @@ if curl -s http://localhost:8000/health > /dev/null; then
     echo "✓ Webhook server started (PID: $BOT_PID)"
 else
     echo "ERROR: Webhook server failed to start"
-    kill $LLM_PID $IMAGE_PID $BOT_PID || true
+    kill $LLM_PID $IMAGE_PID $TELEGRAM_API_PID $BOT_PID || true
     exit 1
 fi
 
 echo ""
 echo "=== All services started successfully! ==="
 echo "Mock LLM Service: http://localhost:8001"
-echo "Mock Image Service: http://localhost:8002"  
+echo "Mock Image Service: http://localhost:8002"
+echo "Mock Telegram API: http://localhost:8003"  
 echo "Telegram Bot Webhook: http://localhost:8000/telegram"
 echo ""
 echo "To run stress tests:"

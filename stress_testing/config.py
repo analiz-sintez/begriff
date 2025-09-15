@@ -13,11 +13,13 @@ class StressTestConfig:
     MOCK_LLM_PORT = 8001
     MOCK_IMAGE_PORT = 8002
     TELEGRAM_BOT_PORT = 8000
+    MOCK_TELEGRAM_API_PORT = 8003
     
     # Service URLs
     MOCK_LLM_URL = f"http://localhost:{MOCK_LLM_PORT}"
     MOCK_IMAGE_URL = f"http://localhost:{MOCK_IMAGE_PORT}"
     TELEGRAM_WEBHOOK_URL = f"http://localhost:{TELEGRAM_BOT_PORT}/telegram"
+    MOCK_TELEGRAM_API_URL = f"http://localhost:{MOCK_TELEGRAM_API_PORT}"
     
     # Environment variables to override for testing
     @classmethod
@@ -38,6 +40,7 @@ class StressTestConfig:
             "TELEGRAM_BOT_TOKEN": "123456789:DUMMY_TOKEN_FOR_STRESS_TESTING",
             "TELEGRAM_WEBHOOK_URL": cls.TELEGRAM_WEBHOOK_URL,
             "TELEGRAM_WEBHOOK_SECRET_TOKEN": "test_secret_token",
+            "TELEGRAM_BOT_API_URL": cls.MOCK_TELEGRAM_API_URL,
             
             # Disable real image generation
             "VERTEX_AI_PROJECT_ID": "mock_project",
@@ -85,15 +88,16 @@ class MockServiceConfig:
                 "host": StressTestConfig.MOCK_LLM_URL + "/v1",
                 "api_key": "mock_api_key",
                 "models": {
-                    "default": "mock-gpt-4o-mini",
-                    "base_form": "mock-gpt-4o-mini",
-                    "explanation": "mock-gpt-4o-mini",
-                    "recap": "mock-gpt-4o",
+                    "default": "gpt-4o-mini",
+                    "base_form": "gpt-4o-mini", 
+                    "explanation": "gpt-4o-mini",
+                    "recap": "gpt-4o",  # This should trigger the 3-second delay
                 },
             },
             "IMAGE": {
                 "enable": True,
-                "model": "mock-imagen-4.0",
+                "model": "imagen-4.0-generate-preview-06-06",
                 "vertexai_project_id": "mock_project",
+                "vertexai_location": "us-central1",
             }
         }
