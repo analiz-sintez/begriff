@@ -168,8 +168,12 @@ class UserSessionManager:
                 "state": "idle",
                 "language": "en",
                 "native_language": "ru",
+                "studied_language": None,
                 "current_card_id": None,
                 "study_session_active": False,
+                "notes_created": 0,
+                "cards_studied": 0,
+                "last_note_creation": None,
                 "message_history": []
             }
         return self.sessions[user_id]
@@ -178,6 +182,25 @@ class UserSessionManager:
         """Update session data for user."""
         session = self.get_session(user_id)
         session.update(updates)
+    
+    def mark_note_created(self, user_id: int):
+        """Mark that user created a note (should have cards available for study)."""
+        session = self.get_session(user_id)
+        session["notes_created"] += 1
+        session["last_note_creation"] = time.time()
+    
+    def should_study_now(self, user_id: int) -> bool:
+        """Check if user should study based on recent note creation."""
+        session = self.get_session(user_id)
+        if session["notes_created"] > 0 and session["last_note_creation"]:
+            # Study if we created notes recently (within last 5 minutes)
+            return (time.time() - session["last_note_creation"]) < 300
+        return False
+    
+    def get_user_language(self, user_id: int) -> str:
+        """Get the user's studied language."""
+        session = self.get_session(user_id)
+        return session.get("studied_language", "german")
     
     def add_message_to_history(self, user_id: int, message_type: str, content: str):
         """Add message to user's history."""

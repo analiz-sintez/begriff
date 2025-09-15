@@ -7,6 +7,7 @@ Tests user scenarios through webhook simulation.
 import json
 import random
 import time
+import logging
 from typing import Dict, Any
 
 from locust import HttpUser, task, between
@@ -52,15 +53,19 @@ class TelegramBotUser(HttpUser):
         self._send_message(studied_lang)
         time.sleep(0.5)
         
-        # Now we need to also ensure native language is set properly
-        # The simplest way is to send words in the studied language, not English
-        # But first, let's store which language this user is studying
+        # Store which language this user is studying for consistent word selection
         self.session_manager.update_session(self.user_id, {"studied_language": studied_lang})
+        self.studied_language = studied_lang  # Also store on instance for easy access
     
     def _get_appropriate_word(self):
         """Get a word in the user's studied language."""
-        session = self.session_manager.get_session(self.user_id)
-        studied_lang = session.get("studied_language", "english")
+        # Use instance variable if available, otherwise get from session
+        if hasattr(self, 'studied_language') and self.studied_language:
+            studied_lang = self.studied_language
+        else:
+            session = self.session_manager.get_session(self.user_id)
+            studied_lang = session.get("studied_language", "german")  # Default to German instead of English
+        
         words = get_words_for_language(studied_lang)
         return get_random_sample(words)
     
@@ -93,6 +98,11 @@ class TelegramBotUser(HttpUser):
     
     def _send_callback_query(self, callback_data: str, message_id: int = None) -> Any:
         """Send a callback query (button press) to the bot."""
+        # Use a more realistic message_id based on recent activity
+        if message_id is None:
+            # Use the current message counter + small offset to simulate button on recent message
+            message_id = self.update_generator.message_counter - random.randint(0, 5)
+        
         update = self.update_generator.create_callback_query_update(
             self.user_id, callback_data, message_id, username=self.username
         )
@@ -116,36 +126,38 @@ class StudySessionUser(TelegramBotUser):
         """Complete study session flow - creates views when cards are reviewed."""
         session = self.session_manager.get_session(self.user_id)
         
-        if not session.get("study_session_active"):
+        # Only study if we have notes to study or should study now
+        if not session.get("study_session_active") and (session.get("notes_created", 0) > 0 or self.session_manager.should_study_now(self.user_id)):
             # Start study session
             self._send_command("study")
             self.session_manager.update_session(self.user_id, {"study_session_active": True})
             time.sleep(random.uniform(0.5, 1.5))  # Wait for response
-        
-        # Simulate reviewing cards - this creates View records
-        for _ in range(random.randint(1, 5)):
-            # First click ANSWER button to see the answer (creates view)
-            self._send_callback_query("study_answer")
-            time.sleep(random.uniform(0.5, 1.0))  # Review time
             
-            # Then grade the card (updates view with answer)
-            grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
-            self._send_callback_query(grade)
-            time.sleep(random.uniform(0.5, 2.0))  # Think time
-            
-            # Possibly continue or stop
-            if random.random() < 0.8:  # 80% chance to continue
-                continue
-            else:
-                self._send_callback_query("study_stop")
-                self.session_manager.update_session(self.user_id, {"study_session_active": False})
-                break
+            # Simulate reviewing cards - this creates View records
+            for _ in range(random.randint(1, 5)):
+                # First click ANSWER button to see the answer (creates view)
+                self._send_callback_query("study_answer")
+                time.sleep(random.uniform(0.5, 1.0))  # Review time
+                
+                # Then grade the card (updates view with answer)
+                grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
+                self._send_callback_query(grade)
+                time.sleep(random.uniform(0.5, 2.0))  # Think time
+                
+                # Possibly continue or stop
+                if random.random() < 0.8:  # 80% chance to continue
+                    continue
+                else:
+                    self._send_callback_query("study_stop")
+                    self.session_manager.update_session(self.user_id, {"study_session_active": False})
+                    break
     
     @task(2)
     def create_notes_first(self):
         """Create some notes so there are cards to study."""
         word = self._get_appropriate_word()
         self._send_message(word)
+        self.session_manager.mark_note_created(self.user_id)
         time.sleep(random.uniform(0.5, 1.5))
     
     @task(1)
@@ -163,8 +175,12 @@ class NoteTakingUser(TelegramBotUser):
     @task(4)
     def ask_for_explanation(self):
         """Ask for word explanations - creates notes and cards."""
-        explanation_request = get_random_sample(SAMPLE_EXPLANATIONS)
+        # Use language-appropriate explanation requests
+        word = self._get_appropriate_word()
+        patterns = [f"What does '{word}' mean?", f"Explain '{word}'", f"Define {word}"]
+        explanation_request = get_random_sample(patterns)
         self._send_message(explanation_request)
+        self.session_manager.mark_note_created(self.user_id)
         time.sleep(random.uniform(0.5, 2.0))  # Wait for response
     
     @task(3)
@@ -172,6 +188,7 @@ class NoteTakingUser(TelegramBotUser):
         """Send individual words that will get explanations - creates notes and cards."""
         word = self._get_appropriate_word()
         self._send_message(word)
+        self.session_manager.mark_note_created(self.user_id)
         time.sleep(random.uniform(0.5, 1.5))
     
     @task(2)
@@ -243,23 +260,28 @@ class WikipediaUser(TelegramBotUser):
     @task(3) 
     def ask_for_explanation(self):
         """Ask for explanations of complex terms - creates notes and cards."""
-        explanation_request = get_random_sample(SAMPLE_EXPLANATIONS)
+        word = self._get_appropriate_word()
+        patterns = [f"What does '{word}' mean?", f"Explain '{word}'", f"Define {word}"]
+        explanation_request = get_random_sample(patterns)
         self._send_message(explanation_request)
+        self.session_manager.mark_note_created(self.user_id)
         time.sleep(random.uniform(1.0, 3.0))
         
     @task(2)
     def study_created_notes(self):
         """Study notes that were created from explanations - creates views."""
-        self._send_command("study")
-        time.sleep(random.uniform(0.5, 1.0))
-        
-        # Do a few study interactions
-        for _ in range(random.randint(1, 3)):
-            self._send_callback_query("study_answer")
+        # Only study if we have created notes
+        if self.session_manager.should_study_now(self.user_id) or self.session_manager.get_session(self.user_id).get("notes_created", 0) > 0:
+            self._send_command("study")
             time.sleep(random.uniform(0.5, 1.0))
-            grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
-            self._send_callback_query(grade)
-            time.sleep(random.uniform(0.5, 1.5))
+            
+            # Do a few study interactions
+            for _ in range(random.randint(1, 3)):
+                self._send_callback_query("study_answer")
+                time.sleep(random.uniform(0.5, 1.0))
+                grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
+                self._send_callback_query(grade)
+                time.sleep(random.uniform(0.5, 1.5))
         
     @task(1)
     def check_notes(self):
@@ -271,7 +293,7 @@ class WikipediaUser(TelegramBotUser):
 class IntensiveNoteUser(TelegramBotUser):
     """User that creates many notes quickly to maximize database population."""
     
-    weight = 1  # ~17% of users (1 out of 6 user types)
+    weight = 1  # ~14% of users (1 out of 7 user types)
     
     @task(6)
     def create_multiple_notes(self):
@@ -280,6 +302,7 @@ class IntensiveNoteUser(TelegramBotUser):
         words = [self._get_appropriate_word() for _ in range(random.randint(2, 4))]
         for word in words:
             self._send_message(word)
+            self.session_manager.mark_note_created(self.user_id)
             time.sleep(random.uniform(0.3, 0.8))  # Quick succession
     
     @task(4)
@@ -294,21 +317,24 @@ class IntensiveNoteUser(TelegramBotUser):
         ]
         request = get_random_sample(patterns)
         self._send_message(request)
+        self.session_manager.mark_note_created(self.user_id)
         time.sleep(random.uniform(0.5, 1.5))
     
     @task(3)
     def intensive_study_session(self):
         """Long study session to create many view records."""
-        self._send_command("study")
-        time.sleep(random.uniform(0.5, 1.0))
-        
-        # Extended study session
-        for _ in range(random.randint(3, 8)):
-            self._send_callback_query("study_answer")
-            time.sleep(random.uniform(0.3, 0.8))
-            grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
-            self._send_callback_query(grade)
-            time.sleep(random.uniform(0.3, 1.0))
+        # Only study if we have created notes recently
+        if self.session_manager.should_study_now(self.user_id):
+            self._send_command("study")
+            time.sleep(random.uniform(0.5, 1.0))
+            
+            # Extended study session
+            for _ in range(random.randint(3, 8)):
+                self._send_callback_query("study_answer")
+                time.sleep(random.uniform(0.3, 0.8))
+                grade = get_random_sample(CALLBACK_DATA_PATTERNS["study_grade"])
+                self._send_callback_query(grade)
+                time.sleep(random.uniform(0.3, 1.0))
     
     @task(2)
     def mixed_content_creation(self):
@@ -329,6 +355,182 @@ class IntensiveNoteUser(TelegramBotUser):
         cmd = get_random_sample(commands)
         self._send_command(cmd)
         time.sleep(random.uniform(0.3, 1.0))
+
+
+class CreateAndStudyUser(TelegramBotUser):
+    """User specifically designed to create notes and immediately study them - populates Views table."""
+    
+    weight = 2  # Increase weight since this is critical for Views population
+    
+    @task(8)
+    def create_then_study_cycle(self):
+        """Create notes and immediately study them in the same language session."""
+        # Create 2-3 notes first
+        for _ in range(random.randint(2, 3)):
+            word = self._get_appropriate_word()
+            self._send_message(word)
+            self.session_manager.mark_note_created(self.user_id)
+            time.sleep(random.uniform(0.5, 1.0))  # Wait for note creation
+        
+        # Now immediately try to study - this will at least trigger study session
+        time.sleep(random.uniform(2.0, 3.0))  # Give more time for cards to be created
+        
+        # Multiple attempts to study to increase chances of finding cards
+        for attempt in range(3):
+            self._send_command("study")
+            time.sleep(random.uniform(0.8, 1.5))
+    
+    @task(3)
+    def focused_vocabulary_building(self):
+        """Build vocabulary in specific language then study it."""
+        # Create several vocabulary notes in user's studied language
+        for _ in range(random.randint(1, 2)):
+            word = self._get_appropriate_word()
+            patterns = [word, f"What does '{word}' mean?", f"Explain {word}"]
+            request = get_random_sample(patterns)
+            self._send_message(request)
+            self.session_manager.mark_note_created(self.user_id)
+            time.sleep(random.uniform(0.5, 1.0))
+        
+        # Brief pause then study
+        time.sleep(random.uniform(2.0, 3.0))
+        
+        # Study the vocabulary we just created
+        self._send_command("study")
+        time.sleep(random.uniform(0.5, 1.0))
+    
+    @task(2)
+    def quick_review_session(self):
+        """Quick review of any available cards."""
+        # Only try to study if we've created notes
+        if self.session_manager.get_session(self.user_id).get("notes_created", 0) > 0:
+            self._send_command("study")
+            time.sleep(random.uniform(0.5, 1.0))
+
+
+class DirectStudyUser(TelegramBotUser):
+    """User that focuses on triggering study sessions to populate Views - bypasses callback complexity."""
+    
+    weight = 1
+    
+    @task(10)
+    def persistent_study_attempts(self):
+        """Continuously attempt to study to catch any available cards."""
+        # Try studying multiple times to catch cards that become available
+        for _ in range(random.randint(2, 5)):
+            self._send_command("study")
+            time.sleep(random.uniform(0.5, 1.0))
+    
+    @task(5)  
+    def create_word_then_study(self):
+        """Create a single word then immediately try to study it."""
+        word = self._get_appropriate_word()
+        self._send_message(word)
+        self.session_manager.mark_note_created(self.user_id)
+        
+        # Wait for note/card creation
+        time.sleep(random.uniform(2.0, 4.0))
+        
+        # Multiple study attempts
+        for _ in range(3):
+            self._send_command("study")
+            time.sleep(random.uniform(1.0, 2.0))
+    
+    @task(3)
+    def explanation_then_study(self):
+        """Ask for explanation then study."""
+        word = self._get_appropriate_word()
+        self._send_message(f"What does '{word}' mean?")
+        self.session_manager.mark_note_created(self.user_id)
+        
+        # Wait longer for processing
+        time.sleep(random.uniform(3.0, 5.0))
+        
+        # Try to study what we just created
+        self._send_command("study")
+        time.sleep(random.uniform(1.0, 2.0))
+
+
+class PerfectLanguageConsistencyUser(TelegramBotUser):
+    """User designed to ensure perfect language consistency and populate Views table."""
+    
+    weight = 2  # High weight since this is critical for Views
+    
+    def on_start(self):
+        """Initialize with guaranteed language consistency."""
+        self.user_id = create_realistic_user_id()
+        self.username = f"testuser{self.user_id}"
+        self.update_generator = TelegramUpdateGenerator()
+        self.session_manager = UserSessionManager()
+        
+        # Choose a specific language and stick to it throughout
+        self.target_language = get_random_sample(["german", "french", "spanish", "russian", "italian"])
+        
+        # Start with /start command
+        self._send_command("start")
+        time.sleep(0.5)
+        
+        # Set up this specific language
+        self._send_command("language")
+        time.sleep(0.3)
+        self._send_message(self.target_language)
+        time.sleep(1.0)  # Give time for language to be properly set
+        
+        # Store the language for consistent word selection
+        self.session_manager.update_session(self.user_id, {"studied_language": self.target_language})
+        self.studied_language = self.target_language
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"PerfectLanguageConsistencyUser {self.user_id} set up for {self.target_language}")
+    
+    @task(8)
+    def create_and_study_same_language(self):
+        """Create notes in target language then immediately study them."""
+        # Create 1-2 words in our target language
+        words = get_words_for_language(self.target_language)
+        
+        for _ in range(random.randint(1, 2)):
+            word = get_random_sample(words)
+            self._send_message(word)
+            self.session_manager.mark_note_created(self.user_id)
+            time.sleep(random.uniform(1.0, 2.0))  # Wait for note processing
+        
+        # Now study immediately - same user, same language
+        time.sleep(random.uniform(2.0, 3.0))  # Give time for cards to be created
+        
+        # Multiple study attempts to catch cards
+        for attempt in range(5):  # More attempts
+            self._send_command("study")
+            time.sleep(random.uniform(1.0, 2.0))
+    
+    @task(5)
+    def explanation_pattern_same_language(self):
+        """Ask for explanations in target language then study."""
+        words = get_words_for_language(self.target_language)
+        word = get_random_sample(words)
+        
+        # Ask for explanation
+        patterns = [f"What does '{word}' mean?", f"Explain {word}", word]
+        request = get_random_sample(patterns)
+        self._send_message(request)
+        self.session_manager.mark_note_created(self.user_id)
+        
+        # Wait for processing
+        time.sleep(random.uniform(2.0, 4.0))
+        
+        # Study what we just created
+        for _ in range(3):
+            self._send_command("study")
+            time.sleep(random.uniform(1.0, 2.0))
+    
+    @task(3)
+    def focused_study_session(self):
+        """Focus on studying existing cards."""
+        # Only study if we've created notes
+        if self.session_manager.get_session(self.user_id).get("notes_created", 0) > 0:
+            for _ in range(random.randint(3, 6)):
+                self._send_command("study")
+                time.sleep(random.uniform(0.8, 1.5))
 
 
 # Additional configuration
