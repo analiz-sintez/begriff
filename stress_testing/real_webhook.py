@@ -88,12 +88,60 @@ class MockLanguageDetectorBuilder:
     
     def build(self):
         mock_detector = MagicMock()
-        # Return properly structured confidence values
-        mock_detector.compute_language_confidence_values.return_value = [
-            MockConfidenceValue(MockLanguage("ENGLISH"), 0.95),
-            MockConfidenceValue(MockLanguage("RUSSIAN"), 0.03),
-            MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
-        ]
+        
+        def smart_language_detection(text):
+            """Smart language detection based on character patterns."""
+            text_lower = text.lower()
+            
+            # Russian: Contains Cyrillic characters
+            if any('\u0400' <= char <= '\u04FF' for char in text):
+                return [
+                    MockConfidenceValue(MockLanguage("RUSSIAN"), 0.95),
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.03),
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
+                ]
+            
+            # German: Common German patterns
+            elif any(word in text_lower for word in ['haus', 'hallo', 'programmierung', 'sprache', 'gedächtnis', 'wortschatz', 'erklärung', 'bedeutung', 'algorithmus', 'datenbank', 'netzwerk', 'anwendung', 'entwicklung']):
+                return [
+                    MockConfidenceValue(MockLanguage("GERMAN"), 0.95),
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.03),
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
+                ]
+            
+            # French: Common French patterns and accents
+            elif any(word in text_lower for word in ['bonjour', 'monde', 'ordinateur', 'programmation', 'langue', 'apprentissage', 'mémoire', 'vocabulaire', 'explication', 'signification', 'contexte', 'phrase', 'grammaire', 'algorithme', 'fonction', 'logiciel', 'matériel', 'développement']) or 'é' in text or 'è' in text or 'à' in text or 'ç' in text:
+                return [
+                    MockConfidenceValue(MockLanguage("FRENCH"), 0.95),
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.03),
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
+                ]
+            
+            # Spanish: Common Spanish patterns
+            elif any(word in text_lower for word in ['hola', 'mundo', 'computadora', 'programación', 'idioma', 'aprendizaje', 'estudio', 'memoria', 'vocabulario', 'explicación', 'significado', 'contexto', 'oración', 'gramática', 'algoritmo', 'función', 'desarrollo']) or 'ñ' in text or 'ó' in text or 'á' in text:
+                return [
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.95),
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.03),
+                    MockConfidenceValue(MockLanguage("RUSSIAN"), 0.02)
+                ]
+            
+            # Italian: Common Italian patterns
+            elif any(word in text_lower for word in ['ciao', 'mondo', 'computer', 'programmazione', 'lingua', 'apprendimento', 'studio', 'memoria', 'vocabolario', 'spiegazione', 'significato', 'contesto', 'frase', 'grammatica', 'algoritmo', 'funzione', 'sviluppo']):
+                return [
+                    MockConfidenceValue(MockLanguage("ITALIAN"), 0.95),
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.03),
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
+                ]
+            
+            # Default to English for unknown patterns
+            else:
+                return [
+                    MockConfidenceValue(MockLanguage("ENGLISH"), 0.95),
+                    MockConfidenceValue(MockLanguage("RUSSIAN"), 0.03),
+                    MockConfidenceValue(MockLanguage("SPANISH"), 0.02)
+                ]
+        
+        mock_detector.compute_language_confidence_values = smart_language_detection
         return mock_detector
 
 mock_lingua = MagicMock()

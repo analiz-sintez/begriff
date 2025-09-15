@@ -224,28 +224,91 @@ WIKIPEDIA_URLS = [
 SAMPLE_WORDS = [
     "hello", "world", "python", "programming", "computer",
     "language", "learning", "study", "memory", "vocabulary",
-    "explanation", "meaning", "context", "sentence", "grammar"
+    "explanation", "meaning", "context", "sentence", "grammar",
+    "algorithm", "function", "variable", "database", "network",
+    "software", "hardware", "internet", "website", "application",
+    "development", "testing", "debugging", "framework", "library",
+    "interface", "protocol", "security", "encryption", "server",
+    "client", "browser", "mobile", "responsive", "optimization"
 ]
+
+# Words in different languages for users studying those languages
+LANGUAGE_SPECIFIC_WORDS = {
+    "german": [
+        "Hallo", "Welt", "Computer", "Programmierung", "Sprache",
+        "Lernen", "Studium", "Gedächtnis", "Wortschatz", "Erklärung",
+        "Bedeutung", "Kontext", "Satz", "Grammatik", "Algorithmus",
+        "Funktion", "Variable", "Datenbank", "Netzwerk", "Software",
+        "Hardware", "Internet", "Website", "Anwendung", "Entwicklung"
+    ],
+    "french": [
+        "Bonjour", "Monde", "Ordinateur", "Programmation", "Langue",
+        "Apprentissage", "Étude", "Mémoire", "Vocabulaire", "Explication", 
+        "Signification", "Contexte", "Phrase", "Grammaire", "Algorithme",
+        "Fonction", "Variable", "Base de données", "Réseau", "Logiciel",
+        "Matériel", "Internet", "Site web", "Application", "Développement"
+    ],
+    "spanish": [
+        "Hola", "Mundo", "Computadora", "Programación", "Idioma",
+        "Aprendizaje", "Estudio", "Memoria", "Vocabulario", "Explicación",
+        "Significado", "Contexto", "Oración", "Gramática", "Algoritmo", 
+        "Función", "Variable", "Base de datos", "Red", "Software",
+        "Hardware", "Internet", "Sitio web", "Aplicación", "Desarrollo"
+    ],
+    "russian": [
+        "Привет", "Мир", "Компьютер", "Программирование", "Язык",
+        "Обучение", "Изучение", "Память", "Словарь", "Объяснение",
+        "Значение", "Контекст", "Предложение", "Грамматика", "Алгоритм",
+        "Функция", "Переменная", "База данных", "Сеть", "Программное обеспечение",
+        "Оборудование", "Интернет", "Веб-сайт", "Приложение", "Разработка"
+    ],
+    "italian": [
+        "Ciao", "Mondo", "Computer", "Programmazione", "Lingua", 
+        "Apprendimento", "Studio", "Memoria", "Vocabolario", "Spiegazione",
+        "Significato", "Contesto", "Frase", "Grammatica", "Algoritmo",
+        "Funzione", "Variabile", "Database", "Rete", "Software",
+        "Hardware", "Internet", "Sito web", "Applicazione", "Sviluppo"
+    ]
+}
 
 SAMPLE_EXPLANATIONS = [
     "What does 'serendipity' mean?",
     "Explain the word 'ubiquitous'",
     "What is the meaning of 'ephemeral'?",
     "Can you explain 'paradigm'?",
-    "What does 'dichotomy' mean?"
+    "What does 'dichotomy' mean?",
+    "Define 'algorithm'",
+    "What is 'encryption'?",
+    "Explain 'optimization'",
+    "What does 'responsive' mean?",
+    "Define 'protocol'",
+    "What is a 'framework'?",
+    "Explain 'debugging'",
+    "What does 'scalable' mean?",
+    "Define 'implementation'",
+    "What is 'authentication'?"
 ]
 
 CALLBACK_DATA_PATTERNS = {
     "study_grade": ["study_grade:again", "study_grade:hard", "study_grade:good", "study_grade:easy"],
+    "study_answer": ["study_answer"],
     "study_next": ["study_next"],
     "study_stop": ["study_stop"],
-    "language_select": ["language_select:en", "language_select:de", "language_select:fr", "language_select:es"],
+    "language_select": ["language_select:en", "language_select:de", "language_select:fr", "language_select:es", "language_select:ru", "language_select:it", "language_select:pt"],
 }
 
 
 def get_random_sample(sample_list: List[str]) -> str:
     """Get random item from a sample list."""
     return random.choice(sample_list)
+
+
+def get_words_for_language(language: str) -> List[str]:
+    """Get appropriate word list for a given study language."""
+    if language in LANGUAGE_SPECIFIC_WORDS:
+        return LANGUAGE_SPECIFIC_WORDS[language]
+    else:
+        return SAMPLE_WORDS  # Fallback to English words
 
 
 def create_realistic_user_id() -> int:
