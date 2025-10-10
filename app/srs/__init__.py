@@ -12,7 +12,6 @@ from .card import (
     ImageCard,
     CardAdded,
     get_card,
-    count_new_cards_studied,
     Maturity,
 )
 from .view import (
@@ -22,6 +21,7 @@ from .view import (
     get_views,
     record_view_start,
     record_answer,
+    count_new_cards_studied,
 )
 from .service import (
     create_word_note,

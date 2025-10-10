@@ -16,8 +16,8 @@ from nachricht.auth import User
 from .. import bus
 from ..config import Config
 from ..notes import Note, Language, WordNote
-from .view import View
 from .card import Card, Maturity, DirectCard, ReverseCard, CardAdded
+from .view import View
 
 
 logger = logging.getLogger(__name__)

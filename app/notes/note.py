@@ -27,8 +27,8 @@ class Note(Model, OptionsMixin):
 
     field1: Mapped[str]
     field2: Mapped[Optional[str]]
-    user_id = mapped_column(Integer, ForeignKey(User.id))
-    language_id = mapped_column(Integer, ForeignKey(Language.id))
+    user_id = mapped_column(Integer, ForeignKey(User.id), index=True)
+    language_id = mapped_column(Integer, ForeignKey(Language.id), index=True)
 
     cards = relationship(
         "Card", back_populates="note", cascade="all, delete-orphan"
