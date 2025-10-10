@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import aliased
 
 from nachricht import db
@@ -56,60 +56,70 @@ def get_cards(
         bury_siblings,
         randomize,
     )
-    query = db.session.query(Card).join(Note)
-    query = query.filter(Note.user_id == user_id)
 
+    cards_ = select(Card).join(Note).where(Note.user_id == user_id)
     if language:
-        query = query.filter(Note.language_id == language.id)
+        cards_ = cards_.where(Note.language_id == language.id)
+    cards = cards_.cte("user_cards")
 
+    query = select(cards)
     if start_ts:
-        query = query.filter(Card.ts_scheduled > start_ts)
-
+        query = query.where(cards.c.ts_scheduled > start_ts)
     if end_ts:
-        query = query.filter(Card.ts_scheduled <= end_ts)
+        query = query.where(cards.c.ts_scheduled <= end_ts)
 
     if bury_siblings:
         # If a note has a card reviewed today, don't include its sibling cards,
         # only allow to review the reviewed card again.
         # ...step 1: Find all cards that were reviewed today
         recently_viewed_cards = (
-            db.session.query(View.card_id.distinct().label("card_id"))
-            .filter(
+            select(View.card_id.distinct().label("card_id"))
+            .join(cards, cards.c.id == View.card_id)
+            .where(
                 View.ts_review_finished
                 > (datetime.now(timezone.utc) - timedelta(hours=12))
             )
             .cte("recently_viewed_cards")
-            .select()
         )
         # ...step 2: Find distinct note_ids associated with these cards
         recent_notes = (
-            db.session.query(Card.note_id.distinct().label("note_id"))
-            .filter(Card.id.in_(recently_viewed_cards))
+            select(Card.note_id.distinct().label("note_id"))
+            .join(
+                recently_viewed_cards,
+                recently_viewed_cards.c.card_id == Card.id,
+            )
             .cte("recent_notes")
-            .select()
         )
         # ...step 3: Allow only those cards which belong to notes found in step 2
         #    For other notes, allow only one card
-        query = query.filter(
-            db.or_(
-                ~Card.note_id.in_(recent_notes),
-                Card.id.in_(recently_viewed_cards),
-            )
-        )
+
         # ...step 4: Ensure only one card from each note not reviewed today is included
-        cards_subquery = (
-            db.session.query(
-                Card.note_id.label("note_id"),
-                db.func.min(Card.id).label("min_card_id"),
-            )
-            .group_by(Card.note_id)
-            .subquery()
+        # ... generate a random number for each card
+        random_card_func = (
+            func.rank()
+            .over(partition_by=cards.c.note_id, order_by=func.random())
+            .label("random_rank")
+        )
+        # ... for each note, find the minimal (or maximal) number of these (and assign it to every row via a window function)
+        subq = select(
+            cards.c.note_id.label("note_id"),
+            cards.c.id.label("card_id"),
+            random_card_func,
+        ).subquery()
+        # ... take the card with the minimal number (with a simple where statement)
+        one_card_per_note = (
+            select(subq.c.card_id)
+            .where(subq.c.random_rank == 1)
+            .cte("one_card_per_note")
         )
 
-        query = query.filter(
+        query = query.where(
             db.or_(
-                Card.id.in_(db.session.query(cards_subquery.c.min_card_id)),
-                Card.id.in_(recently_viewed_cards),
+                cards.c.id.in_(select(recently_viewed_cards.c.card_id)),
+                db.and_(
+                    ~cards.c.note_id.in_(select(recent_notes.c.note_id)),
+                    cards.c.id.in_(select(one_card_per_note.c.card_id)),
+                ),
             )
         )
 
@@ -120,29 +130,29 @@ def get_cards(
         )
         for m in maturity:
             if m == Maturity.NEW:
-                conditions.append(Card.ts_last_review.is_(None))
+                conditions.append(cards.c.ts_last_review.is_(None))
             elif m == Maturity.YOUNG:
                 conditions.append(
                     and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled <= timetable_mature,
+                        cards.c.ts_last_review.isnot(None),
+                        cards.c.ts_scheduled <= timetable_mature,
                     )
                 )
             elif m == Maturity.MATURE:
                 conditions.append(
                     and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled > timetable_mature,
+                        cards.c.ts_last_review.isnot(None),
+                        cards.c.ts_scheduled > timetable_mature,
                     )
                 )
 
-        query = query.filter(db.or_(*conditions))
+        query = query.where(db.or_(*conditions))
 
     if not randomize:
-        query = query.order_by(Card.ts_scheduled.asc())
+        query = query.order_by(cards.c.ts_scheduled.asc())
 
     log_sql_query(query)
-    results = query.all()
+    results = db.session.scalars(select(Card).from_statement(query)).all()
     if randomize:
         random.shuffle(results)
 
