@@ -227,9 +227,8 @@ async def study_next_card(ctx: Context, user: User) -> None:
         cards = get_remaining_cards(ctx, user)
         if cards:
             text = "All done for today. Switch to the next language?"
-            languages = [
-                Language.from_id(card.note.language_id) for card in cards
-            ]
+            language_ids = {card.note.language_id for card in cards}
+            languages = [Language.from_id(id) for id in language_ids]
             keyboard = Keyboard(
                 _pack_buttons(
                     [
