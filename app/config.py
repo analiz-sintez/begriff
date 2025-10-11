@@ -207,7 +207,10 @@ class Config:
 
     FSRS = {
         "target_retention": 0.9,
-        "mature_threshold": 2,
+        # Stability above which the card is considered mature:
+        # (Stability is number of days after which the estimated chance
+        # to recall a card drops from 100% to 90%.)
+        "mature_threshold": 7,
         "new_cards_per_session": 10,
         "bury_siblings": True,
         "card_is_leech": {

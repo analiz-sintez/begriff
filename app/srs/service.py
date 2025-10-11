@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, case
 from sqlalchemy.orm import aliased
 
 from nachricht import db
@@ -21,6 +21,29 @@ from .view import View
 
 
 logger = logging.getLogger(__name__)
+
+
+def _cards_maturity_cte(
+    user_id: Optional[int] = None, language_id: Optional[int] = None
+):
+    # Card is mature if its stability (aka number of days before its retrievability
+    # drops from 100% to 90%) is more than 7. If it's <= 7 but the card was reviewed
+    # at least once, it's young. Otherwise it's new.
+    card_maturity = case(
+        (Card.ts_last_review == None, Maturity.NEW.value),
+        (
+            Card.stability <= Config.FSRS["mature_threshold"],
+            Maturity.YOUNG.value,
+        ),
+        else_=Maturity.MATURE.value,
+    ).label("maturity")
+
+    cards = select(Card.id, Card.note_id, card_maturity).join(Note)
+    if user_id:
+        cards = cards.where(Note.user_id == user_id)
+    if language_id:
+        cards = cards.where(Note.language_id == language_id)
+    return cards.cte("cards_maturity")
 
 
 def get_cards(
@@ -124,29 +147,15 @@ def get_cards(
         )
 
     if maturity:
-        conditions = []
-        timetable_mature = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"]
+        cards_maturity = _cards_maturity_cte(
+            user_id, language.id if language else None
         )
-        for m in maturity:
-            if m == Maturity.NEW:
-                conditions.append(cards.c.ts_last_review.is_(None))
-            elif m == Maturity.YOUNG:
-                conditions.append(
-                    and_(
-                        cards.c.ts_last_review.isnot(None),
-                        cards.c.ts_scheduled <= timetable_mature,
-                    )
-                )
-            elif m == Maturity.MATURE:
-                conditions.append(
-                    and_(
-                        cards.c.ts_last_review.isnot(None),
-                        cards.c.ts_scheduled > timetable_mature,
-                    )
-                )
-
-        query = query.where(db.or_(*conditions))
+        matching_cards = (
+            select(cards_maturity.c.id).where(
+                cards_maturity.c.maturity.in_([m.value for m in maturity])
+            )
+        ).cte("matching_cards")
+        query = query.join(matching_cards, cards.c.id == matching_cards.c.id)
 
     if not randomize:
         query = query.order_by(cards.c.ts_scheduled.asc())
@@ -234,6 +243,24 @@ def update_note(note: Note) -> None:
     logger.info("Note update with id: %d skipped.", note.id)
 
 
+def _notes_maturity_cte(
+    user_id: Optional[int] = None, language_id: Optional[int] = None
+):
+    # Note is mature if all its cards are mature, new if all cards are new,
+    # and young otherwise.
+    cards = _cards_maturity_cte(user_id, language_id)
+    total_cards = func.count(cards.c.id)
+    new_cards = func.sum(cards.c.maturity == Maturity.NEW.value)
+    mature_cards = func.sum(cards.c.maturity == Maturity.MATURE.value)
+    note_maturity = case(
+        (total_cards == new_cards, Maturity.NEW.value),
+        (total_cards == mature_cards, Maturity.MATURE.value),
+        else_=Maturity.YOUNG.value,
+    ).label("maturity")
+    notes = select(cards.c.note_id, note_maturity).group_by(cards.c.note_id)
+    return notes.cte("notes_maturity")
+
+
 def get_notes(
     user_id: int,
     language_id: Optional[int] = None,
@@ -265,88 +292,57 @@ def get_notes(
         maturity,
         order_by,
     )
-    query = db.session.query(Note).filter_by(user_id=user_id)
+    query = select(Note).where(Note.user_id == user_id)
 
     if language_id:
-        query = query.filter_by(language_id=language_id)
+        query = query.where(Note.language_id == language_id)
 
     if text:
         if text.startswith("=~"):
             logger.debug("Applying regex filter on text: '%s'", text[2:])
-            query = query.filter(Note.field1.op("REGEXP")(text[2:]))
+            query = query.where(Note.field1.op("REGEXP")(text[2:]))
         elif "%" in text or "_" in text:
             logger.debug("Applying SQL LIKE filter on text: '%s'", text)
-            query = query.filter(Note.field1.like(text))
+            query = query.where(Note.field1.like(text))
         else:
             logger.debug("Applying exact match filter on text: '%s'", text)
-            query = query.filter(Note.field1 == text)
+            query = query.where(Note.field1 == text)
 
     if explanation:
         if explanation.startswith("=~"):
             logger.debug(
                 "Applying regex filter on explanation: '%s'", explanation[2:]
             )
-            query = query.filter(Note.field2.op("REGEXP")(explanation[2:]))
+            query = query.where(Note.field2.op("REGEXP")(explanation[2:]))
         elif "%" in explanation or "_" in explanation:
             logger.debug(
                 "Applying SQL LIKE filter on explanation: '%s'", explanation
             )
-            query = query.filter(Note.field2.like(explanation))
+            query = query.where(Note.field2.like(explanation))
         else:
             logger.debug(
                 "Applying exact match filter on explanation: '%s'", explanation
             )
-            query = query.filter(Note.field2 == explanation)
+            query = query.where(Note.field2 == explanation)
 
     if maturity:
-        CardAlias = aliased(Card)
-        conditions = []
-        # This is incorrect since it depends on the current date.
-        # Definition of maturity shouldn't depend on it.
-        # But maybe for the injection menas it is good.
-        timetable_mature = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"]
+        logger.debug("Applying maturity filter: %s", maturity)
+        notes = _notes_maturity_cte(user_id, language_id)
+        matching_notes = (
+            select(notes.c.note_id)
+            .where(notes.c.maturity.in_([m.value for m in maturity]))
+            .cte("matched_notes")
         )
-        for m in maturity:
-            if m == Maturity.NEW:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(~CardAlias.ts_last_review.is_(None))
-                    .cte("new_notes")
-                )
-                conditions.append(~Note.id.in_(subquery.select()))
-            elif m == Maturity.YOUNG:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(
-                        and_(
-                            CardAlias.ts_last_review.isnot(None),
-                            CardAlias.ts_scheduled <= timetable_mature,
-                        )
-                    )
-                    .cte("young_notes")
-                )
-                conditions.append(Note.id.in_(subquery.select()))
-            elif m == Maturity.MATURE:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(
-                        ~and_(
-                            CardAlias.ts_last_review.isnot(None),
-                            CardAlias.ts_scheduled > timetable_mature,
-                        )
-                    )
-                    .cte("mature_notes")
-                )
-                conditions.append(~Note.id.in_(subquery.select()))
-
-        query = query.filter(db.or_(*conditions))
+        query = query.join(
+            matching_notes,
+            Note.id == matching_notes.c.note_id,
+        )
 
     if order_by in ["field1", "field2"]:
         query = query.order_by(getattr(Note, order_by))
 
     log_sql_query(query)
-    results = query.all()
+    results = db.session.scalars(select(Note).from_statement(query)).all()
     logger.info("Retrieved %i notes", len(results))
     logger.debug("\n".join([str(note) for note in results]))
     return results

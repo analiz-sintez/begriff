@@ -14,6 +14,7 @@ from app.notes import Language
 from app.srs import (
     create_word_note,
     get_cards,
+    get_notes,
     count_new_cards_studied,
     record_view_start,
     record_answer,
@@ -27,7 +28,6 @@ basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 class Config(DefaultConfig):
     TESTING = True
-    # SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(
         basedir, "data/database.test-srs.sqlite"
     )
@@ -107,39 +107,15 @@ def _run_benchmark(func: callable, repetitions: int = 10) -> tuple:
     return mean, std_dev, ci
 
 
-def test_get_cards_performance(app):
+def test_srs_performance(app):
     """
-    Measures the performance of the `get_cards` function with varying
-    data sizes and filter configurations.
+    Measures the performance of the `get_cards` and `get_notes` functions
+    with varying data sizes and filter configurations.
     """
-    print("\n\n--- `get_cards` Performance Test ---")
+    print("\n\n--- SRS Performance Test ---")
     repetitions = 10
 
-    param_sets = {
-        "count_new_cards_studied": {
-            "baseline": {},
-        },
-        "get_cards": {
-            "baseline": {},
-            "with_end_ts": {
-                "end_ts": datetime.now(timezone.utc) + timedelta(days=30)
-            },
-            "bury_siblings": {
-                "end_ts": datetime.now(timezone.utc) + timedelta(days=30),
-                "bury_siblings": True,
-            },
-            "maturity_new": {"maturity": [Maturity.NEW]},
-            "maturity_young": {"maturity": [Maturity.YOUNG]},
-            "maturity_all": {
-                "maturity": [Maturity.NEW, Maturity.YOUNG, Maturity.MATURE]
-            },
-            "randomized": {"randomize": True},
-        },
-        "get_remaining_cards": {},
-    }
-
     results = {}
-
     note_counts = [5, 50]
 
     for num_notes in note_counts:
@@ -155,6 +131,52 @@ def test_get_cards_performance(app):
             print(f"\nGenerating data for {num_notes} notes...")
             _generate_data(user, language, num_notes)
 
+            param_sets = {
+                "count_new_cards_studied": {
+                    "baseline": {},
+                },
+                "get_cards": {
+                    "baseline": {},
+                    "with_end_ts": {
+                        "end_ts": datetime.now(timezone.utc)
+                        + timedelta(days=30)
+                    },
+                    "bury_siblings": {
+                        "end_ts": datetime.now(timezone.utc)
+                        + timedelta(days=30),
+                        "bury_siblings": True,
+                    },
+                    "maturity_new": {"maturity": [Maturity.NEW]},
+                    "maturity_young": {"maturity": [Maturity.YOUNG]},
+                    "maturity_all": {
+                        "maturity": [
+                            Maturity.NEW,
+                            Maturity.YOUNG,
+                            Maturity.MATURE,
+                        ]
+                    },
+                    "randomized": {"randomize": True},
+                },
+                "get_notes": {
+                    "baseline": {},
+                    "text_filter_exact": {"text": f"word_{user.id}_3"},
+                    "text_filter_like": {"text": f"word_{user.id}_4%"},
+                    "explanation_filter_like": {
+                        "explanation": "explanation_1%"
+                    },
+                    "maturity_new": {"maturity": [Maturity.NEW]},
+                    "maturity_young": {"maturity": [Maturity.YOUNG]},
+                    "maturity_all": {
+                        "maturity": [
+                            Maturity.NEW,
+                            Maturity.YOUNG,
+                            Maturity.MATURE,
+                        ]
+                    },
+                    "order_by": {"order_by": "field1"},
+                },
+            }
+
             results[num_notes] = {}
             print(
                 f"Benchmarking with {num_notes} notes ({num_notes*2} cards)..."
@@ -166,6 +188,10 @@ def test_get_cards_performance(app):
                         benchmark_func = lambda: get_cards(
                             user_id=user.id, language=language, **params
                         )
+                    elif func_name == "get_notes":
+                        benchmark_func = lambda: get_notes(
+                            user_id=user.id, language_id=language.id, **params
+                        )
                     elif func_name == "count_new_cards_studied":
                         benchmark_func = lambda: count_new_cards_studied(
                             user, language, **params
@@ -176,9 +202,12 @@ def test_get_cards_performance(app):
                     mean, std_dev, ci = _run_benchmark(
                         benchmark_func, repetitions
                     )
-                    results[num_notes][func_name] = (mean, std_dev, ci)
+                    results[num_notes][f"{func_name}.{test_name}"] = (
+                        mean,
+                        std_dev,
+                        ci,
+                    )
 
-                    # Print results immediately after the test for the current num_notes
                     print(
                         f"{func_name:10.10}: "
                         f"{test_name:15.15}: "
