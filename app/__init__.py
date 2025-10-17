@@ -1,7 +1,7 @@
 import logging
 
 import nachricht
-from nachricht.messenger import Router
+from nachricht.messenger import create_router
 from nachricht.bus import create_bus
 from nachricht.llm import init_llm_client
 from nachricht.i18n import init_catalog
@@ -31,7 +31,7 @@ def create_app():
 
 init_catalog("data/locale")
 
-router = Router(config=Config)
+router = create_router(config=Config)
 bus = create_bus(config=Config)
 
 llm_client = init_llm_client(
