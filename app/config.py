@@ -50,7 +50,7 @@ class Config:
         "host": "https://api.openai.com/v1",
         "api_key": os.getenv("OPENAI_API_KEY") or "dummy",
         "models": {
-            "default": "gpt-4.1-mini",
+            "default": "gpt-5-mini",
         },
     }
 
@@ -81,12 +81,12 @@ class Config:
                 ],
             },
             "models": {
-                "default": "gpt-4.1-mini",
-                "base_form": "gpt-4.1-mini",
-                "explanation": "gpt-4.1-mini",
-                "recap": "gpt-4o",
-                "clarification": "gpt-4.1-mini",
-                "examples": "gpt-4.1-mini",
+                "default": "gpt-5-mini",
+                "base_form": "gpt-5-mini",
+                "explanation": "gpt-5-mini",
+                "recap": "gpt-5",
+                "clarification": "gpt-5-mini",
+                "examples": "gpt-5",
             },
             "prompts": {
                 "base_form": """Convert the following {language} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).\n\nInstructions:\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n\nExamples:\n- English: trees — tree, cogitated — to cogitate\n- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",

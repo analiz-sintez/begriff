@@ -45,6 +45,8 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     if not (note := get_note(note_id)):
         return
 
+    native_language = get_native_language(user)
+
     # 1. check if a note already has ExampleNotes linked to it
     example_links = ExampleLink.query.filter_by(from_id=note.id).all()
     example_notes = [
@@ -53,58 +55,48 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     ]
     examples = [note.field1 for note in example_notes if note]
 
-    if len(examples) < 3:
-        # 2. if they're missing, create three examples
-        try:
-            native_language = get_native_language(user)
-            for _ in range(3 - len(examples)):
-                example_text = await get_usage_examples(
-                    note, native_language, examples
-                )
-                # parse example and create ExampleNote
-                match = re.match(
-                    r"\[(?P<topic>.*)\] (?P<text>.*)", example_text
-                )
-                if match:
-                    topic = match.group("topic")
-                    text = match.group("text")
-                else:
-                    topic = None
-                    text = example_text
-                example_note = ExampleNote(
-                    field1=text,
-                    user_id=user.id,
-                    language_id=note.language_id,
-                )
-                if topic:
-                    example_note.set_topic(topic)
-                db.session.add(example_note)
-                db.session.flush()
-                example_link = ExampleLink(
-                    from_id=note.id,
-                    to_id=example_note.id,
-                    user_id=user.id,
-                )
-                db.session.add(example_link)
-                db.session.commit()
-                examples.append(example_text)
-        except Exception as e:
-            logging.error(f"Got error while making examples: {e}")
-            response = _("Couldn't make examples, sorry.")
-            await ctx.send_message(
-                text=response,
-                reply_to=ctx.message,
+    for example_num in range(3):
+        if example_num >= len(examples):
+            example_text = await get_usage_examples(
+                note,
+                native_language,
+                count=1,
+                # examples
             )
-            return
+            # parse example and create ExampleNote
+            match = re.match(r"\[(?P<topic>.*)\] (?P<text>.*)", example_text)
+            if match:
+                topic = match.group("topic")
+                text = match.group("text")
+            else:
+                topic = None
+                text = example_text
+            example_note = ExampleNote(
+                field1=text,
+                user_id=user.id,
+                language_id=note.language_id,
+            )
+            if topic:
+                example_note.set_topic(topic)
+            db.session.add(example_note)
+            db.session.flush()
+            example_link = ExampleLink(
+                from_id=note.id,
+                to_id=example_note.id,
+                user_id=user.id,
+            )
+            db.session.add(example_link)
+            db.session.commit()
+            examples.append(example_text)
 
-    # 3. then send three examples as three separate messages
-    for example in examples:
+        example = examples[example_num]
         response = format_explanation(example)
         await ctx.send_message(
             text=response,
             reply_to=ctx.message,
             on_reaction={Emoji.THUMBSDOWN: ExamplesDownvoted(note.id)},
         )
+
     bus.emit(ExamplesSent(note.id))
 
 
