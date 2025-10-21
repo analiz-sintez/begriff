@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 from bs4 import BeautifulSoup
 import requests
+from jinja2 import Template
 
 from nachricht.llm import query_llm
 
@@ -34,10 +35,15 @@ async def translate(
         text,
     )
 
-    instructions = f"""
-Translate the following text from {src_language.name} to {dst_language.name}.
+    instructions_template = Template(
+        """
+Translate the following text from {{ src_language }} to {{ dst_language }}.
 Ensure the translation captures the original meaning as accurately as possible.
 """
+    )
+    instructions = instructions_template.render(
+        src_language=src_language.name, dst_language=dst_language.name
+    )
 
     translation = await query_llm(instructions, text)
     logger.info("Received translation: '%s'", translation)
@@ -74,7 +80,10 @@ async def get_explanation(
         dst_language.name,
     )
 
-    instructions = src_language.get_config("prompts.explanation").format(
+    instructions_template = Template(
+        src_language.get_config("prompts.explanation")
+    )
+    instructions = instructions_template.render(
         src_language=src_language.name, dst_language=dst_language.name
     )
 
@@ -111,13 +120,11 @@ async def get_recap(url, language: Language, notes: Optional[list] = None):
     response.raise_for_status()
     soup = BeautifulSoup(response.content, "html.parser")
 
-    # Extract text from paragraphs
     text_content = " ".join(p.get_text() for p in soup.find_all("p"))
     logger.info("Fetched text content from URL.")
 
-    instructions = language.get_config("prompts.recap").format(
-        language=language.name
-    )
+    instructions_template = Template(language.get_config("prompts.recap"))
+    instructions = instructions_template.render(language=language.name)
 
     if notes:
         instructions += """
@@ -155,9 +162,8 @@ async def get_base_form(input: str, language: Language) -> str:
     if not language.get_config("features.base_form", default=True):
         return input
 
-    instructions = language.get_config("prompts.base_form").format(
-        language=language.name
-    )
+    instructions_template = Template(language.get_config("prompts.base_form"))
+    instructions = instructions_template.render(language=language.name)
 
     logger.debug(
         f"Requesting base form for {input} with instructions:\n{instructions}"
@@ -188,28 +194,13 @@ async def find_mistakes(
         src_language.name,
         dst_language.name,
     )
-
-    instructions = f"""
-You are a language tutor. A student has written the following text in {src_language.name}.
-Please identify up to 3 main grammatical or lexical mistakes in their text.
-For each mistake:
-1. Briefly explain the mistake in {dst_language.name}.
-2. Provide the corrected version of the problematic part of the sentence in {src_language.name}.
-
-Present your findings as a numbered list.
-If there are no mistakes, or if the text is too short to analyze, simply state that in {dst_language.name}.
-
-Example for a student writing in English (and explanations in English):
-Student's text: "I will can go to the cinema tomorrow."
-Your response:
-1. Incorrect modal verb usage: You cannot use "will" and "can" together.
-   Corrected: "I will be able to go to the cinema tomorrow." or "I can go to the cinema tomorrow."
-
-Student's text: "He go to school every day."
-Your response:
-1. Subject-verb agreement error: The verb "go" should be "goes" for the third-person singular pronoun "He".
-   Corrected: "He goes to school every day."
-"""
+    instructions_template = Template(
+        src_language.get_config("prompts.mistakes")
+    )
+    instructions = instructions_template.render(
+        src_language=src_language.name,
+        dst_language=dst_language.name,
+    )
 
     logger.debug(
         f"Requesting mistake analysis for '{input}' with instructions:\n{instructions}"
@@ -226,21 +217,25 @@ Your response:
 async def get_clarification(
     text: str, language: Language, native_language: Language
 ):
-    prompt = language.get_config("prompts.clarification").format(
+    instructions_template = Template(
+        language.get_config("prompts.clarification")
+    )
+    instructions = instructions_template.render(
         language=language.name, native_language=native_language.name
     )
     model = language.get_config("models.clarification")
-    return await query_llm(prompt, text, model=model)
+    return await query_llm(instructions, text, model=model)
 
 
 async def get_usage_examples(
-    note, native_language: Language, count: int = 3
+    note, native_language: Language, examples: list = []
 ) -> str:
     language = note.language
-    prompt = language.get_config("prompts.examples").format(
+    instructions_template = Template(language.get_config("prompts.examples"))
+    instructions = instructions_template.render(
         language=language.name,
         native_language=native_language.name,
-        count=count,
+        examples=examples,
     )
     model = language.get_config("models.examples")
-    return await query_llm(prompt, note.field1, model=model)
+    return await query_llm(instructions, note.field1, model=model)

@@ -58,10 +58,7 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     for example_num in range(3):
         if example_num >= len(examples):
             example_text = await get_usage_examples(
-                note,
-                native_language,
-                count=1,
-                # examples
+                note, native_language, examples
             )
             # parse example and create ExampleNote
             match = re.match(r"\[(?P<topic>.*)\] (?P<text>.*)", example_text)
