@@ -220,31 +220,8 @@ async def study_next_card(ctx: Context, user: User) -> None:
 
     if not card:
         logger.info("User %s has no cards to study.", user.login)
-        bus.emit(StudySessionFinished(user.id), ctx=ctx)
-        image_path = await get_finish_image()
-        keyboard = None
-        text = "All done for today."
-        cards = get_remaining_cards(ctx, user)
-        if cards:
-            text = "All done for today. Switch to the next language?"
-            language_ids = {card.note.language_id for card in cards}
-            languages = [Language.from_id(id) for id in language_ids]
-            keyboard = Keyboard(
-                _pack_buttons(
-                    [
-                        Button(
-                            language.flag
-                            + language.get_localized_name(ctx.locale),
-                            NextStudyLanguageSelected(user.id, language.id),
-                        )
-                        for language in languages
-                        if language and language.code
-                    ]
-                )
-            )
-        return await ctx.send_message(
-            _(text), image=image_path, markup=keyboard
-        )
+        await bus.emit_and_wait(StudySessionFinished(user.id), ctx=ctx)
+        return
 
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     front = await card.get_front()
@@ -266,6 +243,33 @@ async def study_next_card(ctx: Context, user: User) -> None:
             }
         ),
     )
+
+
+@bus.on(StudySessionFinished)
+@router.authorize()
+async def handle_session_finish(ctx: Context, user: User) -> None:
+    image_path = await get_finish_image()
+    keyboard = None
+    text = "All done for today."
+    cards = get_remaining_cards(ctx, user)
+    if cards:
+        text = "All done for today. Switch to the next language?"
+        language_ids = {card.note.language_id for card in cards}
+        languages = [Language.from_id(id) for id in language_ids]
+        keyboard = Keyboard(
+            _pack_buttons(
+                [
+                    Button(
+                        language.flag
+                        + language.get_localized_name(ctx.locale),
+                        NextStudyLanguageSelected(user.id, language.id),
+                    )
+                    for language in languages
+                    if language and language.code
+                ]
+            )
+        )
+    return await ctx.send_message(_(text), image=image_path, markup=keyboard)
 
 
 @bus.on(NextStudyLanguageSelected)
