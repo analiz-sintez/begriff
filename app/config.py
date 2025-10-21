@@ -86,7 +86,7 @@ class Config:
                 "explanation": "gpt-5-mini",
                 "recap": "gpt-5",
                 "clarification": "gpt-5-mini",
-                "examples": "gpt-5",
+                "examples": "gpt-5-mini",
             },
             "prompts": {
                 "base_form": """Convert the following {{ language }} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).\n\nInstructions:\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n\nExamples:\n- English: trees — tree, cogitated — to cogitate\n- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",
@@ -136,7 +136,7 @@ Your response:
 
 "[обнажённый] The tree stood bare against the gray winter sky, without any leaves."
 {% else %}
-Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example.
+Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example, showing another meaning of the word if possible.
 {% for example in examples %}- {{ example }}{% endfor %}
 {% endif %}
 
@@ -169,7 +169,7 @@ Your response:
 
 "[naked] The tree stood bare against the gray winter sky, without any leaves."
 {% else %}
-Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example.
+Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example, showing another meaning of the word if possible.
 {% for example in examples %}- {{ example }}{% endfor %}
 {% endif %}
 
