@@ -36,6 +36,11 @@ def language_code_by_name(language_name):
     return _language_to_code.get(language_name.lower())
 
 
+def language_name_by_code(code):
+    locale = Locale.parse(code)
+    return locale.get_language_name("en")
+
+
 class Language(Model):
     __tablename__ = "languages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -147,6 +152,8 @@ def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
         Language: The language object.
     """
     if isinstance(identifier, str):
+        if len(identifier) == 2:
+            identifier = language_name_by_code(identifier)
         identifier = _normalize_language_name(identifier)
         logger.debug("Retrieving language with name: %s", identifier)
         language = Language.query.filter_by(name=identifier).first()

@@ -8,4 +8,5 @@ from . import (
     translate,
     clarify,
     common,
+    examples,
 )

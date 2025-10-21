@@ -233,10 +233,14 @@ async def get_clarification(
     return await query_llm(prompt, text, model=model)
 
 
-async def get_usage_examples(note, native_language: Language):
+async def get_usage_examples(
+    note, native_language: Language, examples: list = []
+) -> str:
     language = note.language
     prompt = language.get_config("prompts.examples").format(
-        language=language.name, native_language=native_language.name
+        language=language.name,
+        native_language=native_language.name,
+        examples="\n".join(examples),
     )
     model = language.get_config("models.examples")
     return await query_llm(prompt, note.field1, model=model)

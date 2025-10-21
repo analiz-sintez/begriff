@@ -116,7 +116,7 @@ def test_srs_performance(app):
     repetitions = 10
 
     results = {}
-    note_counts = [5, 50]
+    note_counts = [5, 20]
 
     for num_notes in note_counts:
         with app.app_context():

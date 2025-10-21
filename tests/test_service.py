@@ -141,8 +141,10 @@ def test_get_cards_with_bury_siblings(app):
             bury_siblings=True,
         )
 
-        # Since one card was reviewed, its sibling should be buried
-        assert len(filtered_cards) == 3
+        # Since one card was reviewed, its sibling should be buried,
+        # and from the remaining 2 cards, only one should be randomly fetched
+        assert len(filtered_cards) == 2
+        assert cards[0] in filtered_cards
 
         # Ensure the sibling of the reviewed card is buried
         sibling_buried = any(
@@ -313,17 +315,14 @@ def test_maturity_filter(app):
         card1.ts_scheduled = datetime.now(timezone.utc) - timedelta(days=1)
         db.session.commit()
 
-        # Note2: Make it MATURE, set review intervals beyond 2 days
+        # Note2: Make it MATURE, set review intervals beyond 7 days
         view_id2a = record_view_start(card2a.id)
         record_answer(view_id2a, Answer.GOOD)
-        card2a.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"] + 1
-        )
+        card2a.stability = Config.FSRS["mature_threshold"] + 1
+
         view_id2b = record_view_start(card2b.id)
         record_answer(view_id2b, Answer.GOOD)
-        card2b.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"] + 1
-        )
+        card2b.stability = Config.FSRS["mature_threshold"] + 1
         db.session.commit()
 
         # Note3 is still NEW as it hasn't been reviewed yet

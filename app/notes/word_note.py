@@ -28,7 +28,7 @@ class WordNote(Note):
         native_language = get_native_language(self.user)
 
         # If studied language is the native language, no translation needed.
-        if native_language.id == studied_language.id:
+        if native_language == studied_language:
             return self.field2
 
         # Check cache in note options

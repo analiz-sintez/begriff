@@ -31,10 +31,10 @@ from ..notes import get_note, Language
 from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
-    ExamplesRequested,
     get_studied_language,
 )
 from .language import _pack_buttons, StudyLanguageSelected
+from .examples import ExamplesRequested
 
 if Config.IMAGE["enable"]:
     from ..image import generate_image

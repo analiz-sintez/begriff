@@ -65,7 +65,7 @@ class Config:
 
     DEFAULTS = {
         "study_language": "en",
-        "native_language": "ru",
+        "native_language": "en",
     }
 
     LANGUAGES = {
@@ -94,7 +94,7 @@ class Config:
                 "recap": """You are {language} tutor helping a student to learn new language. The student studies new words using flashcards, so it would be beneficial for them to see the words in use in real text.\n\nPlease summarize the following text into one paragraph using simple {language}.\n\nInstructions:\n- Create one concise paragraph of 100-150 words.\n- Use simple language, and write only in {language}.\n- Keep the summary simple and clear.""",
                 "image": "%s (sketchy, colorful)",
                 "clarification": """You are {language} tutor helping a student to learn new language. Their native language is {native_language}.\n\nYou will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.\n\nKeep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.""",
-                "examples": """You are {language} tutor helping a student to learn new language. Their native language is {native_language}.\n\nGenerate three usage examples for the given word or phrase.\n\n- Examples should be full sentencts.\n- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.\n\nThe pattern:\n\n1. The student studies German and their native language is English, the word is: "Konto".\n\nYour response:\n\n"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.\n[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.\n[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen."\n\nt2. The student studies English and their native language is Russian, the word is: "bare".\n\nYour response:\n\n [обнажённый] The tree stood bare against the gray winter sky, without any leaves.\n [голый, пустой] He walked into the bare room, which had no furniture or decorations.\n\n[минимальный, только необходимый] She could only afford the bare essentials when packing for her trip. """,
+                "examples": """You are {language} tutor helping a student to learn new language. Their native language is {native_language}.\n\nGenerate one usage example for the given word or phrase.\n\n- Example should be a full sentence.\n- If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in student's native language.\n\nThe pattern:\n\n1. The student studies German and their native language is English, the word is: "Konto".\n\nYour response:\n\n"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten."\n\nt2. The student studies English and their native language is Russian, the word is: "bare".\n\nYour response:\n\n"[обнажённый] The tree stood bare against the gray winter sky, without any leaves."\n\nHere are the examples you've already generated:\n{examples}""",
             },
             "card_templates": {
                 "direct_front": "{field1}",
@@ -108,7 +108,7 @@ class Config:
             "territory": "GB",
             "prompts": {
                 "base_form": """Convert the following English word to its base form.\n\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n- For verbs, always use 'to'.\n\nExamples:\ntrees — tree\ncogitated — to cogitate""",
-                "examples": """You are {language} tutor helping a student to learn new language. \n\nGenerate three usage examples for the given word or phrase.\n\n- Examples should be full sentencts.\n- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets. Those prompts should be in {native_language}. \n\nThe pattern: the word is: "bare".\n\nYour response:\n\n [naked] The tree stood bare against the gray winter sky, without any leaves.\n [empty] He walked into the bare room, which had no furniture or decorations.\n\n[minimal, only necessary] She could only afford the bare essentials when packing for her trip.""",
+                "examples": """You are {language} tutor helping a student to learn new language. \n\nGenerate one usage example for the given word or phrase.\n\n- Example should be a full sentence.\n- If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in student's native language.\n\nThe pattern: the word is: "bare".\n\nYour response:\n\n"[naked] The tree stood bare against the gray winter sky, without any leaves."\n\nHere are the examples you've already generated:\n{examples}""",
             },
         },
         # 1.3b — (Simplifed) Chinese

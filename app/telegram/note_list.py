@@ -27,8 +27,8 @@ from ..srs import (
 from .note import (
     format_explanation,
     NoteDeletionRequested,
-    ExamplesRequested,
 )
+from .examples import ExamplesRequested
 
 
 logger = logging.getLogger(__name__)

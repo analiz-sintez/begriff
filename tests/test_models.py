@@ -2,14 +2,22 @@ import pytest
 from datetime import datetime, timedelta, timezone
 
 from nachricht import create_app, db
-from nachricht.auth import User
-from app.notes import WordNote, Language
+from nachricht.auth import User, get_user
+from app import Config, combine
+from app.notes import WordNote, Language, get_native_language
 from app.srs import Card, View, DirectCard, ReverseCard
 
 
-class Config:
+class TestConfig:
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    DEFAULTS = {
+        "study_language": "english",
+        "native_language": "english",
+    }
+
+
+combine(Config, TestConfig)
 
 
 @pytest.fixture
@@ -18,7 +26,7 @@ def app():
     with app.app_context():
         # Set up initial test data
         language = Language(name="English")
-        user = User(login="test_user")
+        user = get_user("test_user")
         note = WordNote(
             field1="Hello", field2="World", user=user, language=language
         )
@@ -57,7 +65,9 @@ def runner(app):
 
 def test_note_creation(app):
     with app.app_context():
-        user = User.query.filter_by(login="test_user").first()
+        # user = User.query.filter_by(login="test_user").first()
+        user = get_user("test_user")
+        assert get_native_language(user).code == "en"
         language = Language.query.filter_by(name="English").first()
         note = WordNote(
             field1="Test", field2="Note", user=user, language=language

@@ -17,7 +17,6 @@ from ..llm import (
     find_mistakes,
     translate,
     detect_language,
-    get_usage_examples,
 )
 from ..notes import (
     language_code_by_name,
@@ -314,7 +313,6 @@ async def add_note(
         reply_to=None,
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -370,7 +368,6 @@ async def handle_negative_reaction(
         new=True,  # Ensure it's a new message
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -447,49 +444,3 @@ async def check_sentence_for_mistakes(
     )
     bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
     return message
-
-
-################################################################
-# Examples
-@dataclass
-class ExamplesRequested(Signal):
-    """User requested usage examples for a note."""
-
-    note_id: int
-
-
-@dataclass
-class ExamplesSent(Signal):
-    """Usage examples for a note sent to the user."""
-
-    note_id: int
-
-
-@dataclass
-class ExamplesDownvoted(Signal):
-    """The user downvoted usage examples we sent to them."""
-
-    note_id: int
-
-
-@bus.on(ExamplesRequested)
-@bus.on(ExamplesDownvoted)
-@router.authorize()
-async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
-    if not (note := get_note(note_id)):
-        return
-
-    try:
-        native_language = get_native_language(user)
-        examples = await get_usage_examples(note, native_language)
-        response = format_explanation(examples)
-    except Exception as e:
-        logging.error(f"Got error while making examples: {e}")
-        response = _("Couldn't make examples, sorry.")
-
-    await ctx.send_message(
-        text=response,
-        reply_to=ctx.message,
-        on_reaction={Emoji.THUMBSDOWN: ExamplesRequested(note.id)},
-    )
-    bus.emit(ExamplesSent(note.id))
