@@ -8,4 +8,4 @@ from .language import (
 from .note import Note, get_note
 from .word_note import WordNote
 from .link import Link
-from .example_note import ExampleNote, ExampleLink
+from .example_note import ExampleNote, ExampleLink, examples_for

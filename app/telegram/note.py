@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from nachricht.llm import query_llm
 from nachricht.auth import User
 from nachricht.bus import Signal
-from nachricht.messenger import Context, Emoji
+from nachricht.messenger import Context, Emoji, Message
 from nachricht.i18n import TranslatableString as _
 
 from app.telegram.examples import ExamplesRequested
 
-from .. import bus, router
+from .. import bus, router, Config
 from ..llm import (
     get_explanation,
     get_base_form,
@@ -26,6 +26,9 @@ from ..notes import (
     Language,
     get_native_language,
     get_studied_language,
+    WordNote,
+    ExampleLink,
+    examples_for,
 )
 from ..srs import (
     create_word_note,
@@ -39,6 +42,15 @@ from ..srs import (
 )
 
 from .translate import TranslationRequested
+from .study import ImageGenerated
+
+
+if Config.IMAGE["enable"]:
+    from ..image import generate_image
+else:
+
+    async def generate_image(*args, **kwargs):
+        return None
 
 
 logger = logging.getLogger(__name__)
@@ -101,6 +113,13 @@ class NoteUpvoted(Signal):
 @dataclass
 class NoteDownvoted(Signal):
     """A user set a negative reaction to the note."""
+
+    note_id: int
+
+
+@dataclass
+class SharablePostDownvoted(Signal):
+    """A user disliked the image on the sharable post and wants to regenerate it."""
 
     note_id: int
 
@@ -383,6 +402,100 @@ async def handle_negative_reaction(
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
+    )
+
+
+async def _make_sharable_post(note: Note) -> str:
+    word = note.field1
+    explanation = format_explanation(note.field2)
+
+    message_parts = [f"*{word}*"]
+    if explanation:
+        message_parts.append(f"_{explanation}_")
+
+    if examples := examples_for(note):
+        message_parts.append("\n*Examples:*")
+        for i, ex in enumerate(examples, 1):
+            message_parts.append(
+                format_explanation(await ex.get_display_text(translate=False))
+            )
+
+    message_text = "\n".join(message_parts)
+    return message_text
+
+
+# TODO refactor this: DRY
+@bus.on(SharablePostRequested)
+@router.authorize()
+async def handle_sharable_post_request(ctx: Context, user: User, note_id: int):
+    note = get_note(note_id)
+    if not isinstance(note, WordNote):
+        logger.error(f"Sharable post requested for a non-word note {note_id}")
+        return
+
+    image_path = await note.get_image()
+
+    is_admin = user.login in ctx.config.AUTHENTICATION["admin_logins"]
+    if not image_path and is_admin:
+        logger.info(
+            f"Admin {user.login} requested sharable post for note {note.id} with no image. Generating one."
+        )
+        try:
+            explanation = note.field2
+            image_path = await generate_image(explanation, note.language)
+            note.set_option("image/path", image_path)
+            bus.emit(ImageGenerated(note.id))
+        except Exception as e:
+            logger.error(f"Failed to generate image for note {note_id}: {e}")
+            await ctx.send_message(
+                _(
+                    "Sorry, I couldn't generate an image for this word right now."
+                )
+            )
+            image_path = None
+
+    message_text = await _make_sharable_post(note)
+    on_reaction = {}
+    if image_path:
+        on_reaction[Emoji.THUMBSDOWN] = SharablePostDownvoted(note_id=note.id)
+
+    await ctx.send_message(
+        text=message_text, image=image_path, new=True, on_reaction=on_reaction
+    )
+
+
+@bus.on(SharablePostDownvoted)
+@router.authorize(admin=True)
+async def regenerate_sharable_post_image(
+    ctx: Context, user: User, note_id: int, reply_to: Message
+):
+    note = get_note(note_id)
+    if not isinstance(note, WordNote):
+        return
+
+    logger.info(
+        f"User {user.login} requested image regeneration for note {note_id}"
+    )
+
+    try:
+        explanation = note.field2
+        image_path = await generate_image(
+            explanation, note.language, force=True
+        )
+        note.set_option("image/path", image_path)
+        bus.emit(ImageGenerated(note.id))
+    except Exception as e:
+        logger.error(f"Failed to regenerate image for note {note_id}: {e}")
+        await ctx.send_message(
+            _("Sorry, I couldn't regenerate the image right now."), new=True
+        )
+        return
+
+    message_text = await _make_sharable_post(note)
+    on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
+
+    await ctx.send_message(
+        text=message_text, image=image_path, on_reaction=on_reaction, new=False
     )
 
 

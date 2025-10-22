@@ -9,10 +9,9 @@ from nachricht.i18n import TranslatableString as _
 from nachricht.db import db
 
 from .. import router, bus
-from ..notes import get_note, Language, get_native_language
+from ..notes import get_note, ExampleNote, ExampleLink, examples_for
 from ..srs import format_explanation
 from ..llm import get_usage_example
-from ..notes.example_note import ExampleNote, ExampleLink
 
 
 logger = logging.getLogger(__name__)
@@ -46,11 +45,7 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
         return
 
     # 1. check if a note already has ExampleNotes linked to it
-    example_links = ExampleLink.query.filter_by(from_id=note.id).all()
-    example_notes = [
-        ExampleNote.query.filter_by(id=link.to_id).first()
-        for link in example_links
-    ]
+    example_notes = examples_for(note)
 
     for example_num in range(3):
         if example_num >= len(example_notes):
@@ -100,14 +95,8 @@ async def redo_example(ctx: Context, user: User, example_note_id: int):
     example_note = get_note(example_note_id)
     if not example_note:
         return
-    link = ExampleLink.query.filter_by(to_id=example_note.id).first()
-    word_note = link.note_from
-
-    example_links = ExampleLink.query.filter_by(from_id=word_note.id).all()
-    example_notes = [
-        ExampleNote.query.filter_by(id=link.to_id).first()
-        for link in example_links
-    ]
+    word_note = example_note.get_word()
+    example_notes = examples_for(word_note)
     example_dict = await get_usage_example(
         word_note,
         [

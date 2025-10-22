@@ -49,8 +49,21 @@ class ExampleNote(Note):
 
         return f"[{translated_topic}] {self.field1}"
 
+    def get_word(self) -> Note:
+        link = ExampleLink.query.filter_by(to_id=self.id).first()
+        return link.note_from
+
 
 class ExampleLink(Link):
     __mapper_args__ = {
         "polymorphic_identity": "example_link",
     }
+
+
+def examples_for(note: Note):
+    example_links = ExampleLink.query.filter_by(from_id=note.id).all()
+    example_notes = [
+        ExampleNote.query.filter_by(id=link.to_id).first()
+        for link in example_links
+    ]
+    return example_notes

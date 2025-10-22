@@ -368,6 +368,7 @@ async def show_note_card(
         reply_to=reply_to_message,
         on_reaction={
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: bus.signal("SharablePostRequested", note_id=note.id),
         },
     )
 
