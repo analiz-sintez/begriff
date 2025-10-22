@@ -1,6 +1,8 @@
 import logging
 
-from ..llm import translate
+from nachricht.db import db
+
+from ..llm import translate, get_usage_example
 from .language import get_native_language
 from .link import Link
 from .note import Note
@@ -14,7 +16,7 @@ class ExampleNote(Note):
         "polymorphic_identity": "example_note",
     }
 
-    async def get_display_text(self, translate: bool = True) -> str:
+    async def get_display_text(self, localize: bool = True) -> str:
         # field1: example sentence (in studied language)
         # field2: topic (in studied language)
         if not self.field2:
@@ -24,7 +26,7 @@ class ExampleNote(Note):
         studied_language = self.language
 
         # If native language is same as studied, no translation needed.
-        if not translate or (native_language.id == studied_language.id):
+        if not localize or (native_language.id == studied_language.id):
             return f"[{self.field2}] {self.field1}"
 
         # Check for cached translation
@@ -67,3 +69,32 @@ def examples_for(note: Note):
         for link in example_links
     ]
     return example_notes
+
+
+async def add_example_for(note: Note):
+    example_dict = await get_usage_example(
+        note,
+        [
+            await note.get_display_text(localize=False)
+            for note in examples_for(note)
+            if note
+        ],
+    )
+
+    example_note = ExampleNote(
+        field1=example_dict["text"],
+        field2=example_dict["topic"],  # topic is in studied language
+        user_id=note.user.id,
+        language_id=note.language_id,
+    )
+    db.session.add(example_note)
+    db.session.flush()
+    example_link = ExampleLink(
+        from_id=note.id,
+        to_id=example_note.id,
+        user_id=note.user.id,
+    )
+    db.session.add(example_link)
+    db.session.commit()
+
+    return example_note

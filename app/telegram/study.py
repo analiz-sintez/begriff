@@ -27,7 +27,7 @@ from ..srs import (
 )
 from ..llm import translate
 from ..config import Config
-from ..notes import get_note, Language
+from ..notes import get_note, Language, Note
 from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
@@ -227,21 +227,20 @@ async def study_next_card(ctx: Context, user: User) -> None:
     front = await card.get_front()
     logger.info("Display card front for user %s: %s", user.login, front)
     bus.emit(CardQuestionShown(card.id))
+    on_reaction = {}
+    if isinstance(card, DirectCard):
+        on_reaction[Emoji.PRAY] = ExamplesRequested(note_id=card.note.id)
+        on_reaction[Emoji.FIRE] = bus.signal(
+            "SharablePostRequested", note_id=card.note.id
+        )
+
     return await ctx.send_message(
         format_explanation(front["text"]),
         keyboard,
         front.get("image") or (await get_default_image()),
         reply_to=None,
         context={"note_id": card.note.id, "card_id": card.id},
-        on_reaction=(
-            {
-                Emoji.PRAY: (
-                    ExamplesRequested(note_id=card.note.id)
-                    if isinstance(card, DirectCard)
-                    else []
-                ),
-            }
-        ),
+        on_reaction=on_reaction,
     )
 
 
@@ -331,6 +330,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
         back.get("image"),
         on_reaction={
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: bus.signal("SharablePostRequested", note_id=note.id),
         },
     )
 
@@ -366,6 +366,21 @@ class MissingImageCardFound(Signal):
     note_id: int
 
 
+async def generate_image_for_note(note: Note, force: bool = False) -> str:
+    option_key = "explanations/en"
+    if note.language.name == "English":
+        explanation = note.field2
+    elif not (explanation := note.get_option(option_key)):
+        english = get_language("English")
+        explanation = await translate(note.field2, note.language, english)
+        note.set_option(option_key, explanation)
+
+    # Generate an image.
+    image_path = await generate_image(explanation, note.language, force=force)
+    note.set_option("image/path", image_path)
+    return image_path
+
+
 @bus.on(CardGraded)
 async def maybe_generate_image(view_id: int):
     if not (view := get_view(view_id)):
@@ -390,19 +405,9 @@ async def maybe_generate_image(view_id: int):
     if not card.is_leech():
         return
 
-    # Translate any language to English since models understand it.
-    option_key = "explanations/en"
-    if language.name == "English":
-        explanation = note.field2
-    elif not (explanation := note.get_option(option_key)):
-        english = get_language("English")
-        explanation = await translate(note.field2, language, english)
-        note.set_option(option_key, explanation)
-
     # Generate an image.
     try:
-        image_path = await generate_image(explanation, language)
-        note.set_option("image/path", image_path)
+        await generate_image_for_note(note)
         bus.emit(ImageGenerated(note.id))
     except Exception as e:
         logger.warning(

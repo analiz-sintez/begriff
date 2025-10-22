@@ -8,6 +8,8 @@ from nachricht.bus import Signal
 from nachricht.i18n import TranslatableString as _
 from nachricht.db import db
 
+from app.notes.example_note import add_example_for
+
 from .. import router, bus
 from ..notes import get_note, ExampleNote, ExampleLink, examples_for
 from ..srs import format_explanation
@@ -49,33 +51,10 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
 
     for example_num in range(3):
         if example_num >= len(example_notes):
-            example_dict = await get_usage_example(
-                note,
-                [
-                    await note.get_display_text(translate=False)
-                    for note in example_notes
-                    if note
-                ],
-            )
+            example_note = await add_example_for(note)
+        else:
+            example_note = example_notes[example_num]
 
-            example_note = ExampleNote(
-                field1=example_dict["text"],
-                field2=example_dict["topic"],  # topic is in studied language
-                user_id=user.id,
-                language_id=note.language_id,
-            )
-            db.session.add(example_note)
-            db.session.flush()
-            example_link = ExampleLink(
-                from_id=note.id,
-                to_id=example_note.id,
-                user_id=user.id,
-            )
-            db.session.add(example_link)
-            db.session.commit()
-            example_notes.append(example_note)
-
-        example_note = example_notes[example_num]
         await ctx.send_message(
             text=format_explanation(await example_note.get_display_text()),
             reply_to=ctx.message,

@@ -100,11 +100,8 @@ Examples:
 - German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",
                 "explanation": """You are an expert linguist tasked with explaining words in simple terms. Your task is to explain the given {{ src_language }} word or phrase in {{ dst_language }} using the following guidelines:
 
-- Avoid using the exact word or phrase in the explanation.
-- Only treat the word as a verb if preceded by 'to'.
-- Keep the explanation concise, fitting it on one line without using empty lines or the ';' symbol, using '.' instead.
-- Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets.
-- If a word has multiple significant meanings, provide explanations for the two most common contexts.
+- If a word has multiple significant meanings, provide explanations for the two most common contexts. Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets. Don't put empty lines between meanings. Use '.' in the end of each meaning.
+- Do not use the explained word in your explanation. 
 - The explanation should be entirely in {{ dst_language }}.
 
 Example 1 (for English).
@@ -126,6 +123,8 @@ Instructions:
                 "clarification": """You are {{ language }} tutor helping a student to learn new language. Their native language is {{ native_language }}.
 
 You will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.
+
+Your answer should be in {{ native_language }}.
 
 Keep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.""",
                 "mistakes": """You are a language tutor. A student has written the following text in {{ src_language }}.

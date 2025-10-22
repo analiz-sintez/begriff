@@ -14,13 +14,17 @@ class WordNote(Note):
         "polymorphic_identity": "word_note",
     }
 
-    async def get_image(self) -> Optional[str]:
+    async def get_image(self, hi_res: bool = False) -> Optional[str]:
         if not (image_path := self.get_option("image/path")):
             return None
         if not isinstance(image_path, str):
             return None
         if not os.path.exists(image_path):
             return None
+        if hi_res:
+            # TOOO fix the layer leakage: this class should not know
+            # about the actual naming.
+            image_path = image_path.replace("small.", "")
         return image_path
 
     async def get_display_text(self) -> Optional[str]:
