@@ -4,7 +4,7 @@ from .service import (
     get_base_form,
     find_mistakes,
     translate,
-    get_usage_examples,
+    get_usage_example,
     get_clarification,
 )
 from .language_detection import detect_language

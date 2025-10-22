@@ -1,7 +1,12 @@
-from typing import Optional
+import logging
 
-from .note import Note
+from ..llm import translate
+from .language import get_native_language
 from .link import Link
+from .note import Note
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExampleNote(Note):
@@ -9,11 +14,40 @@ class ExampleNote(Note):
         "polymorphic_identity": "example_note",
     }
 
-    def get_topic(self) -> Optional[str]:
-        return self.get_option("topic")
+    async def get_display_text(self, translate: bool = True) -> str:
+        # field1: example sentence (in studied language)
+        # field2: topic (in studied language)
+        if not self.field2:
+            return self.field1
 
-    def set_topic(self, topic: str):
-        self.set_option("topic", topic)
+        native_language = get_native_language(self.user)
+        studied_language = self.language
+
+        # If native language is same as studied, no translation needed.
+        if not translate or (native_language.id == studied_language.id):
+            return f"[{self.field2}] {self.field1}"
+
+        # Check for cached translation
+        translation_key = f"translations/topic/{native_language.code}"
+        if translated_topic := self.get_option(translation_key):
+            return f"[{translated_topic}] {self.field1}"
+
+        # Translate the topic
+        try:
+            translated_topic = await translate(
+                self.field2,
+                src_language=studied_language,
+                dst_language=native_language,
+            )
+            self.set_option(translation_key, translated_topic)
+        except Exception as e:
+            logger.error(
+                f"Could not translate example topic '{self.field2}': {e}"
+            )
+            # Fallback to topic in studied language
+            translated_topic = self.field2
+
+        return f"[{translated_topic}] {self.field1}"
 
 
 class ExampleLink(Link):

@@ -349,7 +349,7 @@ def get_notes(
 
 
 def format_explanation(text: Optional[str]) -> str:
-    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
+    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets, add || for spoilers (cloze deletions).
 
     Args:
         explanation: The explanation string to format.
@@ -359,11 +359,17 @@ def format_explanation(text: Optional[str]) -> str:
     """
     if text is None:
         return ""
-    return re.sub(
+    text = re.sub(
         r"\[([^\]]+)\]",
         lambda match: f"\n_{match.group(1).lower()}_",
         text,
     )
+    text = re.sub(
+        r"{{([^\]]+)}}",
+        lambda match: f"||{match.group(1)}||",
+        text,
+    )
+    return text
 
 
 _notes_to_inject_cache = {}

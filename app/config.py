@@ -81,19 +81,53 @@ class Config:
                 ],
             },
             "models": {
-                "default": "gpt-5-mini",
-                "base_form": "gpt-5-mini",
-                "explanation": "gpt-5-mini",
+                "default": "gpt-4.1-mini",
+                "base_form": "gpt-4.1-mini",
+                "explanation": "gpt-4.1-mini",
                 "recap": "gpt-5",
                 "clarification": "gpt-5-mini",
-                "examples": "gpt-5-mini",
+                "examples": "gpt-4.1-mini",
             },
             "prompts": {
-                "base_form": """Convert the following {{ language }} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).\n\nInstructions:\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n\nExamples:\n- English: trees — tree, cogitated — to cogitate\n- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",
-                "explanation": """You are an expert linguist tasked with explaining words in simple terms. Your task is to explain the given {{ src_language }} word or phrase in {{ dst_language }} using the following guidelines:\n\n- Avoid using the exact word or phrase in the explanation.\n- Only treat the word as a verb if preceded by 'to'.\n- Keep the explanation concise, fitting it on one line without using empty lines or the ';' symbol, using '.' instead.\n- Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets.\n- If a word has multiple significant meanings, provide explanations for the two most common contexts.\n- The explanation should be entirely in {{ dst_language }}.\n\nExample 1 (for English).\nPrompt: to gorge\nReply: To eat a large amount quickly.\n\nExample 2 (for English).\nPrompt: fixer\nReply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes. """,
-                "recap": """You are {{ language }} tutor helping a student to learn new language. The student studies new words using flashcards, so it would be beneficial for them to see the words in use in real text.\n\nPlease summarize the following text into one paragraph using simple {{ language }}.\n\nInstructions:\n- Create one concise paragraph of 100-150 words.\n- Use simple language, and write only in {{ language }}.\n- Keep the summary simple and clear.""",
+                "base_form": """Convert the following {{ language }} word or phrase to its base form (e.g., infinitive for verbs, singular for nouns).
+
+Instructions:
+- Return only the word in its base form: no markup, comments or explanations.
+- If the word is already in its base form, return it as is.
+
+Examples:
+- English: trees — tree, cogitated — to cogitate
+- German, Häuse — das Haus, Bäume — der Baum, Loch — das Loch""",
+                "explanation": """You are an expert linguist tasked with explaining words in simple terms. Your task is to explain the given {{ src_language }} word or phrase in {{ dst_language }} using the following guidelines:
+
+- Avoid using the exact word or phrase in the explanation.
+- Only treat the word as a verb if preceded by 'to'.
+- Keep the explanation concise, fitting it on one line without using empty lines or the ';' symbol, using '.' instead.
+- Indicate any special contextual use (e.g., official documents, office slang, street slang) in square brackets.
+- If a word has multiple significant meanings, provide explanations for the two most common contexts.
+- The explanation should be entirely in {{ dst_language }}.
+
+Example 1 (for English).
+Prompt: to gorge
+Reply: To eat a large amount quickly.
+
+Example 2 (for English).
+Prompt: fixer
+Reply: [General] Someone who solves problems, often in a quick or discreet manner. [Informal/Slang] A person who helps others by arranging things behind the scenes. """,
+                "recap": """You are {{ language }} tutor helping a student to learn new language. The student studies new words using flashcards, so it would be beneficial for them to see the words in use in real text.
+
+Please summarize the following text into one paragraph using simple {{ language }}.
+
+Instructions:
+- Create one concise paragraph of 100-150 words.
+- Use simple language, and write only in {{ language }}.
+- Keep the summary simple and clear.""",
                 "image": "%s (sketchy, colorful)",
-                "clarification": """You are {{ language }} tutor helping a student to learn new language. Their native language is {{ native_language }}.\n\nYou will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.\n\nKeep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.""",
+                "clarification": """You are {{ language }} tutor helping a student to learn new language. Their native language is {{ native_language }}.
+
+You will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.
+
+Keep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.""",
                 "mistakes": """You are a language tutor. A student has written the following text in {{ src_language }}.
 Please identify up to 3 main grammatical or lexical mistakes in their text.
 For each mistake:
@@ -114,27 +148,28 @@ Your response:
 1. Subject-verb agreement error: The verb "go" should be "goes" for the third-person singular pronoun "He".
    Corrected: "He goes to school every day."
 """,
-                "examples": """You are {{ language }} tutor helping a student to learn new language. Their native language is {{ native_language }}.
+                "examples": """You are {{ language }} tutor helping a student to learn new language.
 
 Generate one usage example for the given word or phrase.
 
 - Example should be a full sentence.
-- If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in student's native language.
+- Enclose the word with double braces.
+- If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in {{ language }} at the line start with one or two words.
 
 {% if not examples %}
 The pattern:
 
-1. The student studies German and their native language is English, the word is: "Konto".
+1. The student studies German, the word is: "Konto".
 
 Your response:
 
-"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten."
+[Bankwesen] Ich habe ein neues {{ '{{Konto}}' }} bei der Bank eröffnet, um mein Geld sicher zu verwalten.
 
-2. The student studies English and their native language is Russian, the word is: "bare".
+2. The student studies English, the word is: "bare".
 
 Your response:
 
-"[обнажённый] The tree stood bare against the gray winter sky, without any leaves."
+[naked] The tree stood {{ '{{bare}}' }} against the gray winter sky, without any leaves.
 {% else %}
 Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example, showing another meaning of the word if possible.
 {% for example in examples %}- {{ example }}{% endfor %}
@@ -154,27 +189,15 @@ The word is:
         "en": {
             "territory": "GB",
             "prompts": {
-                "base_form": """Convert the following English word to its base form.\n\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n- For verbs, always use 'to'.\n\nExamples:\ntrees — tree\ncogitated — to cogitate""",
-                "examples": """You are {{ language }} tutor helping a student to learn new language. 
+                "base_form": """Convert the following English word to its base form.
 
-Generate one usage example for the given word or phrase.
+- Return only the word in its base form: no markup, comments or explanations.
+- If the word is already in its base form, return it as is.
+- For verbs, always use 'to'.
 
-- Example should be a full sentence.
-- If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in student's native language.
-
-{% if not examples %}
-The pattern: the word is: "bare".
-
-Your response:
-
-"[naked] The tree stood bare against the gray winter sky, without any leaves."
-{% else %}
-Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example, showing another meaning of the word if possible.
-{% for example in examples %}- {{ example }}{% endfor %}
-{% endif %}
-
-The word is:
-""",
+Examples:
+trees — tree
+cogitated — to cogitate""",
             },
         },
         # 1.3b — (Simplifed) Chinese
@@ -207,7 +230,15 @@ The word is:
         "de": {
             "territory": "DE",
             "prompts": {
-                "base_form": """Convert the following German word to its base form.\n\n- Return only the word in its base form: no markup, comments or explanations.\n- If the word is already in its base form, return it as is.\n- For nouns, always include the article.\n\nExamples:\nHäuse — das Haus\nBäume — der Baum""",
+                "base_form": """Convert the following German word to its base form.
+
+- Return only the word in its base form: no markup, comments or explanations.
+- If the word is already in its base form, return it as is.
+- For nouns, always include the article.
+
+Examples:
+Häuse — das Haus
+Bäume — der Baum""",
             },
         },
         # 130m — Japanese

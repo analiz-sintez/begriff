@@ -1,5 +1,6 @@
 import logging
-from typing import Optional
+import re
+from typing import Optional, Dict
 from bs4 import BeautifulSoup
 import requests
 from jinja2 import Template
@@ -38,7 +39,7 @@ async def translate(
     instructions_template = Template(
         """
 Translate the following text from {{ src_language }} to {{ dst_language }}.
-Ensure the translation captures the original meaning as accurately as possible.
+Ensure the translation captures the original meaning as accurately as possible. Return only the translation, without any explanations or comments.
 """
     )
     instructions = instructions_template.render(
@@ -227,15 +228,23 @@ async def get_clarification(
     return await query_llm(instructions, text, model=model)
 
 
-async def get_usage_examples(
-    note, native_language: Language, examples: list = []
-) -> str:
+async def get_usage_example(
+    note, examples: list = []
+) -> Dict[str, Optional[str]]:
     language = note.language
     instructions_template = Template(language.get_config("prompts.examples"))
     instructions = instructions_template.render(
         language=language.name,
-        native_language=native_language.name,
         examples=examples,
     )
     model = language.get_config("models.examples")
-    return await query_llm(instructions, note.field1, model=model)
+    example_text = await query_llm(instructions, note.field1, model=model)
+    # parse example and create ExampleNote
+    match = re.match(r"\[(?P<topic>.*)\]\s*(?P<text>.*)", example_text)
+    if match:
+        topic = match.group("topic").strip()
+        text = match.group("text").strip()
+    else:
+        topic = None
+        text = example_text
+    return {"text": text, "topic": topic}

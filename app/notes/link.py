@@ -32,6 +32,6 @@ class Link(Model):
     # value: Mapped[Optional[float]]
     # text: Mapped[Optional[str]]
 
-    src = relationship(Note, foreign_keys=[from_id], backref="out_links")
-    dst = relationship(Note, foreign_keys=[to_id], backref="in_links")
+    note_from = relationship(Note, foreign_keys=[from_id], backref="out_links")
+    note_to = relationship(Note, foreign_keys=[to_id], backref="in_links")
     user = relationship(User, backref="links")

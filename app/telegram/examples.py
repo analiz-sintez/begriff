@@ -11,7 +11,7 @@ from nachricht.db import db
 from .. import router, bus
 from ..notes import get_note, Language, get_native_language
 from ..srs import format_explanation
-from ..llm import get_usage_examples
+from ..llm import get_usage_example
 from ..notes.example_note import ExampleNote, ExampleLink
 
 
@@ -33,10 +33,10 @@ class ExamplesSent(Signal):
 
 
 @dataclass
-class ExamplesDownvoted(Signal):
+class ExampleDownvoted(Signal):
     """The user downvoted usage examples we sent to them."""
 
-    note_id: int
+    example_note_id: int
 
 
 @bus.on(ExamplesRequested)
@@ -45,36 +45,30 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
     if not (note := get_note(note_id)):
         return
 
-    native_language = get_native_language(user)
-
     # 1. check if a note already has ExampleNotes linked to it
     example_links = ExampleLink.query.filter_by(from_id=note.id).all()
     example_notes = [
         ExampleNote.query.filter_by(id=link.to_id).first()
         for link in example_links
     ]
-    examples = [note.field1 for note in example_notes if note]
 
     for example_num in range(3):
-        if example_num >= len(examples):
-            example_text = await get_usage_examples(
-                note, native_language, examples
+        if example_num >= len(example_notes):
+            example_dict = await get_usage_example(
+                note,
+                [
+                    await note.get_display_text(translate=False)
+                    for note in example_notes
+                    if note
+                ],
             )
-            # parse example and create ExampleNote
-            match = re.match(r"\[(?P<topic>.*)\] (?P<text>.*)", example_text)
-            if match:
-                topic = match.group("topic")
-                text = match.group("text")
-            else:
-                topic = None
-                text = example_text
+
             example_note = ExampleNote(
-                field1=text,
+                field1=example_dict["text"],
+                field2=example_dict["topic"],  # topic is in studied language
                 user_id=user.id,
                 language_id=note.language_id,
             )
-            if topic:
-                example_note.set_topic(topic)
             db.session.add(example_note)
             db.session.flush()
             example_link = ExampleLink(
@@ -84,33 +78,51 @@ async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
             )
             db.session.add(example_link)
             db.session.commit()
-            examples.append(example_text)
+            example_notes.append(example_note)
 
-        example = examples[example_num]
-        response = format_explanation(example)
+        example_note = example_notes[example_num]
         await ctx.send_message(
-            text=response,
+            text=format_explanation(await example_note.get_display_text()),
             reply_to=ctx.message,
-            on_reaction={Emoji.THUMBSDOWN: ExamplesDownvoted(note.id)},
+            new=True,
+            on_reaction={Emoji.THUMBSDOWN: ExampleDownvoted(example_note.id)},
         )
 
     bus.emit(ExamplesSent(note.id))
 
 
-@bus.on(ExamplesDownvoted)
+@bus.on(ExampleDownvoted)
 @router.authorize()
-async def downvote_example(ctx: Context, user: User, note_id: int):
-    # 1. get the message text
-    message_text = ctx.message.text
-    # 2. find the example note
-    example_note = ExampleNote.query.filter_by(field1=message_text).first()
+async def redo_example(ctx: Context, user: User, example_note_id: int):
+    """
+    Regenerate an example, editing it inplace.
+    """
+    example_note = get_note(example_note_id)
     if not example_note:
         return
-    # 3. delete the example note and link
-    example_link = ExampleLink.query.filter_by(to_id=example_note.id).first()
-    if example_link:
-        db.session.delete(example_link)
-    db.session.delete(example_note)
+    link = ExampleLink.query.filter_by(to_id=example_note.id).first()
+    word_note = link.note_from
+
+    example_links = ExampleLink.query.filter_by(from_id=word_note.id).all()
+    example_notes = [
+        ExampleNote.query.filter_by(id=link.to_id).first()
+        for link in example_links
+    ]
+    example_dict = await get_usage_example(
+        word_note,
+        [
+            await note.get_display_text(translate=False)
+            for note in example_notes
+            if note
+        ],
+    )
+    example_note.field1 = example_dict["text"]
+    example_note.field2 = example_dict["topic"]
+
     db.session.commit()
-    # 4. regenerate the example
-    bus.emit(ExamplesRequested(note_id))
+
+    await ctx.send_message(
+        text=format_explanation(await example_note.get_display_text()),
+        on_reaction={Emoji.THUMBSDOWN: ExampleDownvoted(example_note.id)},
+        new=False,
+    )

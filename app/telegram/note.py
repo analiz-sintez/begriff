@@ -10,6 +10,8 @@ from nachricht.bus import Signal
 from nachricht.messenger import Context, Emoji
 from nachricht.i18n import TranslatableString as _
 
+from app.telegram.examples import ExamplesRequested
+
 from .. import bus, router
 from ..llm import (
     get_explanation,
@@ -99,6 +101,13 @@ class NoteUpvoted(Signal):
 @dataclass
 class NoteDownvoted(Signal):
     """A user set a negative reaction to the note."""
+
+    note_id: int
+
+
+@dataclass
+class SharablePostRequested(Signal):
+    """A user requires a sharable post for a word."""
 
     note_id: int
 
@@ -313,6 +322,8 @@ async def add_note(
         reply_to=None,
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
+            Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: SharablePostRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
