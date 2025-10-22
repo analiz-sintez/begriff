@@ -293,6 +293,18 @@ Bäume — der Baum""",
         "webhook_secret_token": os.getenv("TELEGRAM_WEBHOOK_SECRET_TOKEN"),
     }
 
+    TEMPLATES = {
+        "sharable_post": """*{{ word | trim}}* —
+{{ explanation | trim }}
+
+{% for example in examples %}
+🔸{% if example.field2 %}_{{example.field2}}_ {% endif %}{{ example.field1 | trim | replace('{{','||') | replace('}}', '||') }}
+{% endfor %}
+
+Made by @BegriffBot 😻
+"""
+    }
+
     UX = {
         # Try to guess if a user asks a translation *from* their native language
         # or a translation *to* it (the regular flow).

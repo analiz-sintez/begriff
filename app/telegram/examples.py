@@ -79,7 +79,7 @@ async def redo_example(ctx: Context, user: User, example_note_id: int):
     example_dict = await get_usage_example(
         word_note,
         [
-            await note.get_display_text(translate=False)
+            await note.get_display_text(localize=False)
             for note in example_notes
             if note
         ],

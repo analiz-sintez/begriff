@@ -408,17 +408,7 @@ async def handle_negative_reaction(
 
 
 async def _make_sharable_post(note: Note) -> str:
-    template = Template(
-        """*{{ word | trim}}* —
-{{ explanation | trim }}
-
-{% for example in examples %}
-▫️ {% if example.field2 %}_{{example.field2}}_ {% endif %}{{ example.field1 | trim | replace('{{','||') | replace('}}', '||') }}
-{% endfor %}
-
-Made by @BegriffBot 😻
-"""
-    )
+    template = Template(Config.TEMPLATES["sharable_post"])
     text = template.render(
         word=note.field1,
         explanation=format_explanation(note.field2),
