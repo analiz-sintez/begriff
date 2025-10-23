@@ -170,8 +170,8 @@ Your response:
 
 [naked] The tree stood {{ '{{bare}}' }} against the gray winter sky, without any leaves.
 {% else %}
-Here are the examples you've already generated for this word. Use them as a reference for style, but create a new, distinct example, showing another meaning of the word if possible.
-{% for example in examples %}- {{ example }}{% endfor %}
+Here are the examples you've already generated for this word. Copy the format, but create a new, distinct example, showing another meaning of the word or using another style or form, e.g. a question or an exclamation instead of a statement.
+{% for example in examples %}{{ example }}{% endfor %}
 {% endif %}
 
 The word is:
