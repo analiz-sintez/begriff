@@ -5,7 +5,8 @@ from sqlalchemy import Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from nachricht.auth import User
-from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.db import Model, dttm_utc
+from nachricht.options import OptionsMixin
 
 from .language import Language
 

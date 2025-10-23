@@ -12,7 +12,7 @@ from nachricht.bus import Bus
 from nachricht.messenger import Router
 from nachricht.messenger.telegram import attach_bus, attach_router
 
-from app import bus, router, create_app, Config
+from app import bus, router, options_registry, create_app, Config
 
 
 logger = logging.getLogger(__name__)

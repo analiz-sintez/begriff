@@ -7,7 +7,8 @@ from typing import Optional, Literal, Dict
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy import Integer, String, ForeignKey, func
 
-from nachricht.db import Model, OptionsMixin, dttm_utc, log_sql_query
+from nachricht.db import Model, dttm_utc, log_sql_query
+from nachricht.options import OptionsMixin
 from nachricht.auth import User
 from nachricht.bus import Signal
 

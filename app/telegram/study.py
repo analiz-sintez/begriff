@@ -11,6 +11,7 @@ from nachricht.auth import User
 from nachricht.messenger import Button, Keyboard, Context, Emoji
 from nachricht.bus import Signal
 from nachricht.i18n import TranslatableString as _
+from nachricht.options import OptionGroup, Option
 
 from .. import bus, router
 from ..srs import (
@@ -45,6 +46,20 @@ else:
 
 
 from ..notes import get_language
+
+
+# User study options
+class StudyOptions(OptionGroup):
+    model = User
+    name = _("Study options")
+    description = _("All things related to flashcards rehearsal.")
+
+
+class SimpleCardGrades(Option):
+    group = StudyOptions
+    name = _("Use simplified card answer grades")
+    value: bool = True
+    description = _("If enabled, only two grades are shown: AGAIN and GOOD.")
 
 
 # States: ASK -> ANSWER -> RECORD
@@ -316,11 +331,16 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     view_id = record_view_start(card.id)
     # ... prepare the keyboard with memorization quality buttons
 
+    if user.option[SimpleCardGrades]:
+        answers = [Answer.AGAIN, Answer.GOOD]
+    else:
+        answers = [answer for answer in Answer]
+
     keyboard = Keyboard(
         [
             [
                 Button(_(answer.name), CardGradeSelected(view_id, answer))
-                for answer in Answer
+                for answer in answers
             ]
         ]
     )

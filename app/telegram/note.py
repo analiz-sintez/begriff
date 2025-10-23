@@ -8,11 +8,12 @@ from jinja2 import Template
 from nachricht.llm import query_llm
 from nachricht.auth import User
 from nachricht.bus import Signal
-from nachricht.messenger import Context, Emoji, Message
+from nachricht.messenger import Button, Context, Emoji, Keyboard, Message
 from nachricht.i18n import TranslatableString as _
 
+from app.notes import example_note
 from app.notes.example_note import add_example_for
-from app.telegram.examples import ExamplesRequested
+from app.telegram.examples import ExampleDownvoted, ExamplesRequested
 
 from .. import bus, router, Config
 from ..llm import (
