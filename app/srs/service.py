@@ -2,11 +2,11 @@ import re
 import time
 import random
 import logging
-from typing import List, Optional
+from typing import List, Optional, Type
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select, and_, func, case
+from sqlalchemy import select, and_, or_, func, case
 from sqlalchemy.orm import aliased
 
 from nachricht import db
@@ -211,22 +211,29 @@ def create_word_note(
         db.session.add(note)
         db.session.flush()
         logger.info("Note created: %s", note)
+        db.session.commit()
+        return note
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.error("Integrity error occurred: %s", e)
+        raise e
 
-        # Create two cards for the note.
+
+def create_note_cards(note: Note):
+    try:
         now = datetime.now(timezone.utc)
         front_card = DirectCard(note_id=note.id, ts_scheduled=now)
         back_card = ReverseCard(note_id=note.id, ts_scheduled=now)
         db.session.add_all([front_card, back_card])
         db.session.flush()
         logger.info("Cards created: %s, %s", front_card, back_card)
-
         db.session.commit()
         bus.emit(CardAdded(front_card.id))
         bus.emit(CardAdded(back_card.id))
         logger.debug(
             "Transaction committed successfully for word note creation."
         )
-        return note
+        return [front_card, back_card]
     except IntegrityError as e:
         db.session.rollback()
         logger.error("Integrity error occurred: %s", e)
@@ -249,15 +256,22 @@ def _notes_maturity_cte(
     # Note is mature if all its cards are mature, new if all cards are new,
     # and young otherwise.
     cards = _cards_maturity_cte(user_id, language_id)
-    total_cards = func.count(cards.c.id)
-    new_cards = func.sum(cards.c.maturity == Maturity.NEW.value)
-    mature_cards = func.sum(cards.c.maturity == Maturity.MATURE.value)
+    note_cards = (
+        select(Note.id.label("note_id"), cards.c.id, cards.c.maturity)
+        .select_from(Note)
+        .outerjoin(cards, Note.id == cards.c.note_id)
+    )
+    total_cards = func.count(note_cards.c.id)
+    new_cards = func.sum(note_cards.c.maturity == Maturity.NEW.value)
+    mature_cards = func.sum(note_cards.c.maturity == Maturity.MATURE.value)
     note_maturity = case(
-        (total_cards == new_cards, Maturity.NEW.value),
+        (or_(total_cards == new_cards, total_cards == 0), Maturity.NEW.value),
         (total_cards == mature_cards, Maturity.MATURE.value),
         else_=Maturity.YOUNG.value,
     ).label("maturity")
-    notes = select(cards.c.note_id, note_maturity).group_by(cards.c.note_id)
+    notes = select(note_cards.c.note_id, note_maturity).group_by(
+        note_cards.c.note_id
+    )
     return notes.cte("notes_maturity")
 
 
@@ -267,6 +281,7 @@ def get_notes(
     text: Optional[str] = None,
     explanation: Optional[str] = None,
     maturity: Optional[List[Maturity]] = None,
+    note_class: Optional[Type[Note]] = Note,
     order_by: Optional[str] = None,
 ) -> List[Note]:
     """
@@ -292,38 +307,40 @@ def get_notes(
         maturity,
         order_by,
     )
-    query = select(Note).where(Note.user_id == user_id)
+    query = select(note_class).where(note_class.user_id == user_id)
 
     if language_id:
-        query = query.where(Note.language_id == language_id)
+        query = query.where(note_class.language_id == language_id)
 
     if text:
         if text.startswith("=~"):
             logger.debug("Applying regex filter on text: '%s'", text[2:])
-            query = query.where(Note.field1.op("REGEXP")(text[2:]))
+            query = query.where(note_class.field1.op("REGEXP")(text[2:]))
         elif "%" in text or "_" in text:
             logger.debug("Applying SQL LIKE filter on text: '%s'", text)
-            query = query.where(Note.field1.like(text))
+            query = query.where(note_class.field1.like(text))
         else:
             logger.debug("Applying exact match filter on text: '%s'", text)
-            query = query.where(Note.field1 == text)
+            query = query.where(note_class.field1 == text)
 
     if explanation:
         if explanation.startswith("=~"):
             logger.debug(
                 "Applying regex filter on explanation: '%s'", explanation[2:]
             )
-            query = query.where(Note.field2.op("REGEXP")(explanation[2:]))
+            query = query.where(
+                note_class.field2.op("REGEXP")(explanation[2:])
+            )
         elif "%" in explanation or "_" in explanation:
             logger.debug(
                 "Applying SQL LIKE filter on explanation: '%s'", explanation
             )
-            query = query.where(Note.field2.like(explanation))
+            query = query.where(note_class.field2.like(explanation))
         else:
             logger.debug(
                 "Applying exact match filter on explanation: '%s'", explanation
             )
-            query = query.where(Note.field2 == explanation)
+            query = query.where(note_class.field2 == explanation)
 
     if maturity:
         logger.debug("Applying maturity filter: %s", maturity)
@@ -335,14 +352,16 @@ def get_notes(
         )
         query = query.join(
             matching_notes,
-            Note.id == matching_notes.c.note_id,
+            note_class.id == matching_notes.c.note_id,
         )
 
     if order_by in ["field1", "field2"]:
-        query = query.order_by(getattr(Note, order_by))
+        query = query.order_by(getattr(note_class, order_by))
 
     log_sql_query(query)
-    results = db.session.scalars(select(Note).from_statement(query)).all()
+    results = db.session.scalars(
+        select(note_class).from_statement(query)
+    ).all()
     logger.info("Retrieved %i notes", len(results))
     logger.debug("\n".join([str(note) for note in results]))
     return results

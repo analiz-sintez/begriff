@@ -25,6 +25,7 @@ from .view import (
 )
 from .service import (
     create_word_note,
+    create_note_cards,
     get_notes,
     update_note,
     get_notes_to_inject,

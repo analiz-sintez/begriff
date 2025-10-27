@@ -24,10 +24,7 @@ from ..srs import (
     get_notes,
     update_note as srs_update_note,
 )
-from .note import (
-    format_explanation,
-    NoteDeletionRequested,
-)
+from .note import format_explanation, NoteDeletionRequested, WordNote
 from .examples import ExamplesRequested
 
 
@@ -80,6 +77,7 @@ async def display_notes_by_maturity(
         user.id,
         language.id,
         maturity=[maturity_to_display],
+        note_class=WordNote,
         order_by="field1",
     )
 

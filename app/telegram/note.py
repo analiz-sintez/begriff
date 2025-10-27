@@ -10,9 +10,11 @@ from nachricht.auth import User
 from nachricht.bus import Signal
 from nachricht.messenger import Button, Context, Emoji, Keyboard, Message
 from nachricht.i18n import TranslatableString as _
+from nachricht.options import OptionGroup, Option
 
 from app.notes import example_note
 from app.notes.example_note import add_example_for
+from app.srs.service import create_note_cards
 from app.telegram.examples import ExampleDownvoted, ExamplesRequested
 
 from .. import bus, router, Config
@@ -56,11 +58,37 @@ else:
         return None
 
 
+# User study options
+class WordLookupOpts(OptionGroup):
+    model = User
+    name = _("Word lookup options")
+    description = _(
+        "These options control how words are looked up and new notes created."
+    )
+
+
+class WaitSecondLookup(Option):
+    group = WordLookupOpts
+    name = _("Wait for second lookup before study")
+    value: bool = True
+    description = _(
+        "If enabled, words are added to the study deck only after the second lookup, so you study only words you often meet in texts."
+    )
+
+
 logger = logging.getLogger(__name__)
 
 
 ################################################################
 # Handling User Input & Creating New Notes
+
+
+# class IsSuspended(Option):
+#     model = Note
+#     name = _('Note is suspended')
+#     value: bool = False
+#     description = _('If a note is suspended, its cards are not shown in study sessions.')
+#     private = True
 
 
 @dataclass
@@ -116,20 +144,6 @@ class NoteUpvoted(Signal):
 @dataclass
 class NoteDownvoted(Signal):
     """A user set a negative reaction to the note."""
-
-    note_id: int
-
-
-@dataclass
-class SharablePostDownvoted(Signal):
-    """A user disliked the image on the sharable post and wants to regenerate it."""
-
-    note_id: int
-
-
-@dataclass
-class SharablePostRequested(Signal):
-    """A user requires a sharable post for a word."""
 
     note_id: int
 
@@ -323,6 +337,11 @@ async def add_note(
         if needs_update:
             note.field2 = explanation
             note.set_option(translation_key, translation)
+        if not note.cards:
+            logger.info(
+                "A note without cards has been looked up second time. Creating the cards for it."
+            )
+            create_note_cards(note)
     else:
         note = create_word_note(
             word, explanation, studied_language.id, user.id
@@ -336,6 +355,12 @@ async def add_note(
             translation,
             explanation,
         )
+        if user.option[WaitSecondLookup]:
+            logger.info(
+                "WaitSecondLookup is ON: cards creation is postponed till the second lookup."
+            )
+        else:
+            create_note_cards(note)
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
     display_text = format_explanation(await note.get_display_text())
@@ -408,6 +433,24 @@ async def handle_negative_reaction(
     )
 
 
+################################################################
+# Sharable post
+
+
+@dataclass
+class SharablePostRequested(Signal):
+    """A user requires a sharable post for a word."""
+
+    note_id: int
+
+
+@dataclass
+class SharablePostDownvoted(Signal):
+    """A user disliked the image on the sharable post and wants to regenerate it."""
+
+    note_id: int
+
+
 async def _make_sharable_post(note: Note) -> str:
     template = Template(Config.TEMPLATES["sharable_post"])
     text = template.render(
@@ -453,7 +496,10 @@ async def handle_sharable_post_request(ctx: Context, user: User, note_id: int):
     on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
 
     await ctx.send_message(
-        text=message_text, image=image_path, on_reaction=on_reaction, new=True
+        text=message_text,
+        image=image_path,
+        on_reaction=on_reaction,
+        new=True,
     )
 
 

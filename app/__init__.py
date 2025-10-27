@@ -6,7 +6,7 @@ from nachricht.bus import create_bus
 from nachricht.llm import init_llm_client
 from nachricht.i18n import init_catalog
 from nachricht.config import combine
-from nachricht.options import create_options_registry, discover_options
+from nachricht.options import create_option_registry, discover_options
 
 from .config import Config
 
@@ -26,7 +26,7 @@ def create_app():
     # intialize all modules to gather routes
     import app.telegram
 
-    discover_options(options_registry)
+    discover_options(option_registry)
 
     # create an app
     return nachricht.create_app(Config)
@@ -35,7 +35,7 @@ def create_app():
 init_catalog("data/locale")
 
 bus = create_bus(config=Config)
-options_registry = create_options_registry(bus)
+option_registry = create_option_registry(bus)
 router = create_router(config=Config)
 
 llm_client = init_llm_client(

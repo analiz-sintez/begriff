@@ -9,4 +9,5 @@ from . import (
     clarify,
     common,
     examples,
+    options,
 )

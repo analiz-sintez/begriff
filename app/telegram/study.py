@@ -49,14 +49,14 @@ from ..notes import get_language
 
 
 # User study options
-class StudyOptions(OptionGroup):
+class StudyOpts(OptionGroup):
     model = User
     name = _("Study options")
     description = _("All things related to flashcards rehearsal.")
 
 
 class SimpleCardGrades(Option):
-    group = StudyOptions
+    group = StudyOpts
     name = _("Use simplified card answer grades")
     value: bool = True
     description = _("If enabled, only two grades are shown: AGAIN and GOOD.")
