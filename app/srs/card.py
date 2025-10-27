@@ -7,12 +7,14 @@ from typing import Optional, Literal, Dict
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from sqlalchemy import Integer, String, ForeignKey, func
 
-from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.db import Model, dttm_utc, log_sql_query
+from nachricht.options import OptionsMixin
 from nachricht.auth import User
 from nachricht.bus import Signal
 
 from ..config import Config
 from ..notes import Note, Language
+from .util import now
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +47,9 @@ class Card(Model, OptionsMixin):
         "polymorphic_identity": "card",
     }
 
-    note_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
+    note_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey(Note.id), index=True
+    )
     note = relationship("Note", back_populates="cards")
 
     # Memory state:
@@ -57,7 +61,9 @@ class Card(Model, OptionsMixin):
     # when updating memory state.
     ts_last_review: Mapped[Optional[dttm_utc]]
     # is used to fetch cards for today's review
-    ts_scheduled: Mapped[dttm_utc]
+    ts_scheduled: Mapped[dttm_utc] = mapped_column(
+        default=lambda: now(), server_default=func.now(), index=True
+    )
 
     views = relationship("View", backref="card", cascade="all, delete-orphan")
 
@@ -100,17 +106,18 @@ class DirectCard(Card):
 
     async def get_front(self) -> OutputDict:
         """Show only text, not the image."""
-        return {"text": self.note.field1}
+        template = self.note.language.get_config("card_templates.direct_front")
+        return {"text": template.format(field1=self.note.field1)}
 
     async def get_back(self) -> OutputDict:
         """Show both the text and the image."""
-        # if the image presents, show it, of not — don't
-        front = await self.get_front()
-        front["text"] = (
-            front["text"] + "\n\n" + (await self.note.get_display_text())
+        template = self.note.language.get_config("card_templates.direct_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            field1=self.note.field1, display_text=display_text
         )
-        front["image"] = await self.note.get_image()
-        return front
+        image = await self.note.get_image()
+        return {"text": text, "image": image}
 
 
 class ReverseCard(Card):
@@ -119,15 +126,22 @@ class ReverseCard(Card):
     }
 
     async def get_front(self) -> OutputDict:
+        template = self.note.language.get_config(
+            "card_templates.reverse_front"
+        )
+        display_text = await self.note.get_display_text()
         return {
-            "text": await self.note.get_display_text(),
+            "text": template.format(display_text=display_text),
             "image": await self.note.get_image(),
         }
 
     async def get_back(self) -> OutputDict:
-        front = await self.get_front()
-        front["text"] = front["text"] + "\n\n" + self.note.field1
-        return front
+        template = self.note.language.get_config("card_templates.reverse_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            display_text=display_text, field1=self.note.field1
+        )
+        return {"text": text, "image": await self.note.get_image()}
 
 
 class ImageCard(Card):
@@ -145,10 +159,12 @@ class ImageCard(Card):
 
     async def get_back(self) -> OutputDict:
         front = await self.get_front()
-        front["text"] = (
-            self.note.field1 + "\n\n" + (await self.note.get_display_text())
+        template = self.note.language.get_config("card_templates.direct_back")
+        display_text = await self.note.get_display_text()
+        text = template.format(
+            field1=self.note.field1, display_text=display_text
         )
-
+        front["text"] = text
         return front
 
 
@@ -164,40 +180,3 @@ def get_card(card_id: int) -> Optional[Card]:
     """
     logger.info("Getting card by id '%d'", card_id)
     return Card.query.filter_by(id=card_id).first()
-
-
-def count_new_cards_studied(
-    user: User, language: Optional[Language] = None, hours_ago: int = 12
-) -> int:
-    """
-    Calculate how many cards were studied for the first time during the last
-    specified hours.
-
-    A card is studied the first time if it has views with answers, and the earliest
-    such view was within the past specified hours.
-
-    Args:
-        user_id: The ID of the user.
-        language_id: The ID of the language.
-        hours_ago: The number of hours to look back.
-
-    Returns:
-        The number of cards studied for the first time in the last specified hours.
-    """
-    time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
-    query = Card.query.join(Note).filter(Note.user_id == user.id)
-    if language:
-        query = query.filter(Note.language_id == language.id)
-    cards = query.all()
-    new_cards_studied = 0
-
-    for card in cards:
-        views_with_answers = [view for view in card.views if view.answer]
-        if views_with_answers:
-            earliest_view = min(
-                view.ts_review_started for view in views_with_answers
-            )
-            if earliest_view > time_threshold:
-                new_cards_studied += 1
-
-    return new_cards_studied

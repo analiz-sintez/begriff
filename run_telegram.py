@@ -12,7 +12,7 @@ from nachricht.bus import Bus
 from nachricht.messenger import Router
 from nachricht.messenger.telegram import attach_bus, attach_router
 
-from app import bus, router, create_app, Config
+from app import bus, router, option_registry, create_app, Config
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +32,8 @@ def create_bot(token: str, router: Router, bus: Bus) -> Application:
         A configured Application instance representing the bot.
     """
     application = Application.builder().token(token).build()
+    attach_bus(bus, router)
     attach_router(router, application)
-    attach_bus(bus, application)
     return application
 
 

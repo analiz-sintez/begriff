@@ -36,6 +36,11 @@ def language_code_by_name(language_name):
     return _language_to_code.get(language_name.lower())
 
 
+def language_name_by_code(code):
+    locale = Locale.parse(code)
+    return locale.get_language_name("en")
+
+
 class Language(Model):
     __tablename__ = "languages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -80,23 +85,54 @@ class Language(Model):
             return self.name
         return self.locale.get_language_name(locale.language)
 
+    def get_config(self, key_path: str, default: any = None) -> any:
+        """
+        Accesses a language-specific configuration value.
+        Key path uses dot notation, e.g., 'models.explanation'.
+        """
+        _DEFAULTS = Config.LANGUAGES.get("_defaults", {})
+        lang_settings = Config.LANGUAGES.get(self.code, {})
+        keys = key_path.split(".")
+
+        # Check language-specific settings
+        val = lang_settings
+        for key in keys:
+            if isinstance(val, dict) and key in val:
+                val = val[key]
+            else:
+                val = None
+                break
+        if val is not None:
+            return val
+
+        # Fallback to defaults
+        val = _DEFAULTS
+        for key in keys:
+            if isinstance(val, dict) and key in val:
+                val = val[key]
+            else:
+                return default
+        return val
+
     @property
     def flag(self) -> str:
         """Return the language flag, or if we can't find it, the language name."""
         if not self.locale:
             return "?"
-        if terr := Config.LANGUAGE["territories"].get(self.locale.language):
+        if flag_char := self.get_config("flag"):
+            return flag_char
+        if terr := self.get_config("territory"):
             return flag(terr)
         return self.name
 
 
 def get_native_language(user: User):
-    default = Config.LANGUAGE["defaults"]["native"]
+    default = Config.DEFAULTS["native_language"]
     return get_language(user.get_option("native_language", default))
 
 
 def get_studied_language(user: User):
-    default = Config.LANGUAGE["defaults"]["study"]
+    default = Config.DEFAULTS["study_language"]
     return get_language(user.get_option("studied_language", default))
 
 
@@ -116,6 +152,8 @@ def get_language(identifier: Optional[Union[str, int]] = None) -> Language:
         Language: The language object.
     """
     if isinstance(identifier, str):
+        if len(identifier) == 2:
+            identifier = language_name_by_code(identifier)
         identifier = _normalize_language_name(identifier)
         logger.debug("Retrieving language with name: %s", identifier)
         language = Language.query.filter_by(name=identifier).first()

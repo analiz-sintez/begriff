@@ -18,6 +18,11 @@ from app.srs import (
     get_card,
 )
 
+from nachricht.options import create_option_registry, discover_options
+
+option_registry = create_option_registry(None)
+discover_options(option_registry)
+
 
 class Config(DefaultConfig):
     TESTING = True

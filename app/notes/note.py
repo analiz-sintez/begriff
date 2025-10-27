@@ -5,7 +5,8 @@ from sqlalchemy import Integer, String, ForeignKey, func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from nachricht.auth import User
-from nachricht.db import Model, OptionsMixin, dttm_utc
+from nachricht.db import Model, dttm_utc
+from nachricht.options import OptionsMixin
 
 from .language import Language
 
@@ -27,8 +28,8 @@ class Note(Model, OptionsMixin):
 
     field1: Mapped[str]
     field2: Mapped[Optional[str]]
-    user_id = mapped_column(Integer, ForeignKey(User.id))
-    language_id = mapped_column(Integer, ForeignKey(Language.id))
+    user_id = mapped_column(Integer, ForeignKey(User.id), index=True)
+    language_id = mapped_column(Integer, ForeignKey(Language.id), index=True)
 
     cards = relationship(
         "Card", back_populates="note", cascade="all, delete-orphan"
@@ -50,30 +51,6 @@ class Note(Model, OptionsMixin):
 
     def __repr__(self) -> str:
         return f"<Note(id={self.id}, field1={self.field1}, field2={self.field2}, user_id={self.user_id}, language_id={self.language_id})>"
-
-
-class Link(Model):
-    __tablename__ = "links"
-    id = mapped_column(Integer, primary_key=True)
-    ts_created: Mapped[dttm_utc] = mapped_column(
-        default=lambda: datetime.now(timezone.utc), server_default=func.now()
-    )
-    type: Mapped[str] = mapped_column(String(50))
-    __mapper_args__ = {
-        "polymorphic_on": "type",
-        "polymorphic_identity": "link",
-    }
-    from_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
-    to_id: Mapped[int] = mapped_column(Integer, ForeignKey(Note.id))
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey(User.id))
-
-    # # pack of data fields
-    # value: Mapped[Optional[float]]
-    # text: Mapped[Optional[str]]
-
-    src = relationship(Note, foreign_keys=[from_id], backref="out_links")
-    dst = relationship(Note, foreign_keys=[to_id], backref="in_links")
-    user = relationship(User, backref="links")
 
 
 def get_note(note_id: int) -> Optional[Note]:

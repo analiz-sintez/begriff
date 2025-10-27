@@ -100,8 +100,8 @@ async def translate_phrase(
 
     translation = await translate(
         text,
-        src_language=src_language.name,
-        dst_language=dst_language.name,
+        src_language=src_language,
+        dst_language=dst_language,
     )
     response = f"{src_language.flag} {dst_language.flag} {translation}"
     message = await ctx.send_message(

@@ -13,6 +13,7 @@ from ..notes import (
     get_native_language,
     get_studied_language,
 )
+from ..llm import get_clarification
 from ..srs import format_explanation
 
 
@@ -85,19 +86,6 @@ async def _clarify_text(ctx: Context, user: User, text: str) -> None:
     )
 
 
-async def get_clarification(text: str, language: str, native_language: str):
-    return await query_llm(
-        f"""
-You are {language} tutor helping a student to learn new language. Their native language is {native_language}.
-
-You will be given a word or phrase which is tricky for the student. There could be form or word, conjugation, articles or other complexity. Your task is to unravel that and clarify what is happening and how it works. Give a short and clear comment.
-
-Keep the tone terse and structural. Don't say "Great question!" or add "Feel free to ask ..." since it does not add to the answer.
-        """,
-        text,
-    )
-
-
 @bus.on(ClarificationRequested)
 @router.authorize()
 async def clarify_text(
@@ -112,7 +100,7 @@ async def clarify_text(
 
     try:
         translation = await get_clarification(
-            text, language=language.name, native_language=native_language.name
+            text, language=language, native_language=native_language
         )
         response = format_explanation(translation)
     except Exception as e:

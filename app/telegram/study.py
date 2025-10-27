@@ -3,12 +3,15 @@ import logging
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any, Optional
+import time
+from collections import deque
 
 from nachricht.db import db
 from nachricht.auth import User
 from nachricht.messenger import Button, Keyboard, Context, Emoji
 from nachricht.bus import Signal
 from nachricht.i18n import TranslatableString as _
+from nachricht.options import OptionGroup, Option
 
 from .. import bus, router
 from ..srs import (
@@ -25,14 +28,14 @@ from ..srs import (
 )
 from ..llm import translate
 from ..config import Config
-from ..notes import get_note, Language
+from ..notes import get_note, Language, Note
 from ..srs import ImageCard, CardAdded
 from .note import (
     format_explanation,
-    ExamplesRequested,
     get_studied_language,
 )
 from .language import _pack_buttons, StudyLanguageSelected
+from .examples import ExamplesRequested
 
 if Config.IMAGE["enable"]:
     from ..image import generate_image
@@ -40,6 +43,23 @@ else:
 
     async def generate_image(*args, **kwargs):
         return None
+
+
+from ..notes import get_language
+
+
+# User study options
+class StudyOpts(OptionGroup):
+    model = User
+    name = _("Study options")
+    description = _("All things related to flashcards rehearsal.")
+
+
+class SimpleCardGrades(Option):
+    group = StudyOpts
+    name = _("Use simplified card answer grades")
+    value: bool = True
+    description = _("If enabled, only two grades are shown: AGAIN and GOOD.")
 
 
 # States: ASK -> ANSWER -> RECORD
@@ -96,19 +116,22 @@ logger = logging.getLogger(__name__)
 
 
 async def get_default_image():
-    image_path = await generate_image("Stars in the deep night sky.")
+    lang = get_language("English")
+    image_path = await generate_image("Stars in the deep night sky.", lang)
     return image_path
 
 
 async def get_finish_image():
+    lang = get_language("English")
     image_path = await generate_image(
         "A cat teacher in round glasses and his young"
-        " cat students celebrate the end of the lection."
+        " cat students celebrate the end of the lection.",
+        lang,
     )
     return image_path
 
 
-@router.command("study", description=_("Start a study session"))
+@router.command("study", description=_("📖 Study cards"))
 @router.authorize()
 async def start_study_session(ctx: Context, user: User) -> None:
     logger.info("User %s requested to study.", user.login)
@@ -153,6 +176,43 @@ class NextStudyLanguageSelected(Signal):
     language_id: int
 
 
+_card_cache = {}
+_CARD_CACHE_TTL = 600
+
+
+def cache_cards(user_id, language_id, cards_ids):
+    _card_cache[(user_id, language_id)] = {
+        "card_ids": deque(cards_ids),
+        "timestamp": time.time(),
+    }
+
+
+def get_card_from_cache(ctx: Context, user: User):
+    language = get_studied_language(user)
+    user_cache = _card_cache.get((user.id, language.id))
+
+    if (
+        not user_cache
+        or len(user_cache.get("card_ids")) == 0
+        or ((time.time() - user_cache["timestamp"]) > _CARD_CACHE_TTL)
+        or not (card := get_card(user_cache["card_ids"].popleft()))
+    ):
+        logger.debug(
+            f"Filling up cards cache for user {user.login} for {language.name}."
+        )
+        cards = get_remaining_cards(ctx, user, language)
+        if not cards:
+            return None
+        card = cards[0]
+        card_ids = [card.id for card in cards[1:]]
+        cache_cards(user.id, language.id, card_ids)
+        logger.debug(
+            f"{len(card_ids)} cards were added to cards cache for user {user.login} for {language.name} with ttl={_CARD_CACHE_TTL}s."
+        )
+
+    return card
+
+
 @bus.on(StudySessionRequested)
 @bus.on(CardGraded)
 @router.authorize()
@@ -171,62 +231,59 @@ async def study_next_card(ctx: Context, user: User) -> None:
         update: The Telegram update that triggered this function.
         context: The callback context as part of the Telegram framework.
     """
+    card = get_card_from_cache(ctx, user)
 
-    cards = get_remaining_cards(ctx, user, get_studied_language(user))
-
-    if not cards:
+    if not card:
         logger.info("User %s has no cards to study.", user.login)
-        bus.emit(StudySessionFinished(user.id), ctx=ctx)
-        image_path = await get_finish_image()
-        # If the user has cards to study in other languages, ask if they want
-        # to switch to other languages.
-        keyboard = None
-        text = "All done for today."
-        cards = get_remaining_cards(ctx, user)
-        if cards:
-            text = "All done for today. Switch to the next language?"
-            language_ids = {card.note.language_id for card in cards}
-            logger.warning(language_ids)
-            languages = [Language.from_id(id) for id in language_ids]
-            keyboard = Keyboard(
-                _pack_buttons(
-                    [
-                        Button(
-                            language.flag
-                            + language.get_localized_name(ctx.locale),
-                            NextStudyLanguageSelected(user.id, language.id),
-                        )
-                        for language in languages
-                        if language and language.code
-                    ]
-                )
-            )
-        return await ctx.send_message(
-            _(text), image=image_path, markup=keyboard
-        )
-
-    card = cards[0]
+        await bus.emit_and_wait(StudySessionFinished(user.id), ctx=ctx)
+        return
 
     keyboard = Keyboard([[Button(_("ANSWER"), CardAnswerRequested(card.id))]])
     front = await card.get_front()
     logger.info("Display card front for user %s: %s", user.login, front)
     bus.emit(CardQuestionShown(card.id))
+    on_reaction = {}
+    if isinstance(card, DirectCard):
+        on_reaction[Emoji.PRAY] = ExamplesRequested(note_id=card.note.id)
+        on_reaction[Emoji.FIRE] = bus.signal(
+            "SharablePostRequested", note_id=card.note.id
+        )
+
     return await ctx.send_message(
         format_explanation(front["text"]),
         keyboard,
         front.get("image") or (await get_default_image()),
         reply_to=None,
         context={"note_id": card.note.id, "card_id": card.id},
-        on_reaction=(
-            {
-                Emoji.PRAY: (
-                    ExamplesRequested(note_id=card.note.id)
-                    if isinstance(card, DirectCard)
-                    else []
-                ),
-            }
-        ),
+        on_reaction=on_reaction,
     )
+
+
+@bus.on(StudySessionFinished)
+@router.authorize()
+async def handle_session_finish(ctx: Context, user: User) -> None:
+    image_path = await get_finish_image()
+    keyboard = None
+    text = "All done for today."
+    cards = get_remaining_cards(ctx, user)
+    if cards:
+        text = "All done for today. Switch to the next language?"
+        language_ids = {card.note.language_id for card in cards}
+        languages = [Language.from_id(id) for id in language_ids]
+        keyboard = Keyboard(
+            _pack_buttons(
+                [
+                    Button(
+                        language.flag
+                        + language.get_localized_name(ctx.locale),
+                        NextStudyLanguageSelected(user.id, language.id),
+                    )
+                    for language in languages
+                    if language and language.code
+                ]
+            )
+        )
+    return await ctx.send_message(_(text), image=image_path, markup=keyboard)
 
 
 @bus.on(NextStudyLanguageSelected)
@@ -274,11 +331,16 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
     view_id = record_view_start(card.id)
     # ... prepare the keyboard with memorization quality buttons
 
+    if user.option[SimpleCardGrades]:
+        answers = [Answer.AGAIN, Answer.GOOD]
+    else:
+        answers = [answer for answer in Answer]
+
     keyboard = Keyboard(
         [
             [
                 Button(_(answer.name), CardGradeSelected(view_id, answer))
-                for answer in Answer
+                for answer in answers
             ]
         ]
     )
@@ -288,6 +350,7 @@ async def handle_study_answer(ctx: Context, user: User, card_id: int) -> None:
         back.get("image"),
         on_reaction={
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: bus.signal("SharablePostRequested", note_id=note.id),
         },
     )
 
@@ -323,6 +386,21 @@ class MissingImageCardFound(Signal):
     note_id: int
 
 
+async def generate_image_for_note(note: Note, force: bool = False) -> str:
+    option_key = "explanations/en"
+    if note.language.name == "English":
+        explanation = note.field2
+    elif not (explanation := note.get_option(option_key)):
+        english = get_language("English")
+        explanation = await translate(note.field2, note.language, english)
+        note.set_option(option_key, explanation)
+
+    # Generate an image.
+    image_path = await generate_image(explanation, note.language, force=force)
+    note.set_option("image/path", image_path)
+    return image_path
+
+
 @bus.on(CardGraded)
 async def maybe_generate_image(view_id: int):
     if not (view := get_view(view_id)):
@@ -330,6 +408,9 @@ async def maybe_generate_image(view_id: int):
 
     card = view.card
     note = card.note
+    language = note.language
+    if not language.get_config("features.image_generation", default=True):
+        return
 
     # Don't generate new image if an old one is in place.
     image_path = note.get_option("image/path")
@@ -344,18 +425,9 @@ async def maybe_generate_image(view_id: int):
     if not card.is_leech():
         return
 
-    # Translate any language to English since models understand it.
-    option_key = "explanations/en"
-    if note.language.name == "English":
-        explanation = note.field2
-    elif not (explanation := note.get_option(option_key)):
-        explanation = await translate(explanation, note.language.name)
-        note.set_option(option_key, explanation)
-
     # Generate an image.
     try:
-        image_path = await generate_image(explanation)
-        note.set_option("image/path", image_path)
+        await generate_image_for_note(note)
         bus.emit(ImageGenerated(note.id))
     except Exception as e:
         logger.warning(

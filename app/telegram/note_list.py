@@ -24,11 +24,8 @@ from ..srs import (
     get_notes,
     update_note as srs_update_note,
 )
-from .note import (
-    format_explanation,
-    NoteDeletionRequested,
-    ExamplesRequested,
-)
+from .note import format_explanation, NoteDeletionRequested, WordNote
+from .examples import ExamplesRequested
 
 
 logger = logging.getLogger(__name__)
@@ -80,6 +77,7 @@ async def display_notes_by_maturity(
         user.id,
         language.id,
         maturity=[maturity_to_display],
+        note_class=WordNote,
         order_by="field1",
     )
 
@@ -368,6 +366,7 @@ async def show_note_card(
         reply_to=reply_to_message,
         on_reaction={
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: bus.signal("SharablePostRequested", note_id=note.id),
         },
     )
 

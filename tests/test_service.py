@@ -8,6 +8,8 @@ from app.config import Config as DefaultConfig
 from app.notes import Note, Language
 from app.srs import (
     Card,
+    DirectCard,
+    ReverseCard,
     View,
     Answer,
     create_word_note,
@@ -67,7 +69,7 @@ def test_add_note_and_review(app):
         end_ts = datetime.now(timezone.utc) + timedelta(days=1)
         cards = get_cards(
             user_id=get_user("test_user").id,
-            language_id=get_language("English").id,
+            language=get_language("English"),
             end_ts=end_ts,
         )
         assert len(cards) == 2
@@ -104,26 +106,26 @@ def test_get_cards_with_bury_siblings(app):
     with app.app_context():
         # Add notes and create corresponding cards
         user_id = get_user("test_user").id
-        language_id = get_language("English").id
+        language = get_language("English")
         text1, explanation1 = "word1", "meaning1"
         text2, explanation2 = "word2", "meaning2"
 
         create_word_note(
             text=text1,
             explanation=explanation1,
-            language_id=language_id,
+            language_id=language.id,
             user_id=user_id,
         )
 
         create_word_note(
             text=text2,
             explanation=explanation2,
-            language_id=language_id,
+            language_id=language.id,
             user_id=user_id,
         )
 
         # Get cards and record a view start and answer for one note's card
-        cards = get_cards(user_id=user_id, language_id=language_id)
+        cards = get_cards(user_id=user_id, language=language)
         assert len(cards) == 4  # Two notes, hence four cards
 
         # Record view interaction for the first card
@@ -134,13 +136,15 @@ def test_get_cards_with_bury_siblings(app):
         end_ts = datetime.now(timezone.utc) + timedelta(days=1)
         filtered_cards = get_cards(
             user_id=user_id,
-            language_id=language_id,
+            language=language,
             end_ts=end_ts,
             bury_siblings=True,
         )
 
-        # Since one card was reviewed, its sibling should be buried
-        assert len(filtered_cards) == 3
+        # Since one card was reviewed, its sibling should be buried,
+        # and from the remaining 2 cards, only one should be randomly fetched
+        assert len(filtered_cards) == 2
+        assert cards[0] in filtered_cards
 
         # Ensure the sibling of the reviewed card is buried
         sibling_buried = any(
@@ -162,11 +166,12 @@ def test_get_cards_with_bury_siblings(app):
         assert unrelated_card_included
 
 
-def test_update_note_function(app):
+@pytest.mark.asyncio
+async def test_update_note_function(app):
     with app.app_context():
         # Add a note to the system
         text = "sample"
-        explanation = "a sample explanation"
+        explanation = "an explanation"
         note = create_word_note(
             text=text,
             explanation=explanation,
@@ -175,21 +180,29 @@ def test_update_note_function(app):
         )
 
         # Update only the note's field2
-        note.field2 = "an updated sample explanation"
+        note.field2 = "an updated explanation"
         update_note(note)
 
         # Fetch the updated note
         updated_note = db.session.query(Note).filter_by(id=note.id).first()
 
         # Verify the note's field2 was updated accordingly
-        assert updated_note.field2 == "an updated sample explanation"
+        assert updated_note.field2 == "an updated explanation"
 
         # Check that cards associated with the note are updated with the new field2
         for card in updated_note.cards:
-            if card.front == updated_note.field1:
-                assert card.back == "an updated sample explanation"
-            elif card.back == updated_note.field1:
-                assert card.front == "an updated sample explanation"
+            front = await card.get_front()
+            assert "text" in front
+            back = await card.get_back()
+            assert "text" in back
+            if isinstance(card, DirectCard):
+                assert note.field1 in front["text"]
+                assert note.field2 not in front["text"]
+                assert note.field2 in back["text"]
+            elif isinstance(card, ReverseCard):
+                assert note.field2 in front["text"]
+                assert note.field1 not in front["text"]
+                assert note.field1 in back["text"]
 
 
 def test_get_notes_filters(app):
@@ -302,17 +315,14 @@ def test_maturity_filter(app):
         card1.ts_scheduled = datetime.now(timezone.utc) - timedelta(days=1)
         db.session.commit()
 
-        # Note2: Make it MATURE, set review intervals beyond 2 days
+        # Note2: Make it MATURE, set review intervals beyond 7 days
         view_id2a = record_view_start(card2a.id)
         record_answer(view_id2a, Answer.GOOD)
-        card2a.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"] + 1
-        )
+        card2a.stability = Config.FSRS["mature_threshold"] + 1
+
         view_id2b = record_view_start(card2b.id)
         record_answer(view_id2b, Answer.GOOD)
-        card2b.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"] + 1
-        )
+        card2b.stability = Config.FSRS["mature_threshold"] + 1
         db.session.commit()
 
         # Note3 is still NEW as it hasn't been reviewed yet

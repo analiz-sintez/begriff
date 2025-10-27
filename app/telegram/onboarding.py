@@ -166,7 +166,7 @@ async def show_how_to_add_notes(ctx: Context):
     text = """In a hole in the ground there lived a hobbit. Not a nasty, dirty, wet hole, filled with the ends of worms and an oozy smell, nor yet a dry, bare, sandy hole with nothing in it to sit down on or to eat: it was a hobbit-hole, and that means comfort."""
     studied_language = get_studied_language(ctx.user)
     text_in_studied_language = await resolve(_(text), studied_language.locale)
-    image_path = await generate_image(text)
+    image_path = await generate_image(text, studied_language)
     return await ctx.send_message(
         _(
             """
@@ -190,7 +190,8 @@ Pick one or two words you don't understand, write each on a new line, and send t
 @router.authorize()
 async def tell_how_to_study_cards(ctx: Context):
     text = """Then Bilbo sat down on a seat by his door, crossed his legs, and blew out a beautiful grey ring of smoke that sailed up into the air without breaking and floated away over The Hill. (Hobbits don't wear shoes!)"""
-    image_path = await generate_image(text)
+    studied_language = get_studied_language(ctx.user)
+    image_path = await generate_image(text, studied_language)
 
     message = await ctx.send_message(
         _(
@@ -217,6 +218,7 @@ There’s solid science behind how this works — the better you remember a word
 
 @bus.on(CardGraded, {"action": "onboarding"})
 # @bus.on(StudySessionFinished, {"action": "onboarding"})
+@router.authorize()
 async def tell_about_other_commands(ctx: Context):
     del ctx.context(ctx.conversation)["action"]
     native_language = get_native_language(ctx.user)
@@ -236,7 +238,7 @@ Other useful commands to try:
 
 • Send me the URL of an article — I’ll summarize it for you, highlighting words you’re learning (try it on Wikipedia!).
 
- • Didn’t like my explanation? React with 👎 and I’ll redo it.
+• Didn’t like my explanation? React with 👎 and I’ll redo it.
 
 • Need a usage example? React with 🙏 and I’ll give you one.
 

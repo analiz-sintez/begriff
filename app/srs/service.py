@@ -2,11 +2,11 @@ import re
 import time
 import random
 import logging
-from typing import List, Optional
+from typing import List, Optional, Type
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import and_
+from sqlalchemy import select, and_, or_, func, case
 from sqlalchemy.orm import aliased
 
 from nachricht import db
@@ -16,11 +16,34 @@ from nachricht.auth import User
 from .. import bus
 from ..config import Config
 from ..notes import Note, Language, WordNote
-from .view import View
 from .card import Card, Maturity, DirectCard, ReverseCard, CardAdded
+from .view import View
 
 
 logger = logging.getLogger(__name__)
+
+
+def _cards_maturity_cte(
+    user_id: Optional[int] = None, language_id: Optional[int] = None
+):
+    # Card is mature if its stability (aka number of days before its retrievability
+    # drops from 100% to 90%) is more than 7. If it's <= 7 but the card was reviewed
+    # at least once, it's young. Otherwise it's new.
+    card_maturity = case(
+        (Card.ts_last_review == None, Maturity.NEW.value),
+        (
+            Card.stability <= Config.FSRS["mature_threshold"],
+            Maturity.YOUNG.value,
+        ),
+        else_=Maturity.MATURE.value,
+    ).label("maturity")
+
+    cards = select(Card.id, Card.note_id, card_maturity).join(Note)
+    if user_id:
+        cards = cards.where(Note.user_id == user_id)
+    if language_id:
+        cards = cards.where(Note.language_id == language_id)
+    return cards.cte("cards_maturity")
 
 
 def get_cards(
@@ -56,78 +79,89 @@ def get_cards(
         bury_siblings,
         randomize,
     )
-    query = db.session.query(Card).join(Note)
-    query = query.filter(Note.user_id == user_id)
 
+    cards_ = select(Card).join(Note).where(Note.user_id == user_id)
     if language:
-        query = query.filter(Note.language_id == language.id)
+        cards_ = cards_.where(Note.language_id == language.id)
+    cards = cards_.cte("user_cards")
 
+    query = select(cards)
     if start_ts:
-        query = query.filter(Card.ts_scheduled > start_ts)
-
+        query = query.where(cards.c.ts_scheduled > start_ts)
     if end_ts:
-        query = query.filter(Card.ts_scheduled <= end_ts)
+        query = query.where(cards.c.ts_scheduled <= end_ts)
 
     if bury_siblings:
         # If a note has a card reviewed today, don't include its sibling cards,
         # only allow to review the reviewed card again.
         # ...step 1: Find all cards that were reviewed today
         recently_viewed_cards = (
-            db.session.query(View.card_id.distinct().label("card_id"))
-            .filter(
+            select(View.card_id.distinct().label("card_id"))
+            .join(cards, cards.c.id == View.card_id)
+            .where(
                 View.ts_review_finished
                 > (datetime.now(timezone.utc) - timedelta(hours=12))
             )
             .cte("recently_viewed_cards")
-            .select()
         )
         # ...step 2: Find distinct note_ids associated with these cards
         recent_notes = (
-            db.session.query(Card.note_id.distinct().label("note_id"))
-            .filter(Card.id.in_(recently_viewed_cards))
+            select(Card.note_id.distinct().label("note_id"))
+            .join(
+                recently_viewed_cards,
+                recently_viewed_cards.c.card_id == Card.id,
+            )
             .cte("recent_notes")
-            .select()
         )
         # ...step 3: Allow only those cards which belong to notes found in step 2
-        #    For other notes, allow all cards
-        query = query.filter(
+        #    For other notes, allow only one card
+
+        # ...step 4: Ensure only one card from each note not reviewed today is included
+        # ... generate a random number for each card
+        random_card_func = (
+            func.rank()
+            .over(partition_by=cards.c.note_id, order_by=func.random())
+            .label("random_rank")
+        )
+        # ... for each note, find the minimal (or maximal) number of these (and assign it to every row via a window function)
+        subq = select(
+            cards.c.note_id.label("note_id"),
+            cards.c.id.label("card_id"),
+            random_card_func,
+        ).subquery()
+        # ... take the card with the minimal number (with a simple where statement)
+        one_card_per_note = (
+            select(subq.c.card_id)
+            .where(subq.c.random_rank == 1)
+            .cte("one_card_per_note")
+        )
+
+        query = query.where(
             db.or_(
-                ~Card.note_id.in_(recent_notes),
-                Card.note_id.in_(recently_viewed_cards)
-                & Card.id.in_(recently_viewed_cards),
+                cards.c.id.in_(select(recently_viewed_cards.c.card_id)),
+                db.and_(
+                    ~cards.c.note_id.in_(select(recent_notes.c.note_id)),
+                    cards.c.id.in_(select(one_card_per_note.c.card_id)),
+                ),
             )
         )
 
     if maturity:
-        conditions = []
-        timetable_mature = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"]
+        cards_maturity = _cards_maturity_cte(
+            user_id, language.id if language else None
         )
-        for m in maturity:
-            if m == Maturity.NEW:
-                conditions.append(Card.ts_last_review.is_(None))
-            elif m == Maturity.YOUNG:
-                conditions.append(
-                    and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled <= timetable_mature,
-                    )
-                )
-            elif m == Maturity.MATURE:
-                conditions.append(
-                    and_(
-                        Card.ts_last_review.isnot(None),
-                        Card.ts_scheduled > timetable_mature,
-                    )
-                )
-
-        query = query.filter(db.or_(*conditions))
+        matching_cards = (
+            select(cards_maturity.c.id).where(
+                cards_maturity.c.maturity.in_([m.value for m in maturity])
+            )
+        ).cte("matching_cards")
+        query = query.join(matching_cards, cards.c.id == matching_cards.c.id)
 
     if not randomize:
-        query = query.order_by(Card.ts_scheduled.asc())
+        query = query.order_by(cards.c.ts_scheduled.asc())
 
     log_sql_query(query)
-    results = query.all()
+    results = db.session.scalars(select(Card).from_statement(query)).all()
     if randomize:
         random.shuffle(results)
 
@@ -177,22 +211,29 @@ def create_word_note(
         db.session.add(note)
         db.session.flush()
         logger.info("Note created: %s", note)
+        db.session.commit()
+        return note
+    except IntegrityError as e:
+        db.session.rollback()
+        logger.error("Integrity error occurred: %s", e)
+        raise e
 
-        # Create two cards for the note.
+
+def create_note_cards(note: Note):
+    try:
         now = datetime.now(timezone.utc)
         front_card = DirectCard(note_id=note.id, ts_scheduled=now)
         back_card = ReverseCard(note_id=note.id, ts_scheduled=now)
         db.session.add_all([front_card, back_card])
         db.session.flush()
         logger.info("Cards created: %s, %s", front_card, back_card)
-
         db.session.commit()
         bus.emit(CardAdded(front_card.id))
         bus.emit(CardAdded(back_card.id))
         logger.debug(
             "Transaction committed successfully for word note creation."
         )
-        return note
+        return [front_card, back_card]
     except IntegrityError as e:
         db.session.rollback()
         logger.error("Integrity error occurred: %s", e)
@@ -209,12 +250,38 @@ def update_note(note: Note) -> None:
     logger.info("Note update with id: %d skipped.", note.id)
 
 
+def _notes_maturity_cte(
+    user_id: Optional[int] = None, language_id: Optional[int] = None
+):
+    # Note is mature if all its cards are mature, new if all cards are new,
+    # and young otherwise.
+    cards = _cards_maturity_cte(user_id, language_id)
+    note_cards = (
+        select(Note.id.label("note_id"), cards.c.id, cards.c.maturity)
+        .select_from(Note)
+        .outerjoin(cards, Note.id == cards.c.note_id)
+    )
+    total_cards = func.count(note_cards.c.id)
+    new_cards = func.sum(note_cards.c.maturity == Maturity.NEW.value)
+    mature_cards = func.sum(note_cards.c.maturity == Maturity.MATURE.value)
+    note_maturity = case(
+        (or_(total_cards == new_cards, total_cards == 0), Maturity.NEW.value),
+        (total_cards == mature_cards, Maturity.MATURE.value),
+        else_=Maturity.YOUNG.value,
+    ).label("maturity")
+    notes = select(note_cards.c.note_id, note_maturity).group_by(
+        note_cards.c.note_id
+    )
+    return notes.cte("notes_maturity")
+
+
 def get_notes(
     user_id: int,
     language_id: Optional[int] = None,
     text: Optional[str] = None,
     explanation: Optional[str] = None,
     maturity: Optional[List[Maturity]] = None,
+    note_class: Optional[Type[Note]] = Note,
     order_by: Optional[str] = None,
 ) -> List[Note]:
     """
@@ -240,95 +307,68 @@ def get_notes(
         maturity,
         order_by,
     )
-    query = db.session.query(Note).filter_by(user_id=user_id)
+    query = select(note_class).where(note_class.user_id == user_id)
 
     if language_id:
-        query = query.filter_by(language_id=language_id)
+        query = query.where(note_class.language_id == language_id)
 
     if text:
         if text.startswith("=~"):
             logger.debug("Applying regex filter on text: '%s'", text[2:])
-            query = query.filter(Note.field1.op("REGEXP")(text[2:]))
+            query = query.where(note_class.field1.op("REGEXP")(text[2:]))
         elif "%" in text or "_" in text:
             logger.debug("Applying SQL LIKE filter on text: '%s'", text)
-            query = query.filter(Note.field1.like(text))
+            query = query.where(note_class.field1.like(text))
         else:
             logger.debug("Applying exact match filter on text: '%s'", text)
-            query = query.filter(Note.field1 == text)
+            query = query.where(note_class.field1 == text)
 
     if explanation:
         if explanation.startswith("=~"):
             logger.debug(
                 "Applying regex filter on explanation: '%s'", explanation[2:]
             )
-            query = query.filter(Note.field2.op("REGEXP")(explanation[2:]))
+            query = query.where(
+                note_class.field2.op("REGEXP")(explanation[2:])
+            )
         elif "%" in explanation or "_" in explanation:
             logger.debug(
                 "Applying SQL LIKE filter on explanation: '%s'", explanation
             )
-            query = query.filter(Note.field2.like(explanation))
+            query = query.where(note_class.field2.like(explanation))
         else:
             logger.debug(
                 "Applying exact match filter on explanation: '%s'", explanation
             )
-            query = query.filter(Note.field2 == explanation)
+            query = query.where(note_class.field2 == explanation)
 
     if maturity:
-        CardAlias = aliased(Card)
-        conditions = []
-        # This is incorrect since it depends on the current date.
-        # Definition of maturity shouldn't depend on it.
-        # But maybe for the injection menas it is good.
-        timetable_mature = datetime.now(timezone.utc) + timedelta(
-            days=Config.FSRS["mature_threshold"]
+        logger.debug("Applying maturity filter: %s", maturity)
+        notes = _notes_maturity_cte(user_id, language_id)
+        matching_notes = (
+            select(notes.c.note_id)
+            .where(notes.c.maturity.in_([m.value for m in maturity]))
+            .cte("matched_notes")
         )
-        for m in maturity:
-            if m == Maturity.NEW:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(~CardAlias.ts_last_review.is_(None))
-                    .cte("new_notes")
-                )
-                conditions.append(~Note.id.in_(subquery.select()))
-            elif m == Maturity.YOUNG:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(
-                        and_(
-                            CardAlias.ts_last_review.isnot(None),
-                            CardAlias.ts_scheduled <= timetable_mature,
-                        )
-                    )
-                    .cte("young_notes")
-                )
-                conditions.append(Note.id.in_(subquery.select()))
-            elif m == Maturity.MATURE:
-                subquery = (
-                    db.session.query(CardAlias.note_id.distinct())
-                    .filter(
-                        ~and_(
-                            CardAlias.ts_last_review.isnot(None),
-                            CardAlias.ts_scheduled > timetable_mature,
-                        )
-                    )
-                    .cte("mature_notes")
-                )
-                conditions.append(~Note.id.in_(subquery.select()))
-
-        query = query.filter(db.or_(*conditions))
+        query = query.join(
+            matching_notes,
+            note_class.id == matching_notes.c.note_id,
+        )
 
     if order_by in ["field1", "field2"]:
-        query = query.order_by(getattr(Note, order_by))
+        query = query.order_by(getattr(note_class, order_by))
 
     log_sql_query(query)
-    results = query.all()
+    results = db.session.scalars(
+        select(note_class).from_statement(query)
+    ).all()
     logger.info("Retrieved %i notes", len(results))
     logger.debug("\n".join([str(note) for note in results]))
     return results
 
 
-def format_explanation(explanation: str) -> str:
-    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets.
+def format_explanation(text: Optional[str]) -> str:
+    """Format an explanation: add newline before brackets, remove them, use /.../, and lowercase the insides of the brackets, add || for spoilers (cloze deletions).
 
     Args:
         explanation: The explanation string to format.
@@ -336,11 +376,19 @@ def format_explanation(explanation: str) -> str:
     Returns:
         The formatted explanation string.
     """
-    return re.sub(
+    if text is None:
+        return ""
+    text = re.sub(
         r"\[([^\]]+)\]",
         lambda match: f"\n_{match.group(1).lower()}_",
-        explanation,
+        text,
     )
+    text = re.sub(
+        r"{{([^\]]+)}}",
+        lambda match: f"||{match.group(1)}||",
+        text,
+    )
+    return text
 
 
 _notes_to_inject_cache = {}
@@ -372,7 +420,7 @@ def get_notes_to_inject(user: User, language: Language) -> list:
             language.id,
             maturity=[
                 getattr(Maturity, m.upper())
-                for m in Config.LLM["inject_maturity"]
+                for m in Config.FSRS["inject_maturity"]
             ],
         )
         # Randomly select inject_count notes
@@ -381,6 +429,6 @@ def get_notes_to_inject(user: User, language: Language) -> list:
 
     notes = _notes_to_inject_cache[cache_key]
     random_notes = random.sample(
-        notes, min(Config.LLM["inject_count"], len(notes))
+        notes, min(Config.FSRS["inject_count"], len(notes))
     )
     return random_notes

@@ -6,12 +6,8 @@ services:
     volumes:
       - ./:/app
       - .env:/app/.env
-      - data:/app/data
+      - ./data:/app/data
     ports:
-      - '8910:80'  # replace 8080 with a rare port if desired
+      - "${BOT_EXT_PORT:-80}:80"
     working_dir: /app
     command: python run_telegram.py
-
-volumes:
-  data:
-    driver: local

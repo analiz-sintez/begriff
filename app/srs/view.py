@@ -5,19 +5,17 @@ from typing import Optional, List
 
 import fsrs_rs_python as fsrs
 from sqlalchemy.orm import mapped_column, Mapped
-from sqlalchemy import (
-    Integer,
-    ForeignKey,
-    Interval,
-)
+from sqlalchemy import Integer, ForeignKey, Interval, func
 
 
 from nachricht import db
-from nachricht.db import Model, dttm_utc
+from nachricht.db import Model, dttm_utc, log_sql_query
+from nachricht.auth import User
 
 from ..config import Config
-from ..notes import Note
+from ..notes import Note, Language
 from .card import Card
+from .util import now
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +35,13 @@ class Answer(Enum):
 class View(Model):
     __tablename__ = "views"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ts_review_started: Mapped[dttm_utc]
-    ts_review_finished: Mapped[Optional[dttm_utc]]
-    card_id: Mapped[int] = mapped_column(Integer, ForeignKey(Card.id))
+    ts_review_started: Mapped[dttm_utc] = mapped_column(
+        default=lambda: now(), server_default=func.now()
+    )
+    ts_review_finished: Mapped[Optional[dttm_utc]] = mapped_column(index=True)
+    card_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey(Card.id), index=True
+    )
     review_duration = mapped_column(Interval)
     answer: Mapped[Optional[str]]
 
@@ -133,14 +135,17 @@ def record_view_start(card_id: int) -> int:
         int: The ID of the created view.
     """
     logger.info("Creating new view for card_id: %d", card_id)
-    view = View(card_id=card_id, ts_review_started=datetime.now(timezone.utc))
+    view = View(card_id=card_id, ts_review_started=now())
     db.session.add(view)
     db.session.commit()
     logger.info("New view created and transaction committed: %s", view)
     return view.id
 
 
-def record_answer(view_id: int, answer: Answer) -> None:
+def record_answer(
+    view_id: int,
+    answer: Answer,
+) -> None:
     """
     Record an answer for a given view and update card memory state.
 
@@ -151,15 +156,15 @@ def record_answer(view_id: int, answer: Answer) -> None:
     logger.info(
         "Recording answer for view_id: '%d', answer: '%s'", view_id, answer
     )
-    view = db.session.query(View).filter_by(id=view_id).first()
+    view = get_view(view_id)
     if not view:
         logger.error("Found no view: %s, can't update the card.", view_id)
         return
-    card = Card.query.filter_by(id=view.card_id).first()
+    card = view.card
 
     # Save answer and response time.
     view.answer = answer.value
-    view.ts_review_finished = datetime.now(timezone.utc)
+    view.ts_review_finished = now()
 
     # Update card memory state based on the answer.
     # ... stability and difficulty
@@ -169,7 +174,7 @@ def record_answer(view_id: int, answer: Answer) -> None:
         memory = None
     # ... days since last update
     if card.ts_last_review:
-        interval = (datetime.now(timezone.utc) - card.ts_last_review).days
+        interval = (now() - card.ts_last_review).days
     else:
         interval = 0
     # IDEA: use personal parameters, reevaluate them after every 1000 views.
@@ -193,16 +198,55 @@ def record_answer(view_id: int, answer: Answer) -> None:
     card.difficulty = next_state.memory.difficulty
 
     # Reschedule the card.
-    card.ts_last_review = datetime.now(timezone.utc)
+    card.ts_last_review = now()
     # Due to rounding, "again" grade often results in the immediate review.
     # TODO: prioritize cards which were rescheduled/forgotten
     #       to completely new cards.
     next_interval = round(next_state.interval)
-    card.ts_scheduled = datetime.now(timezone.utc) + timedelta(
-        days=next_interval
-    )
+    card.ts_scheduled = now() + timedelta(days=next_interval)
     db.session.commit()
     logger.info(
         "Answer recorded and next review scheduled on %s.",
         card.ts_scheduled.strftime("%Y-%m-%d"),
     )
+
+
+def count_new_cards_studied(
+    user: User, language: Optional[Language] = None, hours_ago: int = 12
+) -> int:
+    """
+    Calculate how many cards were studied for the first time during the last
+    specified hours.
+
+    A card is studied the first time if it has views with answers, and the earliest
+    such view was within the past specified hours.
+
+    Args:
+        user_id: The ID of the user.
+        language_id: The ID of the language.
+        hours_ago: The number of hours to look back.
+
+    Returns:
+        The number of cards studied for the first time in the last specified hours.
+    """
+    time_threshold = now() - timedelta(hours=hours_ago)
+
+    query = (
+        db.session.query(Card.id)
+        .join(Note)
+        .join(View)
+        .filter(
+            Note.user_id == user.id,
+            View.ts_review_finished > time_threshold,
+        )
+    )
+
+    if language:
+        query = query.filter(Note.language_id == language.id)
+
+    log_sql_query(query)
+
+    # Using GROUP BY to achieve distinct behavior in SQLite
+    new_cards_studied = query.group_by(Card.id).count()
+
+    return new_cards_studied

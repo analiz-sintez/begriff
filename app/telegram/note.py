@@ -3,14 +3,21 @@ import logging
 
 from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
+from jinja2 import Template
 
 from nachricht.llm import query_llm
 from nachricht.auth import User
 from nachricht.bus import Signal
-from nachricht.messenger import Context, Emoji
+from nachricht.messenger import Button, Context, Emoji, Keyboard, Message
 from nachricht.i18n import TranslatableString as _
+from nachricht.options import OptionGroup, Option
 
-from .. import bus, router
+from app.notes import example_note
+from app.notes.example_note import add_example_for
+from app.srs.service import create_note_cards
+from app.telegram.examples import ExampleDownvoted, ExamplesRequested
+
+from .. import bus, router, Config
 from ..llm import (
     get_explanation,
     get_base_form,
@@ -24,6 +31,9 @@ from ..notes import (
     Language,
     get_native_language,
     get_studied_language,
+    WordNote,
+    ExampleLink,
+    examples_for,
 )
 from ..srs import (
     create_word_note,
@@ -37,6 +47,33 @@ from ..srs import (
 )
 
 from .translate import TranslationRequested
+from .study import ImageGenerated, generate_image_for_note
+
+
+if Config.IMAGE["enable"]:
+    from ..image import generate_image
+else:
+
+    async def generate_image(*args, **kwargs):
+        return None
+
+
+# User study options
+class WordLookupOpts(OptionGroup):
+    model = User
+    name = _("Word lookup options")
+    description = _(
+        "These options control how words are looked up and new notes created."
+    )
+
+
+class WaitSecondLookup(Option):
+    group = WordLookupOpts
+    name = _("Wait for second lookup before study")
+    value: bool = True
+    description = _(
+        "If enabled, words are added to the study deck only after the second lookup, so you study only words you often meet in texts."
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +81,14 @@ logger = logging.getLogger(__name__)
 
 ################################################################
 # Handling User Input & Creating New Notes
+
+
+# class IsSuspended(Option):
+#     model = Note
+#     name = _('Note is suspended')
+#     value: bool = False
+#     description = _('If a note is suspended, its cards are not shown in study sessions.')
+#     private = True
 
 
 @dataclass
@@ -222,8 +267,8 @@ async def add_note(
     # triggered this slot. This requires to pass some context
     # from `bus.emit()` to slots.
     word = field1
-    if ctx.config.LLM["convert_to_base_form"] and len(field1) <= 12:
-        field1_base_form = await get_base_form(field1, studied_language.name)
+    if studied_language.get_config("features.base_form") and len(field1) <= 12:
+        field1_base_form = await get_base_form(field1, studied_language)
         logger.info("Converted %s to base form: %s", field1, field1_base_form)
         word = field1_base_form
 
@@ -257,7 +302,9 @@ async def add_note(
     # Generate what's missing
     if not explanation:
         notes_to_inject = None
-        if "explanation" in ctx.config.LLM["inject_notes"]:
+        if "explanation" in studied_language.get_config(
+            "features.inject_notes"
+        ):
             notes_to_inject = get_notes_to_inject(user, studied_language)
         # Check if the message is a reply to another message.
         context_message = None
@@ -266,7 +313,7 @@ async def add_note(
         # Ask LLM to explain the word in user's studied language.
         explanation = await get_explanation(
             word,
-            studied_language.name,
+            studied_language,
             notes=notes_to_inject,
             context=context_message,
         )
@@ -278,8 +325,8 @@ async def add_note(
     if studied_language != native_language and not translation:
         translation = await translate(
             word,
-            src_language=studied_language.name,
-            dst_language=native_language.name,
+            src_language=studied_language,
+            dst_language=native_language,
         )
         logger.info(
             "Generated a translation for text '%s': '%s'", word, translation
@@ -290,6 +337,11 @@ async def add_note(
         if needs_update:
             note.field2 = explanation
             note.set_option(translation_key, translation)
+        if not note.cards:
+            logger.info(
+                "A note without cards has been looked up second time. Creating the cards for it."
+            )
+            create_note_cards(note)
     else:
         note = create_word_note(
             word, explanation, studied_language.id, user.id
@@ -303,6 +355,12 @@ async def add_note(
             translation,
             explanation,
         )
+        if user.option[WaitSecondLookup]:
+            logger.info(
+                "WaitSecondLookup is ON: cards creation is postponed till the second lookup."
+            )
+        else:
+            create_note_cards(note)
 
     icon = "🟢" if not existing_notes else "🟡"  # new note: green ball
     display_text = format_explanation(await note.get_display_text())
@@ -312,6 +370,7 @@ async def add_note(
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
+            Emoji.FIRE: SharablePostRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
@@ -346,7 +405,7 @@ async def handle_negative_reaction(
 
     # We don't have the original message context (like a reply-to) on reaction, so pass None
     new_explanation = await get_explanation(
-        note.field1, note.language.name, notes=notes_to_inject, context=None
+        note.field1, note.language, notes=notes_to_inject, context=None
     )
 
     # Update the note with the new explanation.
@@ -367,11 +426,112 @@ async def handle_negative_reaction(
         new=True,  # Ensure it's a new message
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
-            Emoji.PRAY: ExamplesRequested(note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
+    )
+
+
+################################################################
+# Sharable post
+
+
+@dataclass
+class SharablePostRequested(Signal):
+    """A user requires a sharable post for a word."""
+
+    note_id: int
+
+
+@dataclass
+class SharablePostDownvoted(Signal):
+    """A user disliked the image on the sharable post and wants to regenerate it."""
+
+    note_id: int
+
+
+async def _make_sharable_post(note: Note) -> str:
+    template = Template(Config.TEMPLATES["sharable_post"])
+    text = template.render(
+        word=note.field1,
+        explanation=format_explanation(note.field2),
+        examples=examples_for(note),
+    )
+    return text
+
+
+# TODO refactor this: DRY
+@bus.on(SharablePostRequested)
+@router.authorize()
+async def handle_sharable_post_request(ctx: Context, user: User, note_id: int):
+    note = get_note(note_id)
+    if not isinstance(note, WordNote):
+        logger.error(f"Sharable post requested for a non-word note {note_id}")
+        return
+
+    image_path = await note.get_image(hi_res=True)
+
+    is_admin = user.login in ctx.config.AUTHENTICATION["admin_logins"]
+    if not image_path and is_admin:
+        logger.info(
+            f"Admin {user.login} requested sharable post for note {note.id} with no image. Generating one."
+        )
+        try:
+            await generate_image_for_note(note)
+            bus.emit(ImageGenerated(note.id))
+            image_path = await note.get_image(hi_res=True)
+        except Exception as e:
+            logger.error(f"Failed to generate image for note {note_id}: {e}")
+            await ctx.send_message(
+                _(
+                    "Sorry, I couldn't generate an image for this word right now."
+                )
+            )
+
+    for _ in range(3 - len(examples_for(note))):
+        await add_example_for(note)
+
+    message_text = await _make_sharable_post(note)
+    on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
+
+    await ctx.send_message(
+        text=message_text,
+        image=image_path,
+        on_reaction=on_reaction,
+        new=True,
+    )
+
+
+@bus.on(SharablePostDownvoted)
+@router.authorize(admin=True)
+async def regenerate_sharable_post_image(
+    ctx: Context, user: User, note_id: int, reply_to: Message
+):
+    note = get_note(note_id)
+    if not isinstance(note, WordNote):
+        return
+
+    logger.info(
+        f"User {user.login} requested image regeneration for note {note_id}"
+    )
+
+    try:
+        await generate_image_for_note(note, force=True)
+        bus.emit(ImageGenerated(note.id))
+        image_path = await note.get_image(hi_res=True)
+    except Exception as e:
+        logger.error(f"Failed to regenerate image for note {note_id}: {e}")
+        await ctx.send_message(
+            _("Sorry, I couldn't regenerate the image right now."), new=True
+        )
+        return
+
+    message_text = await _make_sharable_post(note)
+    on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
+
+    await ctx.send_message(
+        text=message_text, image=image_path, on_reaction=on_reaction, new=False
     )
 
 
@@ -434,7 +594,7 @@ async def check_sentence_for_mistakes(
     language = get_studied_language(user)
     native_language = get_native_language(user)
 
-    reply = await find_mistakes(text, language.name, native_language.name)
+    reply = await find_mistakes(text, language, native_language)
     message = await ctx.send_message(
         reply,
         on_reaction={
@@ -444,72 +604,3 @@ async def check_sentence_for_mistakes(
     )
     bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
     return message
-
-
-################################################################
-# Examples
-@dataclass
-class ExamplesRequested(Signal):
-    """User requested usage examples for a note."""
-
-    note_id: int
-
-
-@dataclass
-class ExamplesSent(Signal):
-    """Usage examples for a note sent to the user."""
-
-    note_id: int
-
-
-@dataclass
-class ExamplesDownvoted(Signal):
-    """The user downvoted usage examples we sent to them."""
-
-    note_id: int
-
-
-async def get_usage_examples(note: Note, ctx: Context):
-    language = Language.from_id(note.language_id)
-    native_language = get_native_language(note.user)
-    return await query_llm(
-        f"""
-You are {language.name} tutor helping a student to learn new language. Their native language is {native_language.name}.
-
-Generate three usage examples for the given word or phrase.
-
-- Examples should be full sentencts.
-- If a word has multiple different meanings, provide examples showing those meanings. Indicate this meaning in square brackets in student's native language.
-
-The pattern: the student studies German and their native language is English, the word is: "Konto".
-
-Your response:
-        
-"[Bank account] Ich habe ein neues Konto bei der Bank eröffnet, um mein Geld sicher zu verwalten.
-[Bank account] Bitte überweise den Betrag auf mein Konto bis Ende des Monats.
-[User account] Er hat ein Konto bei einem Online-Dienst, um Filme zu streamen."
-        """,
-        note.field1,
-    )
-
-
-@bus.on(ExamplesRequested)
-@bus.on(ExamplesDownvoted)
-@router.authorize()
-async def give_usage_examples(ctx: Context, user: User, note_id: int) -> None:
-    if not (note := get_note(note_id)):
-        return
-
-    try:
-        examples = await get_usage_examples(note, ctx)
-        response = format_explanation(examples)
-    except Exception as e:
-        logging.error(f"Got error while making examples: {e}")
-        response = _("Couldn't make examples, sorry.")
-
-    await ctx.send_message(
-        text=response,
-        reply_to=ctx.message,
-        on_reaction={Emoji.THUMBSDOWN: ExamplesRequested(note.id)},
-    )
-    bus.emit(ExamplesSent(note.id))
