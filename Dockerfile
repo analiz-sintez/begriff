@@ -3,8 +3,10 @@ FROM python:3.13
 
 WORKDIR /app
 
-COPY . /app
+COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN  pip install -r ./requirements.txt
+
+COPY . /app
 
 CMD ["python", "run_telegram.py"]
