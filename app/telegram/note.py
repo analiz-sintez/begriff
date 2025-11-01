@@ -70,7 +70,7 @@ class WordLookupOpts(OptionGroup):
 class WaitSecondLookup(Option):
     group = WordLookupOpts
     name = _("Wait for second lookup before study")
-    value: bool = True
+    value: bool = Config.UX["wait_second_lookup"]
     description = _(
         "If enabled, words are added to the study deck only after the second lookup, so you study only words you often meet in texts."
     )

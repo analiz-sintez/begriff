@@ -312,6 +312,7 @@ Made by @BegriffBot 😻
         "guess_input_language": True,
         "guess_input_language_threshold": 0.8,
         "simple_card_grades": True,
+        "wait_second_lookup": True,
     }
 
     FSRS = {
