@@ -3,37 +3,28 @@ import logging
 
 from typing import Optional, Tuple, Any, List, Dict, Union
 from dataclasses import dataclass
-from jinja2 import Template
 
-from nachricht.llm import query_llm
 from nachricht.auth import User
 from nachricht.bus import Signal
 from nachricht.messenger import Button, Context, Emoji, Keyboard, Message
 from nachricht.i18n import TranslatableString as _
 from nachricht.options import OptionGroup, Option
 
-from app.notes import example_note
-from app.notes.example_note import add_example_for
 from app.srs.service import create_note_cards
-from app.telegram.examples import ExampleDownvoted, ExamplesRequested
+from app.telegram.examples import ExamplesRequested
 
 from .. import bus, router, Config
 from ..llm import (
     get_explanation,
     get_base_form,
-    find_mistakes,
     translate,
     detect_language,
 )
 from ..notes import (
     language_code_by_name,
     get_language,
-    Language,
     get_native_language,
     get_studied_language,
-    WordNote,
-    ExampleLink,
-    examples_for,
 )
 from ..srs import (
     create_word_note,
@@ -47,18 +38,15 @@ from ..srs import (
 )
 
 from .translate import TranslationRequested
-from .study import ImageGenerated, generate_image_for_note
 
 
-if Config.IMAGE["enable"]:
-    from ..image import generate_image
-else:
-
-    async def generate_image(*args, **kwargs):
-        return None
+logger = logging.getLogger(__name__)
 
 
+################################################################
 # User study options
+
+
 class WordLookupOpts(OptionGroup):
     model = User
     name = _("Word lookup options")
@@ -76,12 +64,8 @@ class WaitSecondLookup(Option):
     )
 
 
-logger = logging.getLogger(__name__)
-
-
 ################################################################
 # Handling User Input & Creating New Notes
-
 
 # class IsSuspended(Option):
 #     model = Note
@@ -431,176 +415,3 @@ async def handle_negative_reaction(
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),
         },
     )
-
-
-################################################################
-# Sharable post
-
-
-@dataclass
-class SharablePostRequested(Signal):
-    """A user requires a sharable post for a word."""
-
-    note_id: int
-
-
-@dataclass
-class SharablePostDownvoted(Signal):
-    """A user disliked the image on the sharable post and wants to regenerate it."""
-
-    note_id: int
-
-
-async def _make_sharable_post(note: Note) -> str:
-    template = Template(Config.TEMPLATES["sharable_post"])
-    text = template.render(
-        word=note.field1,
-        explanation=format_explanation(note.field2),
-        examples=examples_for(note),
-    )
-    return text
-
-
-# TODO refactor this: DRY
-@bus.on(SharablePostRequested)
-@router.authorize()
-async def handle_sharable_post_request(ctx: Context, user: User, note_id: int):
-    note = get_note(note_id)
-    if not isinstance(note, WordNote):
-        logger.error(f"Sharable post requested for a non-word note {note_id}")
-        return
-
-    image_path = await note.get_image(hi_res=True)
-
-    is_admin = user.login in ctx.config.AUTHENTICATION["admin_logins"]
-    if not image_path and is_admin:
-        logger.info(
-            f"Admin {user.login} requested sharable post for note {note.id} with no image. Generating one."
-        )
-        try:
-            await generate_image_for_note(note)
-            bus.emit(ImageGenerated(note.id))
-            image_path = await note.get_image(hi_res=True)
-        except Exception as e:
-            logger.error(f"Failed to generate image for note {note_id}: {e}")
-            await ctx.send_message(
-                _(
-                    "Sorry, I couldn't generate an image for this word right now."
-                )
-            )
-
-    for _ in range(3 - len(examples_for(note))):
-        await add_example_for(note)
-
-    message_text = await _make_sharable_post(note)
-    on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
-
-    await ctx.send_message(
-        text=message_text,
-        image=image_path,
-        on_reaction=on_reaction,
-        new=True,
-    )
-
-
-@bus.on(SharablePostDownvoted)
-@router.authorize(admin=True)
-async def regenerate_sharable_post_image(
-    ctx: Context, user: User, note_id: int, reply_to: Message
-):
-    note = get_note(note_id)
-    if not isinstance(note, WordNote):
-        return
-
-    logger.info(
-        f"User {user.login} requested image regeneration for note {note_id}"
-    )
-
-    try:
-        await generate_image_for_note(note, force=True)
-        bus.emit(ImageGenerated(note.id))
-        image_path = await note.get_image(hi_res=True)
-    except Exception as e:
-        logger.error(f"Failed to regenerate image for note {note_id}: {e}")
-        await ctx.send_message(
-            _("Sorry, I couldn't regenerate the image right now."), new=True
-        )
-        return
-
-    message_text = await _make_sharable_post(note)
-    on_reaction = {Emoji.THUMBSDOWN: SharablePostDownvoted(note_id=note.id)}
-
-    await ctx.send_message(
-        text=message_text, image=image_path, on_reaction=on_reaction, new=False
-    )
-
-
-################################################################
-# Grammar check
-
-
-@dataclass
-class GrammarCheckRequested(Signal):
-    """A user asked to check the phrase or sentence for the grammar errors."""
-
-    user_id: int
-    text: str
-
-
-@dataclass
-class GrammarCheckSent(Signal):
-    """The user text was checked for the grammar errors and the reply was sent."""
-
-    user_id: int
-    text: str
-
-
-@dataclass
-class GrammarCheckDownvoted(Signal):
-    """The user disliked the grammar check we sent them."""
-
-    user_id: int
-    text: str
-
-
-@router.command(
-    "check", ["text"], description=_("Check a phrase for grammar mistakes")
-)
-@router.authorize()
-async def _check_sentence_for_mistakes(
-    ctx: Context,
-    user: User,
-    text: Optional[str] = None,
-):
-    if not text:
-        return await ctx.send_message(
-            _(
-                """
-Send me a phrase or a sentence, and I'll check it for grammatic or other mistakes.
-        """
-            )
-        )
-    bus.emit(GrammarCheckRequested(user.id, text), ctx=ctx)
-
-
-@bus.on(GrammarCheckRequested)
-@router.authorize()
-async def check_sentence_for_mistakes(
-    ctx: Context,
-    user: User,
-    text: str,
-    explanation: Optional[str] = None,
-):
-    language = get_studied_language(user)
-    native_language = get_native_language(user)
-
-    reply = await find_mistakes(text, language, native_language)
-    message = await ctx.send_message(
-        reply,
-        on_reaction={
-            Emoji.THUMBSDOWN: GrammarCheckDownvoted(user.id, text),
-            Emoji.PRAY: GrammarCheckRequested(user.id, text),
-        },
-    )
-    bus.emit(GrammarCheckSent(user.id, text), ctx=ctx)
-    return message

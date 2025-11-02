@@ -13,6 +13,7 @@ from app.config import Config as DefaultConfig
 from app.srs import (
     Answer,
     create_word_note,
+    create_note_cards,
     get_language,
     record_view_start,
     get_card,
@@ -70,12 +71,14 @@ def test_study_session(app):
         note = create_word_note(
             "test_word", "test_explanation", language.id, user.id
         )
+        create_note_cards(note)
         note2 = create_word_note(
             "another_test_word",
             "another_test_explanation",
             language.id,
             user.id,
         )
+        create_note_cards(note2)
 
         # Initialize the card from the note
         first_card = note.cards[0]

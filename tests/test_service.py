@@ -13,6 +13,7 @@ from app.srs import (
     View,
     Answer,
     create_word_note,
+    create_note_cards,
     get_cards,
     get_notes,
     record_view_start,
@@ -26,6 +27,9 @@ from app.srs import (
 class Config(DefaultConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    UX = {
+        "wait_second_lookup": False,
+    }
 
 
 @pytest.fixture
@@ -47,12 +51,13 @@ def test_add_note_and_review(app):
         # 0/ Add a note to the system
         text = "example"
         explanation = "an example explanation"
-        create_word_note(
+        note = create_word_note(
             text=text,
             explanation=explanation,
             language_id=get_language("English").id,
             user_id=get_user("test_user").id,
         )
+        create_note_cards(note)
 
         # Assert the note and cards have been created
         notes = db.session.query(Note).all()
@@ -110,19 +115,21 @@ def test_get_cards_with_bury_siblings(app):
         text1, explanation1 = "word1", "meaning1"
         text2, explanation2 = "word2", "meaning2"
 
-        create_word_note(
+        note1 = create_word_note(
             text=text1,
             explanation=explanation1,
             language_id=language.id,
             user_id=user_id,
         )
+        create_note_cards(note1)
 
-        create_word_note(
+        note2 = create_word_note(
             text=text2,
             explanation=explanation2,
             language_id=language.id,
             user_id=user_id,
         )
+        create_note_cards(note2)
 
         # Get cards and record a view start and answer for one note's card
         cards = get_cards(user_id=user_id, language=language)
@@ -178,6 +185,7 @@ async def test_update_note_function(app):
             language_id=get_language("English").id,
             user_id=get_user("test_user").id,
         )
+        create_note_cards(note)
 
         # Update only the note's field2
         note.field2 = "an updated explanation"
@@ -210,26 +218,29 @@ def test_get_notes_filters(app):
         user_id = get_user("test_user").id
         language_id = get_language("English").id
 
-        create_word_note(
+        note1 = create_word_note(
             text="apple",
             explanation="a fruit",
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note1)
 
-        create_word_note(
+        note2 = create_word_note(
             text="banana",
             explanation="another fruit",
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note2)
 
-        create_word_note(
+        note3 = create_word_note(
             text="cat",
             explanation="an animal",
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note3)
 
         # Test text filter
         notes = get_notes(
@@ -288,6 +299,7 @@ def test_maturity_filter(app):
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note1)
 
         note2 = create_word_note(
             text="elephant",
@@ -295,6 +307,7 @@ def test_maturity_filter(app):
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note2)
 
         note3 = create_word_note(
             text="lion",
@@ -302,6 +315,7 @@ def test_maturity_filter(app):
             language_id=language_id,
             user_id=user_id,
         )
+        create_note_cards(note3)
 
         # Simulate reviews to modify maturity
         card1 = note1.cards[0]

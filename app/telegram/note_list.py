@@ -13,18 +13,19 @@ from nachricht.messenger import Context, Keyboard, Button, Emoji
 from .. import bus, router
 from ..config import Config
 from ..notes import (
+    Note,
+    WordNote,
     Language,
     get_note,
     get_native_language,
     get_studied_language,
 )
 from ..srs import (
-    Note,
     Maturity,
     get_notes,
     update_note as srs_update_note,
 )
-from .note import format_explanation, NoteDeletionRequested, WordNote
+from .note import format_explanation, NoteDeletionRequested
 from .examples import ExamplesRequested
 
 
