@@ -27,9 +27,6 @@ from app.srs import (
 class Config(DefaultConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    UX = {
-        "wait_second_lookup": False,
-    }
 
 
 @pytest.fixture

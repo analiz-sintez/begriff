@@ -262,3 +262,6 @@ msgstr ""
 "sucio y húmedo, lleno de restos de gusanos y de un olor húmedo y pegajoso, "
 "ni tampoco un agujero seco, desnudo y arenoso, sin nada para sentarse ni "
 "para comer: era un agujero de hobbit, y eso significa comodidad."
+
+msgid "All done for today."
+msgstr "All done for today. - Todo listo por hoy."

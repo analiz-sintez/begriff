@@ -354,7 +354,7 @@ async def add_note(
         on_reaction={
             Emoji.THUMBSDOWN: NoteDownvoted(note_id=note.id),
             Emoji.PRAY: ExamplesRequested(note_id=note.id),
-            Emoji.FIRE: SharablePostRequested(note_id=note.id),
+            Emoji.FIRE: bus.signal("SharablePostRequested", note_id=note.id),
         },
         on_command={
             "delete": NoteDeletionRequested(user_id=user.id, note_id=note.id),

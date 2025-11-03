@@ -5,7 +5,6 @@ import asyncio
 
 from nachricht import create_app, db
 from nachricht.auth import User, get_user
-from nachricht.messenger.telegram import TelegramContext as Context
 
 from app.telegram.note import _parse_line
 from app.telegram.study import handle_study_answer, handle_study_grade
