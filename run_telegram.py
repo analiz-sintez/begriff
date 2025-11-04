@@ -31,7 +31,9 @@ def create_bot(token: str, router: Router, bus: Bus) -> Application:
     Returns:
         A configured Application instance representing the bot.
     """
-    application = Application.builder().token(token).build()
+    application = (
+        Application.builder().token(token).concurrent_updates(True).build()
+    )
     attach_bus(bus, router)
     attach_router(router, application)
     return application

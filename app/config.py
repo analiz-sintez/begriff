@@ -151,7 +151,7 @@ Your response:
 
 Generate one usage example for the given word or phrase.
 
-- Example should be a full sentence.
+- Example should be a full sentence. Use the word in the sentence in the appropriate form.
 - Enclose the word with double braces.
 - If a word has multiple different meanings, provide an example showing the most common meaning. Indicate this meaning in square brackets in {{ language }} at the line start with one or two words.
 
@@ -301,7 +301,7 @@ Bäume — der Baum""",
 🔸{% if example.field2 %}_{{example.field2}}_ {% endif %}{{ example.field1 | trim | replace('{{','||') | replace('}}', '||') }}
 {% endfor %}
 
-Made by @BegriffBot 😻
+@BegriffBot 😻
 """
     }
 

@@ -19,6 +19,21 @@ vertexai.init(
 )
 
 
+def _generate_image(model_name, prompt):
+    image_model = ImageGenerationModel.from_pretrained(model_name)
+    logger.debug("Loaded image generation model: %s", model_name)
+
+    # Generate the image
+    response = image_model.generate_images(
+        prompt=prompt,
+        number_of_images=1,
+        aspect_ratio="16:9",
+        safety_filter_level="block_some",
+        person_generation="allow_all",
+    )
+    return response
+
+
 async def generate_image(
     description: str, language: Language, force: bool = False
 ) -> str:
@@ -56,22 +71,14 @@ async def generate_image(
     os.makedirs(os.path.dirname(image_path), exist_ok=True)
     logger.info("Ensured directory exists for the image path.")
 
-    # Load the image generation model
-    model_name = Config.IMAGE["model"]
-    image_model = ImageGenerationModel.from_pretrained(model_name)
-    logger.info("Loaded image generation model: %s", model_name)
-
     # Generate the image
     prompt_template = language.get_config("prompts.image")
     prompt = prompt_template % description
     logger.info("Generating image with prompt: %s", prompt)
     response = await to_thread(
-        image_model.generate_images,
+        _generate_image,
+        model_name=Config.IMAGE["model"],
         prompt=prompt,
-        number_of_images=1,
-        aspect_ratio="16:9",
-        safety_filter_level="block_some",
-        person_generation="allow_all",
     )
     logger.info("Image generation completed.")
 
